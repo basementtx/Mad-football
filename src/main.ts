@@ -6,7 +6,10 @@ import '@fontsource/oswald/600.css';
 import '@fontsource/oswald/700.css';
 import '@fontsource/roboto-condensed/500.css';
 import '@fontsource/roboto-condensed/700.css';
+import '@fontsource/permanent-marker/400.css';
+import '@fontsource/roboto-condensed/400.css';
 import './ui/style.css';
+import './ui/dossier.css';
 
 import { Input, Insets } from './engine/input';
 import { audio } from './engine/audio';

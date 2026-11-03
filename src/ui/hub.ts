@@ -5,13 +5,15 @@ import { audio } from '../engine/audio';
 import { profile, clubTeamDef, clubOverall, cardById, freeCrateReady } from '../meta/profile';
 import { itemById, itemName } from '../meta/items';
 import { itemIcon } from '../pixel/icons';
-import { setScreen, bind, esc, paintTag, logoSource, flagTag, crestTag, coinsPill, crateTag, spriteSource, lookFor, MenuHandlers } from './common';
+import { setScreen, bind, esc, paintTag, logoSource, flagTag, crestTag, coinsPill, crateTag, spriteSource, portraitSource, lookFor, MenuHandlers } from './common';
 import { cardHTML } from './cards';
 import { showSetup, showSettings, showHowTo } from './menus';
 import { showClubEditor, showSquad } from './club';
 import { showCreator } from './creator';
 import { showShop } from './shop';
 import { showCollection } from './collection';
+import { showMarket } from './market';
+import { market, tickMarket } from '../meta/market';
 import { TEAMS } from '../game/teams';
 import { league, positionOf, ROUNDS } from '../meta/league';
 import { showLeague } from './league';
@@ -43,6 +45,7 @@ export function showHub(h: MenuHandlers) {
   const club = clubTeamDef();
   if (!club) return showClubEditor(h, true);
   const me = cardById(profile.myPlayer);
+  tickMarket();
   const free = freeCrateReady() || profile.starterCrate;
   const fx = itemById(profile.equipped.goalfx);
   const kit = profile.loadout.map((id) => itemById(id)).filter((i): i is NonNullable<typeof i> => !!i);
@@ -84,6 +87,11 @@ export function showHub(h: MenuHandlers) {
           <div class="tile-label">${L.inventory}</div>
           <small>${kit.length} ${L.items} • ${fx ? esc(itemName(fx)) : ''}</small>
         </button>
+        <button class="tile tile-market" data-act="market">
+          <div class="tile-art mk-art">${market.listings.slice(0, 3).map((l) => paintTag(portraitSource(lookFor(TEAMS[(l.card.name.length) % TEAMS.length], l.card.look, l.card.pos === 'GK')), 'mk-hub-face')).join('')}</div>
+          <div><div class="tile-label">${L.transfers}</div><small>${L.transfersSub}</small></div>
+          ${market.offers.length ? `<div class="badge">${market.offers.length}</div>` : ''}
+        </button>
         <button class="tile tile-sm" data-act="quick"><div class="tile-label">⚡ ${L.quickMatch}</div></button>
       </div>
     </div>`,
@@ -95,6 +103,7 @@ export function showHub(h: MenuHandlers) {
   bind('[data-act=player]', () => { audio.click(); showCreator(h, false); });
   bind('[data-act=shop]', () => { audio.click(); showShop(h); });
   bind('[data-act=collection]', () => { audio.click(); showCollection(h); });
+  bind('[data-act=market]', () => { audio.select(); showMarket(h); });
   bind('[data-act=howto]', () => { audio.click(); showHowTo(() => showHub(h)); });
   bind('[data-act=settings]', () => { audio.click(); showSettings(h, () => showHub(h)); });
   bind('[data-act=lang]', () => {
