@@ -3,6 +3,7 @@ import { audio } from '../engine/audio';
 import { flagCanvas } from '../pixel/flags';
 import { playerSheet, FRAMES, CELL_W, CELL_H, PlayerLook } from '../pixel/player';
 import { textCanvas } from '../pixel/font';
+import { portraitCanvas } from '../pixel/portrait';
 import { crestCanvas } from '../pixel/crest';
 import { crateCanvases } from '../pixel/crate';
 import { ramp, css } from '../pixel/palette';
@@ -84,16 +85,9 @@ export function spriteSource(look: PlayerLook, frame: string, left = false, glow
   };
 }
 
-/** Upper-body crop of a sprite for card portraits. */
+/** Front-facing headshot for card portraits. */
 export function portraitSource(look: PlayerLook) {
-  return () => {
-    const sheet = playerSheet(look).canvas;
-    const c = document.createElement('canvas');
-    c.width = 26;
-    c.height = 24;
-    c.getContext('2d')!.drawImage(sheet, FRAMES.idle0 * CELL_W + 8, 2, 26, 24, 0, 0, 26, 24);
-    return c;
-  };
+  return () => portraitCanvas(look);
 }
 
 export function logoSource(text: string, scale: number, color: string, color2: string, shadow: string) {

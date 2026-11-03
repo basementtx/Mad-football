@@ -15,6 +15,7 @@ import { GK_HOLD } from './match';
 import { t } from '../engine/i18n';
 import { itemById, itemName, ROMAN, TIER_COLOR } from '../meta/items';
 import { itemIcon } from '../pixel/icons';
+import { crestCanvas } from '../pixel/crest';
 import { esc } from '../ui/common';
 
 const IDS: BtnId[] = ['a', 'b', 'c', 'd', 'e'];
@@ -233,8 +234,15 @@ export class DomHud {
         this.lastScore[i] = team.score;
         setText(s.num, String(team.score));
       }
-      paintIcon(s.icon, team.item ? 'pw_' + team.item : null);
-      setCls(s.chip, 'on', !!team.item);
+      if (s.icon.dataset.team !== team.def.id) {
+        s.icon.dataset.team = team.def.id;
+        const cr = crestCanvas(team.def.crest, team.def.primary, team.def.secondary);
+        s.icon.width = cr.width;
+        s.icon.height = cr.height;
+        const g = s.icon.getContext('2d')!;
+        g.imageSmoothingEnabled = false;
+        g.drawImage(cr, 0, 0);
+      }
     });
     const c = Math.ceil(m.clock);
     setText(this.clock, `${Math.floor(c / 60)}:${(c % 60).toString().padStart(2, '0')}`);

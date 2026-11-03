@@ -96,16 +96,20 @@ tools/sheet.html   geliştirme aracı: tüm oyuncu sprite karelerini gösterir (
   ui/       menüler (DOM) + stil
 ```
 
-## Mobil uygulama olarak paketleme (Android / iOS)
+## Android APK
 
-Proje [Capacitor](https://capacitorjs.com) ile paketlenmeye hazır (`capacitor.config.json` mevcut):
+Proje Capacitor ile Android'e paketli (`android/` klasörü repoda). Her push'ta GitHub Actions (`.github/workflows/android-apk.yml`) APK'yı derler ve **Releases** sayfasına `MadFootball-<numara>.apk` olarak koyar:
+
+1. Telefonda repo sayfasında **Releases → en son sürüm** → `.apk` dosyasını indir.
+2. Dosyayı aç ve kur (tarayıcın için "bilinmeyen uygulamaları yükle" iznini vermen istenebilir).
+3. Tüm sürümler aynı anahtarla imzalanır: yeni APK eskisinin üstüne kurulur, kayıtların silinmez.
+
+Oyun yatay ve tam ekran açılır, ekran kapanmaz. Yerelde derlemek için (Android SDK gerekir):
 
 ```bash
-npm i @capacitor/core @capacitor/cli @capacitor/android @capacitor/ios
-npm run build
-npx cap add android      # veya: npx cap add ios
-npx cap sync
-npx cap open android     # Android Studio'da çalıştır / imzala
+npm install
+npm run android                    # web derlemesi + cap sync
+cd android && ./gradlew assembleDebug
 ```
 
 Oyun aynı zamanda bir PWA: mobil tarayıcıda "Ana ekrana ekle" ile tam ekran ve yatay olarak açılır.

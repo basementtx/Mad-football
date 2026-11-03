@@ -1,0 +1,66 @@
+# Builds the Android APK (Capacitor) and publishes it as a GitHub Release,
+# so it can be downloaded and installed straight from the phone.
+name: Android APK
+
+on:
+  push:
+    branches: ['main', 'claude/**']
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install and build the web game
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Build the APK
+        working-directory: android
+        env:
+          APK_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          mkdir -p ../out
+          cp app/build/outputs/apk/debug/app-debug.apk ../out/MadFootball-${{ github.run_number }}.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MadFootball-apk
+          path: out/*.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Mad Football APK (build ${{ github.run_number }})
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: out/*.apk
+          body: |
+            Android build from `${{ github.ref_name }}` @ ${{ github.sha }}.
+            Download the .apk on your phone and open it to install (allow "install unknown apps" for your browser if asked).
+            Every build is signed with the same key, so a new one installs over the old one and keeps your save.

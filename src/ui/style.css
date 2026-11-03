@@ -408,7 +408,7 @@ canvas.flag { width: 39px; height: 27px; display: block; }
 .r-hero .pc-ovr, .r-legend .pc-ovr, .custom .pc-ovr { text-shadow: 2px 2px 0 var(--ink); }
 .pc-pos { font-family: var(--display); font-size: calc(var(--w) * 0.08); margin-top: 3px; }
 .pc-crest { width: calc(var(--w) * 0.2); height: calc(var(--w) * 0.225); }
-.pc-portrait { width: calc(var(--w) * 0.62); height: calc(var(--w) * 0.57); margin-top: calc(var(--w) * -0.06); position: relative; z-index: 1; }
+.pc-portrait { width: calc(var(--w) * 0.64); height: calc(var(--w) * 0.6); margin-top: calc(var(--w) * -0.04); position: relative; z-index: 1; }
 .pc-name { font-family: var(--display); font-size: calc(var(--w) * 0.085); margin-top: 2px; white-space: nowrap; overflow: hidden; max-width: 100%; z-index: 1; }
 .pc-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px calc(var(--w) * 0.06); margin-top: calc(var(--w) * 0.04); z-index: 1; }
 .pc-stats span { font-family: var(--display); font-size: calc(var(--w) * 0.062); white-space: nowrap; opacity: 0.9; }
@@ -810,9 +810,8 @@ canvas.flag { width: 39px; height: 27px; display: block; }
 .tnum.pop { animation: dnum .6s cubic-bezier(.34,1.56,.64,1); }
 @keyframes dnum { 0% { transform: scale(1.6); color: var(--marker); } 60% { color: var(--marker); } 100% { transform: scale(1); color: var(--paper); } }
 .dash { width: calc(14 * var(--u)); height: calc(4 * var(--u)); background: var(--paper); box-shadow: var(--sh); }
-.tchip { display: flex; align-items: center; justify-content: center; width: calc(24 * var(--u)); height: calc(24 * var(--u)); border: calc(1.5 * var(--u)) dashed rgba(246,241,230,0.35); }
-.tchip canvas { width: 80%; height: 80%; }
-.tchip.on { background: var(--paper); border: 0; }
+.tchip { display: flex; align-items: center; justify-content: center; width: calc(30 * var(--u)); height: calc(34 * var(--u)); }
+.tchip canvas { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 calc(2 * var(--u)) 0 rgba(21,23,28,0.7)); }
 .dclock { margin-top: calc(2 * var(--u)); font-family: Oswald, sans-serif; font-size: calc(17 * var(--u)); font-weight: 600; background: rgba(21,23,28,0.55); padding: 0 calc(10 * var(--u)); }
 .dclock.urgent { background: var(--stamp); animation: dpulse .5s steps(2) infinite; }
 
