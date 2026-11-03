@@ -36,6 +36,28 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 | Çalım / Güç Şutu (öfke doluyken) | Mor tuş | I / E |
 | Duraklat | ‖ tuşu | Esc / P |
 
+## Test etme
+
+**1. Telefonda hemen oyna (kurulum yok):** Claude'un yayınladığı test sürümünü aç: https://claude.ai/artifact/5TkPhqTJ3kquBGVTrQwg4i
+Bağlantı özel; yalnızca hesap sahibi açabilir. Telefonu yan çevir.
+
+**2. Bilgisayarda (en hızlı geliştirme döngüsü):**
+
+```bash
+git clone https://github.com/basementtx/mad-football.git
+cd mad-football
+git checkout ccr-5a434576-s3e482
+npm install
+npm run dev
+```
+
+- Tarayıcıda `http://localhost:5173` adresini aç. Klavye: WASD hareket, J/Boşluk şut-kay, K pas, Shift depar, I çalım, Esc duraklat.
+- Dokunmatik kontrolleri bilgisayarda denemek için Chrome'da F12 → cihaz simgesi (Toggle device toolbar) → bir telefon seç → yatay çevir.
+
+**3. Kendi telefonunda (aynı Wi-Fi):** `npm run dev` çıktısındaki `Network: http://192.168.x.x:5173` adresini telefonun tarayıcısında aç. Kodu kaydettiğin anda telefonda yenilenir.
+
+**4. Denge testi:** `npm run sim -- normal 4` komutu 20 maçı yapay zekâya karşı yapay zekâ olarak arka planda oynatır; maç başına gol, yere serme, şut ve kurtarış ortalamalarını yazar.
+
 ## Geliştirme
 
 ```bash
