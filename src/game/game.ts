@@ -3,6 +3,9 @@ import { Camera } from './camera';
 import { Renderer } from './renderer';
 import { FX } from './fx';
 import { drawHUD, BtnLabel } from './hud';
+import { DomHud } from './domhud';
+
+const setCls = (e: HTMLElement, c: string, on: boolean) => { if (e.classList.contains(c) !== on) e.classList.toggle(c, on); };
 import type { Input, BtnId } from '../engine/input';
 import { audio } from '../engine/audio';
 import { dist } from '../engine/math';
@@ -126,8 +129,20 @@ export class Game {
     };
   }
 
+  /** DOM HUD layer (Dossier style), only for a real match */
+  private dom: DomHud | null = null;
+
   draw(ctx: CanvasRenderingContext2D, W: number, H: number, showHud: boolean) {
     this.renderer.draw(ctx, this.cam, this.time);
-    if (showHud && this.input) drawHUD(ctx, this.match, this.input, W, H, this.time, this.match.cfg.demo ? null : this.labels());
+    if (!this.input || this.match.cfg.demo) return;
+    if (showHud) drawHUD(ctx, this.match, this.input, W, H);
+    this.dom ??= new DomHud(document.body);
+    setCls(this.dom.root, 'off', !showHud);
+    if (showHud) this.dom.update(this, this.input, this.labels(), this.time);
+  }
+
+  dispose() {
+    this.dom?.destroy();
+    this.dom = null;
   }
 }

@@ -104,7 +104,7 @@ export class Match {
       const cards = team.index === 0 ? cfg.homeCards : undefined;
       roles.forEach((r, i) => {
         const card = cards?.[i];
-        const p = new Player(team, i, r, card ? card.name.split(' ').pop()! : names[i % names.length], r === 'GK' ? 1 : nums[i]);
+        const p = new Player(team, i, r, card ? card.name.split(' ').pop()! : names[i % names.length] ?? (r === 'GK' ? 'Keeper' : 'Player ' + (i + 1)), r === 'GK' ? 1 : nums[i]);
         if (r === 'FWD') p.number = pick([9, 10, 11, 7]);
         if (card) {
           p.applyCard(card);

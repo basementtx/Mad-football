@@ -1,6 +1,11 @@
 import '@fontsource/press-start-2p';
 import '@fontsource/pixelify-sans/400.css';
 import '@fontsource/pixelify-sans/700.css';
+import '@fontsource/oswald/500.css';
+import '@fontsource/oswald/600.css';
+import '@fontsource/oswald/700.css';
+import '@fontsource/roboto-condensed/500.css';
+import '@fontsource/roboto-condensed/700.css';
 import './ui/style.css';
 
 import { Input, Insets } from './engine/input';
@@ -102,6 +107,7 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
   requestFullscreen();
   audio.unlock();
   const homeCards = useClub ? lineupCards().filter((c): c is CardData => !!c) : undefined;
+  game?.dispose();
   game = new Game(
     {
       home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty, demo: false,
@@ -131,6 +137,7 @@ const handlers: MenuHandlers = {
     launch(teamById('club'), teamById(fx.opp), leagueDifficulty(), true);
   },
   showLeague() {
+    game?.dispose();
     game = null;
     mode = 'menu';
     input.enabled = false;
@@ -149,6 +156,7 @@ const handlers: MenuHandlers = {
     else handlers.startMatch();
   },
   quit() {
+    game?.dispose();
     game = null;
     mode = 'menu';
     input.enabled = false;
