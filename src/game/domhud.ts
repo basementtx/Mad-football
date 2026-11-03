@@ -19,6 +19,22 @@ import { esc } from '../ui/common';
 
 const IDS: BtnId[] = ['a', 'b', 'c', 'd', 'e'];
 
+/** Stroke icons for the round touch keys (24x24, currentColor). */
+const ICONS: Record<string, string> = {
+  shoot: '<circle cx="15" cy="12" r="6"/><path d="M15 6l-2 4 3 3 3-2M3 9h5M2 13h6M4 17h5"/>',
+  pass: '<path d="M3 12h15M12 6l6 6-6 6"/><circle cx="4" cy="12" r="1.2"/>',
+  switch: '<path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/>',
+  slide: '<path d="M5 5l9 9M14 7v7H7"/><path d="M3 20h18" stroke-dasharray="3 3"/>',
+  shove: '<path d="M3 12h10M9 7l5 5-5 5"/><path d="M18 4v16"/>',
+  header: '<circle cx="9" cy="15" r="5"/><circle cx="17" cy="6" r="3"/><path d="M12 10l2-2"/>',
+  sprint: '<path d="M13 2L5 13.5h6L10 22l9-12h-6.5z"/>',
+  spin: '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 3.5v5h-5"/>',
+  punt: '<path d="M4 19C7 10 13 7 20 8"/><path d="M16 4l4 4-4 4"/><circle cx="5" cy="19" r="1.5"/>',
+  throw: '<path d="M5 20c1-7 6-12 14-13"/><path d="M15 3.5l4 3.5-3.5 4"/><path d="M3 15l3 2"/>',
+};
+const svg = (id: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[id] ?? ''}</svg>`;
+const RING_C = 2 * Math.PI * 46;
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', parent?: HTMLElement, html = '') {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -54,9 +70,6 @@ export class DomHud {
   private me: HTMLElement;
   private meKick: HTMLElement;
   private meName: HTMLElement;
-  private meBarLabel: HTMLElement;
-  private meBarVal: HTMLElement;
-  private meBar: HTMLElement;
   private meItem: HTMLElement;
   private meItemIcon: HTMLCanvasElement;
   private meItemName: HTMLElement;
@@ -69,7 +82,8 @@ export class DomHud {
   private banners = new Map<Banner, HTMLElement>();
   private joy: HTMLElement;
   private knob: HTMLElement;
-  private keys = new Map<BtnId, { box: HTMLElement; fill: HTMLElement; label: HTMLElement; icon: HTMLCanvasElement; tier: HTMLElement }>();
+  private keys = new Map<BtnId, { box: HTMLElement; prog: SVGCircleElement; ico: HTMLElement; label: HTMLElement; icon: HTMLCanvasElement; tier: HTMLElement }>();
+  private over: HTMLElement;
   private pause: HTMLElement;
   private hints: HTMLElement;
   private replay: HTMLElement;
@@ -91,10 +105,6 @@ export class DomHud {
     this.me = el('section', 'dme', R);
     this.meKick = el('div', 'kick sh', this.me);
     this.meName = el('div', 'title sh', this.me);
-    const row = el('div', 'bar-row', this.me);
-    this.meBarLabel = el('span', 'kick sh', row);
-    this.meBarVal = el('span', 'val sh', row);
-    this.meBar = el('i', '', el('div', 'dbar', this.me));
     this.meItem = el('div', 'ditem', this.me);
     this.meItemIcon = el('canvas', 'pix', this.meItem);
     this.meItemIcon.width = this.meItemIcon.height = 13;
@@ -128,15 +138,66 @@ export class DomHud {
     this.joy = el('div', 'djoy', R);
     this.knob = el('div', 'djoy-knob', this.joy);
     for (const id of IDS) {
-      const box = el('div', 'dkey dbtn k-' + id, R);
-      const fill = el('i', 'fill', box);
-      const icon = el('canvas', 'pix', box);
+      // round key: progress ring (charge) around a glossy disc with icon + label
+      const box = el('div', 'dbtn k-' + id, R);
+      box.innerHTML = `<svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><circle class="trk" cx="50" cy="50" r="46"/><circle class="prog" cx="50" cy="50" r="46" stroke-dasharray="${RING_C} ${RING_C}" stroke-dashoffset="${RING_C}"/></svg>`;
+      const prog = box.querySelector<SVGCircleElement>('.prog')!;
+      const face = el('div', 'face', box);
+      const ico = el('div', 'ico', face);
+      const icon = el('canvas', 'pix', face);
       icon.width = icon.height = 13;
-      const label = el('span', 'lbl', box);
+      const label = el('span', 'lbl', face);
       const tier = el('small', 'tier', box);
-      this.keys.set(id, { box, fill, label, icon, tier });
+      this.keys.set(id, { box, prog, ico, label, icon, tier });
     }
     this.hints = el('div', 'dhints', R);
+    // status above the controlled player's head (stamina, charge, keeper clock, effects)
+    this.over = el('div', 'dover', R);
+  }
+
+  /** Status chips that float above the controlled player's head. */
+  private updateOverhead(game: Game, k: number, time: number) {
+    const m = game.match;
+    const h = m.human;
+    const L = t();
+    const show = !!h && (m.phase === 'play' || m.phase === 'kickoff') && !m.replaying;
+    const x = h ? game.cam.sx(h.x) : 0, y = h ? game.cam.sy(h.y, h.z) : 0;
+    const on = show && x > 0 && x < game.cam.W && y > 30 && y < game.cam.H + 10;
+    setCls(this.over, 'gone', !on);
+    if (!on || !h) return;
+    setStyle(this.over, 'transform', `translate(${(x * k).toFixed(1)}px, ${((y - 44) * k).toFixed(1)}px)`);
+    const parts: string[] = [];
+    const keeper = h.isGK && m.ball.owner === h;
+    if (keeper) {
+      const left = Math.max(0, GK_HOLD - h.holdT);
+      const deg = Math.round((left / GK_HOLD) * 360);
+      parts.push(`<div class="oclock ${left < 2 ? 'warn' : ''}" style="--a:${deg}deg"><b>${left < 2 ? '!' : Math.ceil(left)}</b></div><div class="otag ${left < 2 ? 'warn' : ''}">${left < 2 ? L.holdBall : L.pos.GK}</div>`);
+    } else {
+      if (h.chargeKind !== 'none') {
+        const shot = h.chargeKind === 'shot';
+        const pct = Math.min(1, h.charge / (shot ? 1.3 : 1)) * 100;
+        const mark = shot ? 100 / 1.3 : 28;
+        const over = shot && h.charge > 1;
+        const curl = shot && Math.abs(m.curl) > 0.15 ? `<span class="ocurl">${m.curl > 0 ? '↻' : '↺'} ${t().curve.replace('!', '')}</span>` : '';
+        parts.push(`<div class="ocharge ${shot ? 'shot' : 'pass'} ${over ? 'over' : ''}"><i style="width:${pct.toFixed(0)}%"></i><s style="left:${mark.toFixed(0)}%"></s></div>${curl}`);
+      }
+      if (h.stamina < 0.985 || h.sprinting) {
+        parts.push(`<div class="ostam ${h.exhausted ? 'tired' : ''} ${h.sprinting ? 'run' : ''}">${svg('sprint')}<div><i style="width:${(h.stamina * 100).toFixed(0)}%"></i></div></div>`);
+      }
+    }
+    const fx: [string, number, number][] = [];
+    if (h.turbo > 0) fx.push(['pw_turbo', h.turbo, 4]);
+    if (h.magnet > 0) fx.push(['pw_magnet', h.magnet, 6]);
+    for (const [id, left, max] of fx) {
+      const it = itemById(id)!;
+      parts.push(`<div class="oeff" style="--c:${it.color};--a:${Math.round((left / max) * 360)}deg"><b>${left.toFixed(1)}</b></div>`);
+    }
+    const html = parts.join('');
+    if (this.over.dataset.h !== html) {
+      this.over.dataset.h = html;
+      this.over.innerHTML = html;
+    }
+    void time;
   }
 
   destroy() {
@@ -184,21 +245,8 @@ export class DomHud {
     const team = m.teams[0];
     setCls(this.me, 'gone', !h);
     if (h) {
-      const keeper = h.isGK && m.ball.owner === h;
       setText(this.meKick, `${h.isGK ? L.pos.GK : L.you} · #${h.number}`);
       setText(this.meName, (h.name ?? '').toUpperCase());
-      if (keeper) {
-        const left = Math.max(0, GK_HOLD - h.holdT);
-        setText(this.meBarLabel, L.holdBall);
-        setText(this.meBarVal, `${left.toFixed(1)}s`);
-        setStyle(this.meBar, 'width', `${(left / GK_HOLD) * 100}%`);
-        setCls(this.meBar, 'warn', left < 2);
-      } else {
-        setText(this.meBarLabel, L.sprint);
-        setText(this.meBarVal, `${Math.round(h.stamina * 100)}%`);
-        setStyle(this.meBar, 'width', `${h.stamina * 100}%`);
-        setCls(this.meBar, 'warn', h.exhausted);
-      }
       const it = team.item ? itemById('pw_' + team.item) : null;
       setCls(this.meItem, 'empty', !it);
       paintIcon(this.meItemIcon, it ? it.id : null);
@@ -265,25 +313,33 @@ export class DomHud {
       const key = this.keys.get(b.id)!;
       const lab = labels[b.id];
       const st = input.btn[b.id];
-      const size = b.r * 2 * k * 0.92;
+      const size = b.r * 2 * k * 1.02;
       setStyle(key.box, 'left', `${b.x * k - size / 2}px`);
       setStyle(key.box, 'top', `${b.y * k - size / 2}px`);
       setStyle(key.box, 'width', `${size}px`);
       setStyle(key.box, 'height', `${size}px`);
-      setStyle(key.box, '--fs', `${Math.max(9, size * (lab.text.length > 5 ? 0.2 : 0.25))}px`);
+      setStyle(key.box, '--fs', `${Math.max(8, size * (lab.text.length > 6 ? 0.13 : 0.16))}px`);
       setText(key.label, lab.text);
+      const ic = lab.ic ?? '';
+      if (key.ico.dataset.ic !== ic) {
+        key.ico.dataset.ic = ic;
+        key.ico.innerHTML = ic ? svg(ic) : '';
+      }
       setCls(key.box, 'down', st.down);
       setCls(key.box, 'dim', !!lab.dim);
-      setCls(key.box, 'glow', !!lab.glow && Math.floor(time * 3) % 2 === 0);
-      // holding: the marker fill rises with the charge
+      setCls(key.box, 'ready', !!lab.glow);
+      // charge ring fills around the key while holding shot / pass
       let fill = 0;
       if (hp && (b.id === 'a' || b.id === 'b')) {
         const kind = b.id === 'a' ? 'shot' : 'pass';
         if (hp.chargeKind === kind) fill = Math.min(1, hp.charge / (kind === 'shot' ? 1.3 : 1));
       }
-      if (b.id === 'c' && st.down) fill = hp ? hp.stamina : 0;
-      setStyle(key.fill, 'height', `${Math.round(fill * 100)}%`);
+      if (b.id === 'c' && hp && !lab.dim) fill = hp.stamina;
+      setStyle(key.prog as unknown as HTMLElement, 'stroke-dashoffset', `${(RING_C * (1 - fill)).toFixed(1)}`);
+      setCls(key.box, 'charging', fill > 0 && b.id !== 'c');
+      setCls(key.box, 'noprog', fill <= 0.001);
       setCls(key.box, 'over', b.id === 'a' && !!hp && hp.chargeKind === 'shot' && hp.charge > 1);
+      setCls(key.box, 'tired', b.id === 'c' && !!hp && hp.exhausted);
       if (b.id === 'e') {
         const id = team.item ? 'pw_' + team.item : null;
         paintIcon(key.icon, id);
@@ -292,6 +348,8 @@ export class DomHud {
         setText(key.tier, id && tier > 1 ? ROMAN[tier - 1] : '');
       }
     }
+
+    this.updateOverhead(game, k, time);
 
     // ---- desktop key hints
     if (!input.touchMode) {

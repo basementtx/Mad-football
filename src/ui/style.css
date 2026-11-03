@@ -696,30 +696,86 @@ canvas.flag { width: 39px; height: 27px; display: block; }
 .dkey { position: absolute; display: flex; align-items: center; justify-content: center; overflow: hidden; background: var(--ink); color: var(--paper); font-family: Oswald, sans-serif; font-weight: 700; }
 .dpause { gap: 18%; }
 .dpause i { width: 16%; height: 46%; background: var(--paper); }
-.dbtn { --fs: 14px; font-size: var(--fs); line-height: 1; transition: transform .08s; }
-.dbtn .lbl { position: relative; z-index: 1; padding: 0 2px; text-align: center; }
-.dbtn .fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--marker); }
-.dbtn.down { background: var(--marker); color: var(--ink); transform: scale(0.95); outline: calc(3 * var(--u)) solid var(--ink); outline-offset: calc(-3 * var(--u)); }
-.dbtn .fill:not([style*="height: 0%"]) ~ .lbl { color: var(--ink); mix-blend-mode: normal; }
-.dbtn.over .fill { background: var(--stamp); }
-.dbtn.dim { background: rgba(21,23,28,0.35); color: var(--label); border: calc(2 * var(--u)) solid rgba(214,205,186,0.55); }
-.dbtn.k-a { box-shadow: 0 calc(5 * var(--u)) 0 rgba(21,23,28,0.45); }
-.dbtn canvas { display: none; }
-.dbtn .tier { display: none; }
-.k-e.has { background: var(--paper); color: var(--ink); }
-.k-e.has canvas { display: block; width: 62%; height: 62%; position: relative; z-index: 1; }
-.k-e.has .lbl { display: none; }
-.k-e.has .tier { display: block; position: absolute; right: 6%; bottom: 4%; z-index: 2; font-family: Oswald, sans-serif; font-size: calc(var(--fs) * 0.8); background: var(--ink); color: var(--marker); padding: 0 3px; }
-.k-e.has.dim { background: rgba(246,241,230,0.45); border: 0; }
-.k-e.has.dim canvas { opacity: 0.55; }
-.dbtn.glow { box-shadow: 0 0 0 calc(4 * var(--u)) rgba(250,204,21,0.45), 0 0 calc(18 * var(--u)) calc(4 * var(--u)) rgba(250,204,21,0.55); }
-.k-e.has:not(.dim) { outline: calc(3 * var(--u)) solid var(--marker); outline-offset: calc(-3 * var(--u)); }
+/* round action keys: glossy ink disc, paper rim, stroke icon + label, charge ring */
+.dbtn { --fs: 12px; --rim: rgba(246,241,230,0.9); position: absolute; border-radius: 50%; transition: transform .08s ease-out; }
+.dbtn .ring { position: absolute; inset: calc(-5 * var(--u)); width: calc(100% + 10 * var(--u)); height: calc(100% + 10 * var(--u)); transform: rotate(-90deg); overflow: visible; }
+.dbtn .ring circle { fill: none; stroke-width: 7; }
+.dbtn .ring .trk { stroke: rgba(21,23,28,0.35); opacity: 0; transition: opacity .12s; }
+.dbtn .ring .prog { stroke: var(--marker); stroke-linecap: round; transition: stroke-dashoffset .05s linear; }
+.dbtn.charging .ring .trk { opacity: 1; }
+.dbtn.noprog .ring .prog { opacity: 0; }
+.k-c .ring .prog { stroke-width: 5; opacity: 0.85; }
+.dbtn.over .ring .prog { stroke: var(--stamp); }
+.dbtn .face { position: absolute; inset: 0; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4%;
+  color: var(--paper);
+  background: radial-gradient(circle at 34% 26%, #3a3f4c 0%, #23262f 38%, #15171C 72%);
+  box-shadow: inset 0 0 0 calc(2.5 * var(--u)) var(--rim), inset 0 calc(-5 * var(--u)) 0 rgba(0,0,0,0.35), 0 calc(5 * var(--u)) 0 rgba(21,23,28,0.5), 0 calc(8 * var(--u)) calc(14 * var(--u)) rgba(0,0,0,0.25); }
+.dbtn .face::before { content: ''; position: absolute; left: 18%; right: 18%; top: 7%; height: 30%; border-radius: 50%; background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0)); pointer-events: none; }
+.dbtn .ico { width: 42%; height: 42%; display: flex; }
+.dbtn .ico svg { width: 100%; height: 100%; }
+.dbtn .lbl { font-family: Oswald, sans-serif; font-weight: 600; font-size: var(--fs); line-height: 1; letter-spacing: 0.03em; white-space: nowrap; }
+.dbtn canvas, .dbtn .tier { display: none; }
+/* primary key: marker rim */
+.k-a .face { --rim: var(--marker); }
+.k-a .ico { width: 46%; height: 46%; }
+/* pressed: the disc turns marker, sinks */
+.dbtn.down { transform: scale(0.92); }
+.dbtn.down .face { color: var(--ink); background: radial-gradient(circle at 34% 26%, #fff3a6 0%, var(--marker) 45%, var(--marker-dk) 100%); box-shadow: inset 0 0 0 calc(2.5 * var(--u)) var(--ink), inset 0 calc(4 * var(--u)) 0 rgba(0,0,0,0.18), 0 calc(2 * var(--u)) 0 rgba(21,23,28,0.5); }
+/* unavailable: hollow */
+.dbtn.dim .face { background: rgba(21,23,28,0.32); color: var(--label); box-shadow: inset 0 0 0 calc(2 * var(--u)) rgba(214,205,186,0.5); }
+.dbtn.dim .face::before { display: none; }
+.dbtn.tired .ring .prog { stroke: var(--stamp); animation: dpulse .5s steps(2) infinite; }
+/* item key: paper disc with the pixel icon */
+.k-e .face { background: rgba(21,23,28,0.3); box-shadow: inset 0 0 0 calc(2 * var(--u)) rgba(214,205,186,0.55); }
+.k-e .face::before { display: none; }
+.k-e:not(.has) .lbl { font-size: calc(var(--fs) * 2); color: var(--label); }
+.k-e:not(.has) .lbl::before { content: '?'; }
+.k-e:not(.has) .lbl { font-size: 0; }
+.k-e:not(.has) .lbl::before { font-size: calc(var(--fs) * 2.1); }
+.k-e.has .face { background: radial-gradient(circle at 34% 26%, #ffffff 0%, var(--paper) 45%, var(--paper2) 100%); box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--marker), inset 0 calc(-5 * var(--u)) 0 rgba(21,23,28,0.12), 0 calc(5 * var(--u)) 0 rgba(21,23,28,0.5); }
+.k-e.has canvas { display: block; width: 56%; height: 56%; }
+.k-e.has .lbl, .k-e.has .ico { display: none; }
+.k-e.has .tier { display: block; position: absolute; right: -2%; bottom: -2%; z-index: 2; font-family: Oswald, sans-serif; font-size: var(--fs); font-weight: 700; background: var(--ink); color: var(--marker); padding: 0 calc(4 * var(--u)); border-radius: calc(8 * var(--u)); }
+.k-e.has.dim .face { filter: saturate(0.4) brightness(0.8); }
+.k-e.ready::after { content: ''; position: absolute; inset: calc(-6 * var(--u)); border-radius: 50%; border: calc(3 * var(--u)) solid var(--marker); animation: kready 1s ease-out infinite; pointer-events: none; }
+@keyframes kready { 0% { transform: scale(0.92); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
+.k-e.ready .face { animation: kbob 1s ease-in-out infinite; }
+@keyframes kbob { 50% { transform: scale(1.05); } }
+.dbtn.down .face { animation: none; }
+
+/* ---- status above the player's head */
+.dover { position: absolute; left: 0; top: 0; width: 0; display: flex; flex-direction: column-reverse; align-items: center; gap: calc(4 * var(--u)); translate: 0 -100%; will-change: transform; }
+.dover > * { flex: none; }
+.dover.gone { display: none; }
+.dover .ostam { display: flex; align-items: center; gap: calc(3 * var(--u)); }
+.ostam svg { width: calc(14 * var(--u)); height: calc(14 * var(--u)); color: var(--marker); filter: drop-shadow(0 calc(1.5 * var(--u)) 0 rgba(21,23,28,0.8)); }
+.ostam > div { width: calc(42 * var(--u)); height: calc(7 * var(--u)); background: rgba(21,23,28,0.7); border-radius: calc(4 * var(--u)); box-shadow: 0 0 0 calc(1.5 * var(--u)) rgba(246,241,230,0.8); overflow: hidden; }
+.ostam i { display: block; height: 100%; background: linear-gradient(180deg, #ffe680, var(--marker)); border-radius: inherit; }
+.ostam.run svg { animation: kbob .3s ease-in-out infinite; }
+.ostam.tired svg { color: var(--stamp); }
+.ostam.tired i { background: var(--stamp); animation: dpulse .4s steps(2) infinite; }
+.ocharge { position: relative; width: calc(58 * var(--u)); height: calc(9 * var(--u)); background: rgba(21,23,28,0.75); border-radius: calc(5 * var(--u)); box-shadow: 0 0 0 calc(1.5 * var(--u)) var(--paper), 0 calc(2 * var(--u)) 0 rgba(21,23,28,0.6); overflow: hidden; }
+.ocharge i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #ffe680, var(--marker)); }
+.ocharge.pass i { background: linear-gradient(90deg, #ffffff, var(--paper2)); }
+.ocharge.over i { background: var(--stamp); }
+.ocharge s { position: absolute; top: 0; bottom: 0; width: calc(2 * var(--u)); background: var(--paper); }
+.ocurl { font-family: Oswald, sans-serif; font-size: calc(12 * var(--u)); font-weight: 600; color: var(--ink); background: var(--marker); padding: 0 calc(6 * var(--u)); border-radius: calc(6 * var(--u)); }
+.oclock { width: calc(30 * var(--u)); height: calc(30 * var(--u)); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: conic-gradient(var(--marker) var(--a), rgba(21,23,28,0.7) 0); box-shadow: 0 calc(2 * var(--u)) 0 rgba(21,23,28,0.6); }
+.oclock b { width: 74%; height: 74%; border-radius: 50%; background: var(--ink); color: var(--paper); display: flex; align-items: center; justify-content: center; font-family: Oswald, sans-serif; font-size: calc(15 * var(--u)); font-weight: 700; }
+.oclock.warn { background: conic-gradient(var(--stamp) var(--a), rgba(21,23,28,0.7) 0); animation: kbob .4s ease-in-out infinite; }
+.oclock.warn b { color: var(--stamp-lt); }
+.otag { font-family: Oswald, sans-serif; font-size: calc(11 * var(--u)); font-weight: 600; background: var(--ink); color: var(--paper); padding: 0 calc(6 * var(--u)); }
+.otag.warn { background: var(--stamp); }
+.oeff { width: calc(24 * var(--u)); height: calc(24 * var(--u)); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: conic-gradient(var(--c) var(--a), rgba(21,23,28,0.6) 0); }
+.oeff b { width: 76%; height: 76%; border-radius: 50%; background: var(--paper); color: var(--ink); display: flex; align-items: center; justify-content: center; font-family: Oswald, sans-serif; font-size: calc(10 * var(--u)); font-weight: 700; }
 .dhud:not(.touch) .dbtn, .dhud:not(.touch) .djoy, .dhud:not(.touch) .dpause { display: none; }
+.dhud.replaying .dover { display: none; }
 
 /* ---- joystick */
 .djoy { position: absolute; border-radius: 50%; border: calc(2 * var(--u)) solid rgba(246,241,230,0.45); background: rgba(21,23,28,0.22); display: flex; align-items: center; justify-content: center; opacity: 0.7; }
 .djoy.active { opacity: 1; border-color: rgba(246,241,230,0.8); }
-.djoy-knob { width: 42%; height: 42%; background: var(--paper); box-shadow: 0 calc(3 * var(--u)) 0 rgba(21,23,28,0.6); outline: calc(3 * var(--u)) solid var(--ink); outline-offset: calc(-3 * var(--u)); }
+.djoy-knob { width: 44%; height: 44%; border-radius: 50%; background: radial-gradient(circle at 34% 28%, #ffffff 0%, var(--paper) 45%, var(--paper2) 100%); box-shadow: inset 0 0 0 calc(2.5 * var(--u)) var(--ink), inset 0 calc(-4 * var(--u)) 0 rgba(21,23,28,0.15), 0 calc(4 * var(--u)) 0 rgba(21,23,28,0.5); }
+.djoy.active .djoy-knob { box-shadow: inset 0 0 0 calc(2.5 * var(--u)) var(--marker), 0 calc(4 * var(--u)) 0 rgba(21,23,28,0.5); }
 
 /* ---- me (top-left, see-through) */
 .dme { position: absolute; left: calc(max(10px, var(--sal)) + 40 * var(--u) + 26px); top: calc(max(8px, var(--sat)) + 6px); width: calc(230 * var(--u)); }

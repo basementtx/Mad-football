@@ -2,7 +2,6 @@ import type { Match } from './match';
 import type { Camera } from './camera';
 import { PPM, YS } from './camera';
 import type { Pitch, Player, MysteryBox, Bomb, Bullet } from './entities';
-import { GK_HOLD } from './match';
 import { tierColors } from '../meta/items';
 import type { TeamDef } from './teams';
 import { playerSheet, FRAMES, CELL_W, CELL_H, ANCHOR_X, ANCHOR_Y, PlayerLook } from '../pixel/player';
@@ -11,7 +10,6 @@ import { ramp, css, RGB } from '../pixel/palette';
 import { drawText, measure, textCanvas } from '../pixel/font';
 import { clamp, hexToRgb, TAU, pick } from '../engine/math';
 import { settings } from '../engine/storage';
-import { t } from '../engine/i18n';
 
 const SPONSORS = ['MADFOOT', 'BONK COLA', 'NO RULES', 'TURBO BOOTS', 'GG ENERGY', 'KICK HARD', 'RAGE FM', 'SLIDE CO.'];
 const GRASS: RGB[] = ['#174a24', '#1f5e2c', '#277035', '#2f803c', '#389045', '#45a050', '#57b05c'].map((h) => hexToRgb(h) as RGB);
@@ -1031,51 +1029,7 @@ export class Renderer {
     }
     const ar = arrow('#ffe14d');
     ctx.drawImage(ar, x - (ar.width >> 1), top);
-    if (h.isGK && m.ball.owner === h) {
-      // keeper holding time: release before it runs out
-      const left = Math.max(0, GK_HOLD - h.holdT);
-      const k = left / GK_HOLD;
-      const w = 22, yy = top - 6;
-      ctx.fillStyle = '#120c1c';
-      ctx.fillRect(x - w / 2 - 1, yy - 1, w + 2, 4);
-      ctx.fillStyle = '#2a3046';
-      ctx.fillRect(x - w / 2, yy, w, 2);
-      ctx.fillStyle = k > 0.5 ? '#5ff0a4' : k > 0.25 ? '#ffe14d' : Math.floor(time * 8) % 2 ? '#ff3b30' : '#ff9a8a';
-      ctx.fillRect(x - w / 2, yy, Math.round(w * k), 2);
-      drawText(ctx, left < 2 ? t().holdBall : String(Math.ceil(left)), x, yy - 9, { color: left < 2 ? '#ff6a5a' : '#ffffff', align: 'center' });
-      return;
-    }
-    // stamina
-    let yb = top - 5;
-    if (h.stamina < 0.999) {
-      ctx.fillStyle = '#120c1c';
-      ctx.fillRect(x - 9, yb - 1, 18, 4);
-      ctx.fillStyle = '#2a3046';
-      ctx.fillRect(x - 8, yb, 16, 2);
-      ctx.fillStyle = h.exhausted ? (Math.floor(time * 8) % 2 ? '#ff5a4a' : '#a02a20') : '#5ff0a4';
-      ctx.fillRect(x - 8, yb, Math.round(16 * h.stamina), 2);
-      yb -= 5;
-    }
-    if (h.chargeKind !== 'none') {
-      const w = 26, hh = 4;
-      ctx.fillStyle = '#120c1c';
-      ctx.fillRect(x - w / 2 - 1, yb - hh, w + 2, hh + 2);
-      ctx.fillStyle = '#2a3046';
-      ctx.fillRect(x - w / 2, yb - hh + 1, w, hh);
-      const max = h.chargeKind === 'shot' ? 1.3 : 1;
-      const k = clamp(h.charge / max, 0, 1);
-      const n = Math.round(w * k);
-      for (let i = 0; i < n; i++) {
-        const t = i / w;
-        let c = '#7fd3ff';
-        if (h.chargeKind === 'shot') c = t < 0.45 ? '#5ff0a4' : t < 0.65 ? '#ffe14d' : t < 1 / 1.3 ? '#ff9a2e' : '#ff3b30';
-        ctx.fillStyle = c;
-        ctx.fillRect(x - w / 2 + i, yb - hh + 1, 1, hh);
-      }
-      ctx.fillStyle = '#ffffff';
-      const mark = h.chargeKind === 'shot' ? Math.round(w / 1.3) : Math.round(w * 0.28);
-      ctx.fillRect(x - w / 2 + mark, yb - hh, 1, hh + 2);
-    }
+    // stamina, charge, keeper timer and item effects are drawn above the head by the DOM HUD (domhud.ts)
   }
 
   private drawPost(ctx: CanvasRenderingContext2D, cam: Camera) {

@@ -11,6 +11,8 @@ export interface BtnLabel {
   icon?: HTMLCanvasElement;
   tier?: number;
   dim?: boolean;
+  /** icon id for the round touch key (domhud.ts) */
+  ic?: string;
 }
 
 const INK = '#120c1c';
