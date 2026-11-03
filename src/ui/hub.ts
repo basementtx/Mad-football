@@ -4,6 +4,7 @@ import { settings, saveSettings, record } from '../engine/storage';
 import { audio } from '../engine/audio';
 import { profile, clubTeamDef, clubOverall, cardById, freeCrateReady } from '../meta/profile';
 import { itemById, itemName } from '../meta/items';
+import { itemIcon } from '../pixel/icons';
 import { setScreen, bind, esc, paintTag, logoSource, flagTag, crestTag, coinsPill, crateTag, spriteSource, lookFor, MenuHandlers } from './common';
 import { cardHTML } from './cards';
 import { showSetup, showSettings, showHowTo } from './menus';
@@ -44,7 +45,7 @@ export function showHub(h: MenuHandlers) {
   const me = cardById(profile.myPlayer);
   const free = freeCrateReady() || profile.starterCrate;
   const fx = itemById(profile.equipped.goalfx);
-  const pw = itemById(profile.equipped.power);
+  const kit = profile.loadout.map((id) => itemById(id)).filter((i): i is NonNullable<typeof i> => !!i);
   const lang = LANGS.find((l) => l.code === settings.lang)!;
   setScreen(
     'screen-hub',
@@ -79,9 +80,9 @@ export function showHub(h: MenuHandlers) {
           ${free ? `<div class="badge">${L.free}!</div>` : ''}
         </button>
         <button class="tile" data-act="collection">
-          <div class="tile-art col-art"><span style="color:${fx?.color}">✦</span><span style="color:${pw?.color}">✸</span></div>
-          <div class="tile-label">${L.collection}</div>
-          <small>${fx ? esc(itemName(fx)) : ''} • ${pw ? esc(itemName(pw)) : ''}</small>
+          <div class="tile-art col-art">${kit.map((it) => paintTag(() => itemIcon(it.id, it.type, it.color), 'kit-ic')).join('')}</div>
+          <div class="tile-label">${L.inventory}</div>
+          <small>${kit.length} ${L.items} • ${fx ? esc(itemName(fx)) : ''}</small>
         </button>
         <button class="tile tile-sm" data-act="quick"><div class="tile-label">⚡ ${L.quickMatch}</div></button>
       </div>

@@ -10,7 +10,8 @@ export interface Button {
 
 const mkBtn = (): Button => ({ down: false, pressed: false, released: false, held: 0 });
 
-export type BtnId = 'a' | 'b' | 'c' | 'd';
+export type BtnId = 'a' | 'b' | 'c' | 'd' | 'e';
+const BTN_IDS: BtnId[] = ['a', 'b', 'c', 'd', 'e'];
 
 export interface BtnLayout {
   id: BtnId;
@@ -23,12 +24,12 @@ export interface Insets { top: number; right: number; bottom: number; left: numb
 
 /**
  * Unified input: virtual joystick + 4 action buttons for touch, keyboard for desktop.
- * a = shoot/tackle, b = pass/switch, c = sprint, d = spin/power
+ * a = shoot/tackle, b = pass/switch, c = sprint, d = spin, e = special item
  */
 export class Input {
   mx = 0;
   my = 0;
-  btn: Record<BtnId, Button> = { a: mkBtn(), b: mkBtn(), c: mkBtn(), d: mkBtn() };
+  btn: Record<BtnId, Button> = { a: mkBtn(), b: mkBtn(), c: mkBtn(), d: mkBtn(), e: mkBtn() };
   touchMode = false;
   enabled = true;
 
@@ -39,7 +40,7 @@ export class Input {
   joyOY = 0;
   joyX = 0;
   joyY = 0;
-  readonly joyR = 24;
+  joyR = 24;
   /** css pixels per virtual pixel */
   k = 1;
 
@@ -72,12 +73,17 @@ export class Input {
     this.insets = insets;
     const right = W - insets.right - 8;
     const bottom = H - Math.max(insets.bottom, 3) - 6;
+    // user-selectable button size; never let the cluster outgrow the screen
+    const k = Math.min(settings.btnScale || 1, (H - 30) / 120);
+    const B = (id: BtnId, dx: number, dy: number, r: number): BtnLayout => ({ id, x: right - dx * k, y: bottom - dy * k, r: Math.round(r * k) });
     let L: BtnLayout[] = [
-      { id: 'a', x: right - 24, y: bottom - 26, r: 21 },
-      { id: 'b', x: right - 70, y: bottom - 15, r: 16 },
-      { id: 'd', x: right - 64, y: bottom - 58, r: 15 },
-      { id: 'c', x: right - 19, y: bottom - 76, r: 15 },
+      B('a', 24, 26, 21),
+      B('b', 70, 15, 16),
+      B('d', 64, 58, 15),
+      B('c', 19, 76, 15),
+      B('e', 106, 46, 14),
     ];
+    this.joyR = Math.round(24 * Math.min(k, 1.3));
     if (settings.leftHanded) L = L.map((b) => ({ ...b, x: W - b.x }));
     this.layout = L;
     const ps = 16;
@@ -86,8 +92,9 @@ export class Input {
   }
 
   get joyHome() {
-    const x = this.insets.left + 46;
-    return { x: settings.leftHanded ? this.W - x : x, y: this.H - Math.max(this.insets.bottom, 3) - 42 };
+    const k = this.joyR / 24;
+    const x = this.insets.left + 46 * k;
+    return { x: settings.leftHanded ? this.W - x : x, y: this.H - Math.max(this.insets.bottom, 3) - 42 * k };
   }
 
   private isJoySide(x: number) {
@@ -204,7 +211,8 @@ export class Input {
     KeyJ: 'a', Space: 'a', KeyZ: 'a',
     KeyK: 'b', KeyX: 'b',
     ShiftLeft: 'c', ShiftRight: 'c', KeyL: 'c',
-    KeyI: 'd', KeyE: 'd', KeyC: 'd',
+    KeyI: 'd', KeyC: 'd',
+    KeyE: 'e', KeyQ: 'e', KeyU: 'e',
   };
 
   private onKey(e: KeyboardEvent, down: boolean) {
@@ -241,7 +249,7 @@ export class Input {
 
   /** Called after each simulation step: clears edge flags. */
   consume(dt: number) {
-    for (const id of ['a', 'b', 'c', 'd'] as BtnId[]) {
+    for (const id of BTN_IDS) {
       const b = this.btn[id];
       b.pressed = false;
       b.released = false;
@@ -250,7 +258,7 @@ export class Input {
   }
 
   reset() {
-    for (const id of ['a', 'b', 'c', 'd'] as BtnId[]) this.btn[id] = mkBtn();
+    for (const id of BTN_IDS) this.btn[id] = mkBtn();
     this.keys.clear();
     this.ptrBtn.clear();
     this.joyActive = false;

@@ -14,6 +14,8 @@ export interface Settings {
   passAssist: boolean;
   /** faint aim line while on the ball */
   aimLine: boolean;
+  /** size multiplier of the touch buttons and joystick */
+  btnScale: number;
   /** settings schema version */
   v: number;
 }
@@ -42,6 +44,7 @@ const DEFAULT_SETTINGS: Settings = {
   joyFixed: false,
   passAssist: true,
   aimLine: true,
+  btnScale: 1,
   v: 2,
 };
 

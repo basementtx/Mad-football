@@ -40,17 +40,20 @@ export function cardHTML(c: CardData, o: CardOpts = {}) {
 }
 
 import type { Item } from '../meta/items';
-import { itemName, itemDesc, RARITY_COLOR } from '../meta/items';
+import { itemName, itemDesc, RARITY_COLOR, TIER_COLOR, ROMAN, tierName } from '../meta/items';
 import { itemIcon } from '../pixel/icons';
 
-/** Tile for an unlockable item (goal explosion, trail, power). */
-export function itemHTML(it: Item, o: { owned?: boolean; equipped?: boolean; badge?: string; attrs?: string; desc?: boolean } = {}) {
+/** Tile for an unlockable item (goal explosion, trail, special item). */
+export function itemHTML(it: Item, o: { owned?: boolean; equipped?: boolean; badge?: string; attrs?: string; desc?: boolean; tier?: number; progress?: [number, number] } = {}) {
   const L = t();
+  const tier = o.tier ?? 0;
   return `
-  <div class="itile ri-${it.rarity} ${o.owned === false ? 'locked' : ''} ${o.equipped ? 'eq' : ''}" style="--rc:${RARITY_COLOR[it.rarity]};--ic:${it.color}" ${o.attrs ?? ''}>
+  <div class="itile ri-${it.rarity} ${o.owned === false ? 'locked' : ''} ${o.equipped ? 'eq' : ''} ${tier > 1 ? 'tier-' + tier : ''}" style="--rc:${RARITY_COLOR[it.rarity]};--ic:${it.color};--tc:${TIER_COLOR[Math.max(0, tier - 1)]}" ${o.attrs ?? ''}>
     ${paintTag(() => itemIcon(it.id, it.type, it.color), 'it-icon')}
     <div class="it-name">${esc(itemName(it))}</div>
-    <div class="it-rar">${L.itemRarity[it.rarity]} • ${it.type === 'goalfx' ? L.goalFx : it.type === 'trail' ? L.trails : L.powers}</div>
+    <div class="it-rar">${L.itemRarity[it.rarity]} • ${it.type === 'goalfx' ? L.goalFx : it.type === 'trail' ? L.trails : L.items}</div>
+    ${tier ? `<div class="it-tier">${ROMAN[tier - 1]} · ${esc(tierName(tier))}</div>` : ''}
+    ${o.progress ? (o.progress[1] > 0 ? `<div class="it-prog" title="${L.nextSkin}"><i style="width:${Math.round((o.progress[0] / o.progress[1]) * 100)}%"></i><span>${L.copies} ${o.progress[0]}/${o.progress[1]}</span></div>` : `<div class="it-prog max"><i style="width:100%"></i><span>${L.maxTier}</span></div>`) : ''}
     ${o.desc ? `<div class="it-desc">${esc(itemDesc(it))}</div>` : ''}
     ${o.badge ? `<div class="pc-badge">${o.badge}</div>` : ''}
   </div>`;

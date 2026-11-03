@@ -129,7 +129,12 @@ export class FX {
   }
 
   /** Power-shot trail by kind */
-  powerTrail(kind: string, x: number, y: number, z: number) {
+  powerTrail(kind: string, x: number, y: number, z: number, tier: string[] | null = null) {
+    // higher item tiers (skins) add their own coloured aura
+    if (tier) {
+      this.emit('pix', x, y, z, { n: 2, speed: 1.4, up: 0.6, life: 0.45, size: 0.3, colors: tier, g: 0 });
+      if (Math.random() < 0.25) this.emit('star', x, y, z + 0.2, { n: 1, speed: 1, up: 1.5, life: 0.4, size: 0.3, color: tier[0] });
+    }
     switch (kind) {
       case 'ice':
         this.emit('pix', x, y, z, { n: 3, speed: 1, up: 0.6, life: 0.5, size: 0.25, colors: ['#ffffff', '#bfe8ff', '#5fc8ff'], g: 0 });

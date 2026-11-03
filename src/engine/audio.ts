@@ -276,6 +276,27 @@ class AudioEngine {
     }
   }
 
+  /** small blaster shot */
+  pew() {
+    if (!this.ready || this.throttle('pew', 40)) return;
+    const t = this.ctx!.currentTime;
+    this.tone(t, 'square', 1500, 180, 0.12, 0.12);
+    this.noiseBurst(t, 0.05, 'highpass', 2500, 0.7, 0.12);
+  }
+  /** bomb explosion */
+  boom() {
+    if (!this.ready) return;
+    const t = this.ctx!.currentTime;
+    this.tone(t, 'sine', 90, 25, 0.6, 0.9);
+    this.noiseBurst(t, 0.7, 'lowpass', 700, 0.7, 0.9, 0.003);
+    this.noiseBurst(t + 0.03, 0.25, 'bandpass', 1800, 1, 0.3);
+  }
+  /** mystery box pickup jingle */
+  pickup() {
+    if (!this.ready || this.throttle('pickup', 120)) return;
+    const t = this.ctx!.currentTime;
+    [660, 880, 1320, 1760].forEach((f, i) => this.tone(t + i * 0.055, 'square', f, f * 1.01, 0.09, 0.07));
+  }
   power() {
     if (!this.ready) return;
     const t = this.ctx!.currentTime;

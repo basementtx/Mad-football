@@ -2,6 +2,7 @@ import type { Match } from './match';
 import type { Player, Team } from './entities';
 import { PHYS } from './entities';
 import { clamp, dist, norm, rand, chance, sign, segDist } from '../engine/math';
+import { SHOT_POWERS } from '../meta/items';
 
 /** Formation spots in normalized coords: u = attack axis (-1 own goal .. +1 opp goal), w = lateral. */
 const FORMATIONS: Record<number, [number, number][]> = {
@@ -108,7 +109,7 @@ export function runTeamAI(m: Match, team: Team, dt: number) {
       moveTo(p, ix, iy, true, 0.6);
     } else if ((own && own.team === team) || incoming) supportAI(m, p);
     else if (own && own.team !== team) defendAI(m, p, rank, dt);
-    else looseAI(m, p, rank);
+    else looseAI(m, p, rank, dt);
 
     // a little off-ball chaos, only near the action and rarely
     if (p.canAct && p.tackleCd <= 0 && chance(team.diff.aggression * 0.07 * dt)) {
@@ -118,6 +119,60 @@ export function runTeamAI(m: Match, team: Team, dt: number) {
   });
 
   gkAI(m, team.gk, dt);
+  if (!team.human) itemAI(m, team, dt);
+}
+
+/** When and how an AI team uses the special item it picked up. */
+function itemAI(m: Match, team: Team, dt: number) {
+  const k = team.item;
+  if (!k || team.itemT < 0.8 || m.phase !== 'play') return;
+  const b = m.ball;
+  const P = m.pitch;
+  const gx = team.side * P.hw;
+  const own = b.owner;
+  const urgent = team.itemT > 14;
+  const go = (rate = 1.6) => chance(rate * dt * (urgent ? 2 : 1));
+  if (SHOT_POWERS.includes(k)) {
+    if (own && own.team === team && !own.isGK && own.canAct) {
+      const dGoal = dist(own.x, own.y, gx, 0);
+      const inFront = (gx - own.x) * team.side > 2;
+      if (inFront && dGoal < (urgent ? 26 : 21) && go(2.5)) {
+        const ty = (team.opp.gk.y > 0 ? -1 : 1) * (P.goalHalf - 0.8);
+        m.useItem(own, gx, ty);
+      }
+    }
+    return;
+  }
+  const rival = own && own.team !== team && !own.isGK ? own : null;
+  for (const p of team.players) {
+    if (p.isGK || !p.canAct) continue;
+    const dc = rival ? dist(p.x, p.y, rival.x, rival.y) : 99;
+    let use = false;
+    let tx = p.x + p.faceX * 8, ty = p.y + p.faceY * 8;
+    if (k === 'shockwave') {
+      let n = 0;
+      for (const q of team.opp.players) if (!q.isGK && !q.isDown && dist(p.x, p.y, q.x, q.y) < 5) n++;
+      use = n >= 2 || dc < 3.5;
+    } else if (k === 'turbo') {
+      const [, nd] = nearestOpp(p, team);
+      use = (own === p && nd < 5) || (!!rival && dc < 6);
+    } else if (k === 'bomb' || k === 'rifle') {
+      const lo = k === 'bomb' ? 3.5 : 2, hi = k === 'bomb' ? 11 : 15;
+      if (rival && dc > lo && dc < hi) {
+        use = true;
+        const lead = k === 'bomb' ? 0.6 : 0.25;
+        tx = rival.x + rival.vx * lead;
+        ty = rival.y + rival.vy * lead;
+      }
+    } else if (k === 'magnet') {
+      const db = dist(p.x, p.y, b.x, b.y);
+      use = (!own && db > 2 && db < 8) || (own === p && nearestOpp(p, team)[1] < 2.5);
+    }
+    if (use && go()) {
+      m.useItem(p, tx, ty);
+      return;
+    }
+  }
 }
 
 /** Stay out of the opponent keeper's box while he holds the ball. */
@@ -164,12 +219,6 @@ function carrierAI(m: Match, p: Player, decide: boolean) {
 
   if (decide) {
     const gk = team.opp.gk;
-    // power
-    if (team.rage >= 1 && dGoal < 22 && chance(0.45)) {
-      const ty = (gk.y > 0 ? -1 : 1) * (P.goalHalf - 0.8);
-      m.powerShot(p, gx, ty);
-      return;
-    }
     // shooting: decent angle and a clear-ish lane
     const a1 = Math.atan2(P.goalHalf - p.y, Math.abs(gx - p.x));
     const a2 = Math.atan2(-P.goalHalf - p.y, Math.abs(gx - p.x));
@@ -279,26 +328,43 @@ function supportAI(m: Match, p: Player) {
   moveTo(p, tx, ty, dist(p.x, p.y, tx, ty) > 6);
 }
 
-function defendAI(m: Match, p: Player, rank: number, dt: number) {
+/**
+ * Defending. `carrier` is the player to defend against (the ball owner, or the
+ * receiver of a pass we can't cut out). The first defender contains instead of
+ * charging in: he gives a freshly-arrived carrier time to settle, holds a gap
+ * and only commits near our goal or when the attacker loses control.
+ */
+function defendAI(m: Match, p: Player, rank: number, dt: number, carrier?: Player) {
   const team = p.team;
   const P = m.pitch;
-  const c = m.ball.owner!;
+  const c = carrier ?? m.ball.owner!;
   const d = team.diff;
   const ownX = -team.side * P.hw;
   const agg = team.human ? 0.45 : d.aggression;
-  const danger = dist(c.x, c.y, ownX, 0) < P.hw * 0.75;
+  const dGoal = dist(c.x, c.y, ownX, 0);
+  const danger = dGoal < P.hw * 0.75;
+  const vsHuman = c.team.human;
+  // possession just changed (or the pass is still travelling): stay patient
+  const since = carrier && m.ball.owner !== c ? 0 : m.time - c.team.possSince;
+  const settle = vsHuman ? 0.8 + d.react * 4 : 0.25;
+  const patient = since < settle && !(danger && dGoal < P.boxDepth + 3);
   if (rank === 0) {
-    // jockey: stay goal-side about 1.3 m away and wait for the ball
     const [gx, gy] = norm(ownX - c.x, -c.y);
     const dd = dist(p.x, p.y, c.x, c.y);
-    const gap = dd > 4 ? 0.6 : 1.3;
-    moveTo(p, c.x + c.vx * 0.2 + gx * gap, c.y + c.vy * 0.2 + gy * gap, dd > 3.5, 0.5);
-    if (p.tackleCd <= 0 && c.invuln <= 0) {
-      if (dd < 1.35 && chance(agg * dt * 1.0)) m.shove(p, c);
+    // contain distance: wide while the carrier settles, tighter near our goal
+    let gap = patient ? 3.4 : dGoal > P.hw * 1.25 ? 2.6 : danger ? 1.3 : 1.8;
+    if (!vsHuman && !patient) gap = Math.min(gap, 1.4);
+    // beaten (the attacker is goal-side of us): recover at full speed
+    const beaten = (p.x - c.x) * -team.side < -0.5 && dd > 1.5;
+    const sprint = beaten || dd > (vsHuman ? 7 : 3.5);
+    moveTo(p, c.x + c.vx * 0.2 + gx * gap, c.y + c.vy * 0.2 + gy * gap, sprint, patient ? 1.4 : 0.5);
+    if (!patient && m.ball.owner === c && p.tackleCd <= 0 && c.invuln <= 0) {
+      const tk = agg * (vsHuman ? 0.75 : 1);
+      if (dd < 1.35 && chance(tk * dt)) m.shove(p, c);
       else if (dd > 1.3 && dd < 3.2 && (danger || dd < 2)) {
         const [ux, uy] = norm(c.x + c.vx * 0.25 - p.x, c.y + c.vy * 0.25 - p.y);
         const facing = ux * p.faceX + uy * p.faceY;
-        if (facing > 0.85 && chance(agg * dt * 1.1)) m.slide(p, ux, uy);
+        if (facing > 0.85 && chance(tk * dt * 1.1)) m.slide(p, ux, uy);
       }
     }
   } else if (rank === 1) {
@@ -342,8 +408,15 @@ function defendAI(m: Match, p: Player, rank: number, dt: number) {
   }
 }
 
-function looseAI(m: Match, p: Player, rank: number) {
+function looseAI(m: Match, p: Player, rank: number, dt: number) {
+  const b = m.ball;
   const [ix, iy, t] = intercept(m, p);
+  // a pass to the opponent: only sprint for it if we really get there first
+  const to = b.passTarget;
+  if (to && to.team !== p.team && to.team.human && !to.isDown) {
+    const arrive = dist(b.x, b.y, to.x, to.y) / Math.max(4, b.speed);
+    if (t > arrive * 0.85) return defendAI(m, p, rank, dt, to);
+  }
   if (rank === 0 || (rank === 1 && t < 0.8)) {
     moveTo(p, ix, iy, true, 0.4);
   } else {
@@ -370,29 +443,7 @@ function gkAI(m: Match, g: Player, dt: number) {
     g.face = s > 0 ? 0 : Math.PI;
     let nearOpp = 99;
     for (const o of team.opp.players) nearOpp = Math.min(nearOpp, dist(g.x, g.y, o.x, o.y));
-    if (g.holdT > 0.8 && (nearOpp > 7 || g.holdT > 2.4)) {
-      let best: Player | null = null;
-      let bs = -Infinity;
-      let bestLane = false;
-      for (const q of team.players) {
-        if (q === g || q.state === 'down') continue;
-        let open = 8;
-        let lane = true;
-        for (const o of team.opp.players) {
-          open = Math.min(open, dist(q.x, q.y, o.x, o.y));
-          if (segDist(o.x, o.y, g.x, g.y, q.x, q.y) < 1.8) lane = false;
-        }
-        const sc = open + (q.x * s) / 10 + (lane ? 3 : 0) + rand(0, 1);
-        if (sc > bs) {
-          bs = sc;
-          best = q;
-          bestLane = lane;
-        }
-      }
-      if (best && bestLane && dist(g.x, g.y, best.x, best.y) < 20) m.passTo(g, best, false);
-      else if (best) m.passTo(g, best, true); // loft it over everyone
-      else m.kick(g, s * 18, rand(-4, 4), 8, 0.8);
-    }
+    if (g.holdT > 0.8 && (nearOpp > 7 || g.holdT > 2.4)) gkDistribute(m, g);
     return;
   }
 
@@ -449,4 +500,31 @@ function gkAI(m: Match, g: Player, dt: number) {
   ty = clamp(ty, -P.goalHalf + 0.3, P.goalHalf - 0.3);
   if ((tx - ownX) * s < 0.6) tx = ownX + s * 0.6;
   moveTo(g, tx, ty, dist(g.x, g.y, tx, ty) > 2.5, 0.5);
+}
+
+/** Keeper releases the ball: throw to an open man, or loft it over everyone. */
+export function gkDistribute(m: Match, g: Player) {
+  const team = g.team;
+  const s = team.side;
+  let best: Player | null = null;
+  let bs = -Infinity;
+  let bestLane = false;
+  for (const q of team.players) {
+    if (q === g || q.state === 'down') continue;
+    let open = 8;
+    let lane = true;
+    for (const o of team.opp.players) {
+      open = Math.min(open, dist(q.x, q.y, o.x, o.y));
+      if (segDist(o.x, o.y, g.x, g.y, q.x, q.y) < 1.8) lane = false;
+    }
+    const sc = open + (q.x * s) / 10 + (lane ? 3 : 0) + rand(0, 1);
+    if (sc > bs) {
+      bs = sc;
+      best = q;
+      bestLane = lane;
+    }
+  }
+  if (best && bestLane && dist(g.x, g.y, best.x, best.y) < 20) m.passTo(g, best, false);
+  else if (best) m.passTo(g, best, true);
+  else m.kick(g, s * 18, rand(-4, 4), 8, 0.8);
 }

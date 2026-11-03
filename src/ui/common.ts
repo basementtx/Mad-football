@@ -162,7 +162,7 @@ export interface MenuHandlers {
   resume: () => void;
   restart: () => void;
   quit: () => void;
-  settingsChanged: () => void;
+  settingsChanged: (key?: string) => void;
   /** first user gesture: unlock audio / fullscreen */
   firstTap: () => void;
 }

@@ -6,11 +6,17 @@ import { t } from '../engine/i18n';
 import { drawText, measure } from '../pixel/font';
 import { disc, ringDisc } from '../pixel/props';
 import { ramp, css } from '../pixel/palette';
+import { itemById, TIER_COLOR, ROMAN } from '../meta/items';
+import { itemIcon } from '../pixel/icons';
 
 export interface BtnLabel {
   text: string;
   color: string;
   glow?: boolean;
+  /** pixel icon drawn instead of text (special item) */
+  icon?: HTMLCanvasElement;
+  tier?: number;
+  dim?: boolean;
 }
 
 const INK = '#120c1c';
@@ -37,7 +43,7 @@ export function drawHUD(ctx: CanvasRenderingContext2D, m: Match, input: Input, W
   if (!m.cfg.demo) {
     drawScoreboard(ctx, m, W, ins.top);
     if (settings.minimap) drawMinimap(ctx, m, W, ins);
-    drawRage(ctx, m, W, H, ins, time);
+    drawItems(ctx, m, W, ins.top, time);
     drawPauseBtn(ctx, input);
     if (input.touchMode && labels) drawTouch(ctx, input, labels, time);
     else if (labels && W >= 300) drawKeyHints(ctx, H, ins);
@@ -109,31 +115,24 @@ function drawMinimap(ctx: CanvasRenderingContext2D, m: Match, W: number, ins: In
   ctx.fillRect(X(m.ball.x) - 1, Y(m.ball.y) - 1, 2, 2);
 }
 
-function drawRage(ctx: CanvasRenderingContext2D, m: Match, W: number, H: number, ins: Input['insets'], time: number) {
-  const team = m.teams[0];
-  if (!team.human) return;
-  const segs = 10, sw = 6, gap = 1;
-  const w = segs * (sw + gap) - gap;
-  const x = Math.round(W / 2 - w / 2);
-  const y = H - Math.max(ins.bottom, 3) - 9;
-  const full = team.rage >= 1;
-  panel(ctx, x - 2, y - 2, w + 4, 8, '#0b0f1a', '#1b2236', '#05070d');
-  const n = team.rage * segs;
-  for (let i = 0; i < segs; i++) {
-    const k = clamp(n - i, 0, 1);
-    const col = full ? (Math.floor(time * 8 + i) % 2 ? '#ffe14d' : '#ff8a1f') : i < 4 ? '#ff3b1f' : i < 7 ? '#ff6a1f' : '#ffa21f';
-    ctx.fillStyle = '#2a1a1a';
-    ctx.fillRect(x + i * (sw + gap), y, sw, 4);
-    if (k > 0) {
-      const ww = Math.max(1, Math.round(sw * k));
-      ctx.fillStyle = col;
-      ctx.fillRect(x + i * (sw + gap), y, ww, 4);
-      ctx.fillStyle = 'rgba(255,255,255,0.45)';
-      ctx.fillRect(x + i * (sw + gap), y, ww, 1);
-    }
-  }
-  const label = full ? t().rageReady : t().rage;
-  if (!full || Math.floor(time * 3) % 3 !== 0) drawText(ctx, label, W / 2, y - 11, { color: full ? '#ffd04d' : '#c8d0e0', align: 'center' });
+/** Each team's held special item, next to the scoreboard. */
+function drawItems(ctx: CanvasRenderingContext2D, m: Match, W: number, top: number, time: number) {
+  const y = Math.max(top, 3) + 4;
+  m.teams.forEach((team, i) => {
+    const x = i === 0 ? Math.round(W / 2 - 59 - 21) : Math.round(W / 2 + 59 + 4);
+    const it = team.item ? itemById('pw_' + team.item) : null;
+    panel(ctx, x, y, 17, 17, it ? '#2a2236' : '#141a2a', it ? '#4a3a66' : '#1f2840', '#06080f');
+    if (it) {
+      const ic = itemIcon(it.id, it.type, it.color);
+      const bob = Math.floor(time * 3) % 2;
+      ctx.drawImage(ic, x + 2, y + 2 - bob);
+      const tier = team.tiers[team.item!] ?? 1;
+      if (tier > 1) {
+        ctx.fillStyle = TIER_COLOR[tier - 1];
+        ctx.fillRect(x, y + 16, 17, 1);
+      }
+    } else drawText(ctx, '?', x + 9, y + 5, { color: '#4a5470', outline: null, align: 'center' });
+  });
 }
 
 function drawPauseBtn(ctx: CanvasRenderingContext2D, input: Input) {
@@ -162,20 +161,26 @@ function drawTouch(ctx: CanvasRenderingContext2D, input: Input, labels: Record<B
     const st = input.btn[b.id];
     const L = labels[b.id];
     if (L.glow && Math.floor(time * 6) % 2 === 0) {
-      const g = ringDisc(b.r + 3, '#ffe14d', 0);
+      const g = ringDisc(b.r + 3, L.tier && L.tier > 1 ? TIER_COLOR[L.tier - 1] : '#ffe14d', 0);
       ctx.drawImage(g, Math.round(b.x) - (g.width >> 1), Math.round(b.y) - (g.height >> 1));
     }
     const d = disc(b.r, L.color, st.down);
-    ctx.globalAlpha = 0.93;
+    ctx.globalAlpha = L.dim ? 0.5 : 0.93;
     ctx.drawImage(d, Math.round(b.x) - (d.width >> 1), Math.round(b.y) - (d.width >> 1));
+    const press = st.down ? 2 : 0;
+    if (L.icon) {
+      const sc = b.r >= 12 ? 2 : 1;
+      const w = L.icon.width * sc;
+      ctx.drawImage(L.icon, Math.round(b.x - w / 2), Math.round(b.y - w / 2) + press - 1, w, w);
+      if (L.tier && L.tier > 1) drawText(ctx, ROMAN[L.tier - 1], Math.round(b.x + b.r * 0.55), Math.round(b.y + b.r * 0.35) + press, { color: TIER_COLOR[L.tier - 1], align: 'center' });
+    } else drawText(ctx, L.text, Math.round(b.x) + 1, Math.round(b.y) - 4 + press, { color: '#ffffff', align: 'center', outline: css(ramp(L.color)[0]) });
     ctx.globalAlpha = 1;
-    drawText(ctx, L.text, Math.round(b.x) + 1, Math.round(b.y) - 4 + (st.down ? 2 : 0), { color: '#ffffff', align: 'center', outline: css(ramp(L.color)[0]) });
   }
 }
 
 function drawKeyHints(ctx: CanvasRenderingContext2D, H: number, ins: Input['insets']) {
   const L = t();
-  const lines = [`J ${L.shoot}/${L.tackleBtn}  K ${L.pass}`, `SHIFT ${L.sprint}  I ${L.spin}`];
+  const lines = [`J ${L.shoot}/${L.tackleBtn}  K ${L.pass}`, `SHIFT ${L.sprint}  I ${L.spin}  E ${L.itemBtn}`];
   lines.forEach((s, i) => drawText(ctx, s, ins.left + 6, H - 24 + i * 10, { color: '#c8d0e0' }));
 }
 

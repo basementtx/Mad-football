@@ -1,7 +1,7 @@
 /** Crates: buy with coins, roll cards and items. */
 import { CardData, CardRarity, randomCard } from './cards';
-import { ITEMS, Item, ItemRarity } from './items';
-import { profile, saveProfile, addCard, addCoins, autoLineup } from './profile';
+import { ITEMS, Item, ItemRarity, LOADOUT_MAX } from './items';
+import { profile, saveProfile, addCard, addCoins, autoLineup, addCopy, tierNeed } from './profile';
 
 export interface CrateDef {
   id: 'basic' | 'premium' | 'legend';
@@ -23,7 +23,16 @@ export const CRATES: CrateDef[] = [
 
 export type Reward =
   | { kind: 'card'; card: CardData }
-  | { kind: 'item'; item: Item; dupe: boolean; refund: number };
+  | {
+      kind: 'item';
+      item: Item;
+      dupe: boolean;
+      refund: number;
+      /** special items: a duplicate is a copy toward the next tier (skin) */
+      tierUp?: number | null;
+      /** copies after this one / copies needed for the next tier */
+      copies?: [number, number];
+    };
 
 export const DUPE_REFUND: Record<ItemRarity, number> = { common: 40, rare: 110, epic: 260, legendary: 650 };
 const ITEM_ORDER: ItemRarity[] = ['common', 'rare', 'epic', 'legendary'];
@@ -41,47 +50,55 @@ function weighted<K extends string>(odds: Partial<Record<K, number>>): K {
 }
 
 function pickItem(rarity: ItemRarity): Item {
-  let pool = ITEMS.filter((i) => i.rarity === rarity && !i.starter);
-  // prefer things the player doesn't have yet
+  let pool = ITEMS.filter((i) => i.rarity === rarity && (!i.starter || i.type === 'power'));
+  // prefer things the player doesn't have yet (owned special items still roll often: they upgrade)
   const fresh = pool.filter((i) => !profile.owned.includes(i.id));
-  if (fresh.length && Math.random() < 0.75) pool = fresh;
+  if (fresh.length && Math.random() < 0.6) pool = fresh;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+type Roll = { kind: 'card'; rarity: CardRarity } | { kind: 'item'; item: Item };
+const rank = (r: Roll) => ITEM_ORDER.indexOf(r.kind === 'card' ? CARD_TO_ITEM[r.rarity] : r.item.rarity);
+
 export function openCrate(def: CrateDef): Reward[] {
-  const out: Reward[] = [];
-  let best = -1;
+  // decide everything first, then apply in order (so duplicates inside one crate are detected)
+  const rolls: Roll[] = [];
   for (let i = 0; i < def.rolls; i++) {
-    if (Math.random() < def.cardChance) {
-      const r = weighted(def.cardOdds);
-      const card = randomCard(r);
+    if (Math.random() < def.cardChance) rolls.push({ kind: 'card', rarity: weighted(def.cardOdds) });
+    else rolls.push({ kind: 'item', item: pickItem(weighted(def.itemOdds)) });
+  }
+  if (def.guarantee && Math.max(...rolls.map(rank)) < ITEM_ORDER.indexOf(def.guarantee)) {
+    rolls[rolls.length - 1] = { kind: 'item', item: pickItem(def.guarantee) };
+  }
+  // best reward last: the reveal builds up
+  rolls.sort((a, b) => rank(a) - rank(b));
+  const out: Reward[] = rolls.map((r) => {
+    if (r.kind === 'card') {
+      const card = randomCard(r.rarity);
       addCard(card);
-      out.push({ kind: 'card', card });
-      best = Math.max(best, ITEM_ORDER.indexOf(CARD_TO_ITEM[r]));
-    } else {
-      const r = weighted(def.itemOdds);
-      out.push(itemReward(pickItem(r)));
-      best = Math.max(best, ITEM_ORDER.indexOf(r));
+      return { kind: 'card', card };
     }
-  }
-  if (def.guarantee && best < ITEM_ORDER.indexOf(def.guarantee)) {
-    const last = out[out.length - 1];
-    // undo the reward being replaced so what is shown is exactly what is granted
-    if (last.kind === 'card') profile.cards = profile.cards.filter((c) => c.id !== last.card.id);
-    else if (last.dupe) addCoins(-last.refund);
-    else profile.owned = profile.owned.filter((id) => id !== last.item.id);
-    out[out.length - 1] = itemReward(pickItem(def.guarantee));
-  }
+    return itemReward(r.item);
+  });
   autoLineup();
   saveProfile();
   return out;
 }
 
-/** Build an item reward and apply it immediately (so duplicates inside one crate are detected). */
+/** Apply an item reward: new item, tier copy, or coin refund. */
 function itemReward(item: Item): Reward {
-  const dupe = profile.owned.includes(item.id);
-  const refund = dupe ? DUPE_REFUND[item.rarity] : 0;
-  if (dupe) addCoins(refund);
-  else profile.owned.push(item.id);
-  return { kind: 'item', item, dupe, refund };
+  if (!profile.owned.includes(item.id)) {
+    profile.owned.push(item.id);
+    // new special items join the loadout while there is room
+    if (item.type === 'power' && profile.loadout.length < LOADOUT_MAX) profile.loadout.push(item.id);
+    return { kind: 'item', item, dupe: false, refund: 0 };
+  }
+  if (item.type === 'power' && tierNeed(item.id) > 0) {
+    const tierUp = addCopy(item.id);
+    const need = tierNeed(item.id);
+    return { kind: 'item', item, dupe: true, refund: 0, tierUp, copies: [profile.tiers[item.id]?.s ?? 0, need] };
+  }
+  const refund = DUPE_REFUND[item.rarity];
+  addCoins(refund);
+  return { kind: 'item', item, dupe: true, refund };
 }

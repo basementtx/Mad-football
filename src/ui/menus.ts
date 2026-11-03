@@ -178,11 +178,12 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
           ${seg(L.joystick, 'joy', [['float', L.joyFloat], ['fixed', L.joyFixed]], settings.joyFixed ? 'fixed' : 'float')}
           ${toggle('passAssist', L.passAssist)}
           ${toggle('aimLine', L.aimLine)}
-        </div>
+
         <div>
           ${toggle('minimap', L.minimap)}
           ${seg(L.zoom, 'zoom', [[1.18, L.near], [1, L.mid], [0.84, L.far]], settings.zoom)}
           ${seg(L.quality, 'quality', [['high', L.high], ['low', L.low]], settings.quality)}
+          ${seg(L.btnSize, 'btnScale', [[0.8, L.sizeS], [1, L.sizeM], [1.2, L.sizeL], [1.4, L.sizeXL]], settings.btnScale ?? 1)}
           <div class="set-row lang-row"><span>${L.language}</span><div class="langs">${LANGS.map((l) => `<button class="lang-btn ${settings.lang === l.code ? 'on' : ''}" data-lang="${l.code}">${flagTag(l.flag)}<span>${l.name}</span></button>`).join('')}</div></div>
         </div>
       </div>
@@ -190,14 +191,15 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
   );
   const again = () => showSettings(h, back, inGame);
   bind('[data-act=back]', () => { audio.click(); back(); });
+  // update the control in place (instant feedback) instead of rebuilding the screen
   bind('[data-toggle]', (el) => {
     const k = el.dataset.toggle as 'sound' | 'vibration' | 'autoSwitch' | 'leftHanded' | 'minimap' | 'passAssist' | 'aimLine';
     settings[k] = !settings[k];
-    saveSettings();
+    el.classList.toggle('on', settings[k]);
     audio.applyVolume();
     audio.click();
-    h.settingsChanged();
-    again();
+    saveSettings();
+    h.settingsChanged(k);
   });
   bind('[data-seg]', (el) => {
     const k = el.dataset.seg!;
@@ -205,16 +207,17 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
     if (k === 'zoom') settings.zoom = Number(v);
     if (k === 'quality') settings.quality = v as 'high' | 'low';
     if (k === 'joy') settings.joyFixed = v === 'fixed';
-    saveSettings();
+    if (k === 'btnScale') settings.btnScale = Number(v);
+    el.parentElement?.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === el));
     audio.click();
-    h.settingsChanged();
-    again();
+    saveSettings();
+    h.settingsChanged(k);
   });
   bind('[data-lang]', (el) => {
     settings.lang = el.dataset.lang as typeof settings.lang;
     saveSettings();
     audio.select();
-    h.settingsChanged();
+    h.settingsChanged('lang');
     again();
   });
   ui().querySelector<HTMLInputElement>('[data-range=volume]')?.addEventListener('input', (e) => {

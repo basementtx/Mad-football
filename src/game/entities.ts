@@ -92,10 +92,17 @@ export interface TeamStats {
 export class Team {
   players: Player[] = [];
   score = 0;
-  rage = 0;
   opp!: Team;
-  /** equipped loadout (human team) */
-  power = 'fireball';
+  /** special item held by the team (power id, e.g. 'bomb'), picked from a mystery box */
+  item: string | null = null;
+  /** seconds the current item has been held (AI uses it after a short wait) */
+  itemT = 0;
+  /** items this team's mystery boxes can give */
+  loadout: string[] = ['fireball', 'bomb', 'rifle'];
+  /** tier (skin) per item id */
+  tiers: Record<string, number> = {};
+  /** match time when this team last gained possession */
+  possSince = 0;
   goalfx = 'gx_classic';
   trail = 'tr_basic';
   stats: TeamStats = { shots: 0, onTarget: 0, knockdowns: 0, tackles: 0, possession: 0, passes: 0, saves: 0, powerShots: 0 };
@@ -154,6 +161,8 @@ export class Player {
   frozen = 0;
   /** turbo rampage power (seconds) */
   turbo = 0;
+  /** magnet boots (seconds) */
+  magnet = 0;
   /** the user's own created player */
   star = false;
   card: CardData | null = null;
@@ -255,6 +264,8 @@ export class Ball {
   passTarget: Player | null = null;
   shotBy: Team | null = null;
   inGoal = 0;
+  /** skin tier of the active power shot */
+  tier = 1;
   trail: { x: number; y: number; z: number }[] = [];
 
   get speed() {
@@ -293,4 +304,29 @@ export class Ball {
     }
     return [x, y];
   }
+}
+
+/** Spinning rainbow "?" box on the pitch: run over it to get a special item. */
+export interface MysteryBox {
+  x: number;
+  y: number;
+  age: number;
+  seed: number;
+}
+
+export interface Bomb {
+  x: number; y: number; z: number;
+  vx: number; vy: number; vz: number;
+  fuse: number;
+  by: Player;
+  tier: number;
+}
+
+export interface Bullet {
+  x: number; y: number;
+  vx: number; vy: number;
+  life: number;
+  by: Player;
+  tier: number;
+  delay: number;
 }

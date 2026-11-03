@@ -15,4 +15,4 @@ for (let i = 0; i < 20; i++) {
   goals += m.teams[0].score + m.teams[1].score; n++;
   for (const t of m.teams) { kd += t.stats.knockdowns; shots += t.stats.shots; saves += t.stats.saves; passes += t.stats.passes; pow += t.stats.powerShots; }
 }
-console.log(JSON.stringify({ diff, size, goalsPerMatch: goals / n, kdPerMatch: kd / n, shots: shots / n, saves: saves / n, passes: passes/n, pow: pow/n, ms: Date.now() - t0 }));
+console.log(JSON.stringify({ diff, size, goalsPerMatch: goals / n, kdPerMatch: kd / n, shots: shots / n, saves: saves / n, passes: passes/n, itemsUsed: pow/n, ms: Date.now() - t0 }));

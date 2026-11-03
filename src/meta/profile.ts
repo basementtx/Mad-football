@@ -1,7 +1,7 @@
 /** Persistent player profile: club, cards, lineup, unlocked items. */
 import type { KitPattern, TeamDef, CrestCfg } from '../game/teams';
 import { CardData, randomCard, overall, CardRarity, uid, shortName } from './cards';
-import { ITEMS } from './items';
+import { ITEMS, itemById, LOADOUT_MIN, LOADOUT_MAX, MAX_TIER, TIER_NEED } from './items';
 import { record, saveRecord } from '../engine/storage';
 import { clamp } from '../engine/math';
 
@@ -25,7 +25,11 @@ export interface Profile {
   lineup: string[];
   myPlayer: string | null;
   owned: string[];
-  equipped: { goalfx: string; trail: string; power: string };
+  equipped: { goalfx: string; trail: string };
+  /** special items that can drop from the mystery boxes in a match (3-5) */
+  loadout: string[];
+  /** item tier / skin progress: t = tier (1..5), s = copies collected toward the next tier */
+  tiers: Record<string, { t: number; s: number }>;
   freeCrateAt: number;
   starterCrate: boolean;
 }
@@ -40,7 +44,9 @@ function fresh(): Profile {
     lineup: [],
     myPlayer: null,
     owned: ITEMS.filter((i) => i.starter).map((i) => i.id),
-    equipped: { goalfx: 'gx_classic', trail: 'tr_basic', power: 'pw_fireball' },
+    equipped: { goalfx: 'gx_classic', trail: 'tr_basic' },
+    loadout: ITEMS.filter((i) => i.starter && i.type === 'power').map((i) => i.id),
+    tiers: {},
     freeCrateAt: 0,
     starterCrate: true,
   };
@@ -57,6 +63,54 @@ function load(): Profile {
 }
 
 export const profile: Profile = load();
+migrate();
+
+/** Older saves: grant the new starter items and build a loadout. */
+function migrate() {
+  for (const it of ITEMS) if (it.starter && !profile.owned.includes(it.id)) profile.owned.push(it.id);
+  if (!Array.isArray(profile.loadout)) profile.loadout = [];
+  profile.loadout = profile.loadout.filter((id) => profile.owned.includes(id) && itemById(id)?.type === 'power');
+  const old = (profile.equipped as { power?: string }).power;
+  if (old && profile.owned.includes(old) && !profile.loadout.includes(old) && profile.loadout.length < LOADOUT_MAX) profile.loadout.unshift(old);
+  for (const it of ITEMS) {
+    if (profile.loadout.length >= LOADOUT_MIN) break;
+    if (it.type === 'power' && profile.owned.includes(it.id) && !profile.loadout.includes(it.id)) profile.loadout.push(it.id);
+  }
+  if (!profile.tiers || typeof profile.tiers !== 'object') profile.tiers = {};
+}
+
+export const tierOf = (id: string) => profile.tiers[id]?.t ?? 1;
+
+/** Copies needed for the next tier of an item (0 when maxed). */
+export function tierNeed(id: string) {
+  const it = itemById(id);
+  const t = tierOf(id);
+  if (!it || t >= MAX_TIER) return 0;
+  return TIER_NEED[it.rarity][t - 1];
+}
+
+/** Add one duplicate copy; returns the new tier if it went up. */
+export function addCopy(id: string): number | null {
+  const cur = profile.tiers[id] ?? { t: 1, s: 0 };
+  cur.s++;
+  const it = itemById(id)!;
+  let up: number | null = null;
+  const need = TIER_NEED[it.rarity][cur.t - 1];
+  if (cur.t < MAX_TIER && cur.s >= need) {
+    cur.t++;
+    cur.s = 0;
+    up = cur.t;
+  }
+  profile.tiers[id] = cur;
+  return up;
+}
+
+/** tier per power id for a match (fireball -> 3 ...) */
+export function loadoutTiers(): Record<string, number> {
+  const o: Record<string, number> = {};
+  for (const id of profile.loadout) o[id.replace('pw_', '')] = tierOf(id);
+  return o;
+}
 
 export function saveProfile() {
   try {

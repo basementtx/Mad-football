@@ -15,7 +15,7 @@ import type { Difficulty } from './game/entities';
 import { DIFF_REWARD } from './game/entities';
 import { showPause, showResults, hideUI, MenuHandlers, homeDef } from './ui/menus';
 import { showSplash, showHub } from './ui/hub';
-import { profile, lineupCards } from './meta/profile';
+import { profile, lineupCards, loadoutTiers } from './meta/profile';
 import type { CardData } from './meta/cards';
 import { t } from './engine/i18n';
 
@@ -107,7 +107,7 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
       home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty, demo: false,
       homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
       starId: useClub ? profile.myPlayer : null,
-      loadout: profile.equipped,
+      loadout: { goalfx: profile.equipped.goalfx, trail: profile.equipped.trail, powers: profile.loadout, tiers: loadoutTiers() },
     },
     input,
   );
@@ -159,11 +159,18 @@ const handlers: MenuHandlers = {
     audio.unlock();
     requestFullscreen();
   },
-  settingsChanged() {
-    applyLang();
-    resize();
-    if (game) game.renderer = new Renderer(game.match);
-    if (demo) demo.renderer = new Renderer(demo.match);
+  settingsChanged(key?: string) {
+    // only redo the work a setting actually needs: rebuilding the stadium renderers
+    // on every toggle is what made the settings screen stutter
+    if (!key || key === 'lang') applyLang();
+    if (!key || key === 'zoom' || key === 'leftHanded' || key === 'btnScale') resize();
+    if (!key || key === 'quality') {
+      // let the menu repaint first, then rebuild (expensive) in the background
+      setTimeout(() => {
+        if (game) game.renderer = new Renderer(game.match);
+        if (demo) demo.renderer = new Renderer(demo.match);
+      }, 30);
+    }
   },
 };
 

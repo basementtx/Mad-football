@@ -7,6 +7,8 @@ import type { Input, BtnId } from '../engine/input';
 import { audio } from '../engine/audio';
 import { dist } from '../engine/math';
 import { t } from '../engine/i18n';
+import { itemById } from '../meta/items';
+import { itemIcon } from '../pixel/icons';
 
 const STEP = 1 / 60;
 
@@ -94,28 +96,33 @@ export class Game {
     const L = t();
     const h = m.human;
     const b = m.ball;
+    const team = m.teams[0];
     const hasBall = !!h && b.owner === h;
-    const rageFull = m.teams[0].rage >= 1;
-    const area = m.teams[0].power === 'shockwave' || m.teams[0].power === 'turbo';
-    const pname = ({ fireball: L.powerShot, ice: 'ICE', thunder: 'BOLT', banana: 'CURVE', shockwave: 'SLAM', turbo: 'TURBO' } as Record<string, string>)[m.teams[0].power] ?? L.powerShot;
+    const keeper = hasBall && !!h && h.isGK;
     let aText = L.tackleBtn;
-    if (hasBall) aText = L.shoot;
+    if (keeper) aText = L.punt;
+    else if (hasBall) aText = L.shoot;
     else if (h) {
       if (!b.owner && b.z > 0.6 && dist(h.x, h.y, b.x, b.y) < 3) aText = L.header;
       else {
         for (const q of m.teams[1].players) {
-          if (q.state !== 'down' && dist(h.x, h.y, q.x, q.y) < 1.75) {
+          if (!q.isGK && q.state !== 'down' && dist(h.x, h.y, q.x, q.y) < 1.75) {
             aText = L.shove;
             break;
           }
         }
       }
     }
+    const it = team.item ? itemById('pw_' + team.item) : null;
+    const usable = !!h && m.canUseItem(h);
     return {
       a: { text: aText, color: hasBall ? '#ff4d3d' : '#ff7a1f' },
-      b: { text: hasBall ? L.pass : L.switchBtn, color: '#2f9bff' },
-      c: { text: L.sprint, color: '#2fc46a' },
-      d: rageFull && (hasBall || area) ? { text: pname, color: '#ff8a1f', glow: true } : { text: L.spin, color: '#a35cff' },
+      b: { text: keeper ? L.throwBtn : hasBall ? L.pass : L.switchBtn, color: '#2f9bff' },
+      c: { text: L.sprint, color: '#2fc46a', dim: keeper },
+      d: { text: L.spin, color: '#a35cff', dim: keeper },
+      e: it
+        ? { text: '', color: usable ? '#ffb21f' : '#6a5a3a', glow: usable, icon: itemIcon(it.id, it.type, it.color), tier: m.tierOf(team, team.item!), dim: !usable }
+        : { text: '?', color: '#3a4258', dim: true },
     };
   }
 

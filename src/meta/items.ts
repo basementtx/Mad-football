@@ -46,14 +46,55 @@ export const ITEMS: Item[] = [
   I('tr_electric', 'trail', 'rare', '#3bd9ff', 'Electric', 'Elektrik', 'Crackling sparks.', 'Çıtırdayan kıvılcımlar.'),
   I('tr_galaxy', 'trail', 'epic', '#8a5cff', 'Galaxy', 'Galaksi', 'Stars and nebula dust.', 'Yıldızlar ve nebula tozu.'),
   I('tr_gold', 'trail', 'legendary', '#ffcc2a', 'Midas', 'Midas', 'Pure gold.', 'Saf altın.'),
-  // ---- powers (used when the RAGE meter is full)
+  // ---- special items: picked up from the mystery boxes on the pitch
   I('pw_fireball', 'power', 'common', '#ff7a1f', 'Fireball', 'Ateş Topu', 'Flaming shot that flattens everyone in its path.', 'Yolundaki herkesi deviren alevli şut.', true),
+  I('pw_bomb', 'power', 'common', '#8a8aa6', 'Bomb', 'Bomba', 'Lob a bomb: it blows rivals off their feet.', 'Bomba fırlat: rakipleri havaya uçurur.', true),
+  I('pw_rifle', 'power', 'common', '#ffd23f', 'Blaster', 'Tüfek', 'Three quick shots knock down whoever they hit.', 'Üç hızlı atış, değdiği rakibi yere serer.', true),
+  I('pw_magnet', 'power', 'rare', '#ff3b5a', 'Magnet Boots', 'Mıknatıs', 'The ball sticks to you for 6 seconds. Nobody can steal it.', '6 saniye top sana yapışır, kimse çalamaz.'),
   I('pw_ice', 'power', 'rare', '#8ad8ff', 'Ice Shot', 'Buz Şutu', 'Freezes everyone it touches.', 'Dokunduğu herkesi dondurur.'),
   I('pw_banana', 'power', 'rare', '#ffe14d', 'Banana Shot', 'Falso Şutu', 'Bends wildly around defenders.', 'Savunmanın etrafından kıvrılır.'),
   I('pw_thunder', 'power', 'epic', '#3bd9ff', 'Thunder Shot', 'Şimşek Şutu', 'Lightning-fast, chains shocks to nearby players.', 'Şimşek hızında, yakındakilere zincirleme çarpar.'),
   I('pw_shockwave', 'power', 'epic', '#b04cff', 'Shockwave', 'Şok Dalgası', 'Slam the ground: knocks down all nearby rivals.', 'Yere vur: yakındaki tüm rakipleri devirir.'),
   I('pw_turbo', 'power', 'legendary', '#ff3b30', 'Turbo Rampage', 'Turbo Öfke', '4 seconds of unstoppable speed. Run them over!', '4 saniye durdurulamaz hız. Ezip geç!'),
 ];
+
+/** Item tiers ("skins"): duplicates of an owned item upgrade its look. */
+export const MAX_TIER = 5;
+/** copies needed to go from tier n to n+1 (index 0 = tier 1 -> 2), by item value */
+export const TIER_NEED: Record<ItemRarity, number[]> = {
+  common: [2, 3, 4, 5],
+  rare: [1, 2, 3, 4],
+  epic: [1, 2, 2, 3],
+  legendary: [1, 1, 2, 2],
+};
+export const TIER_NAME = {
+  en: ['Standard', 'Chrome', 'Gold', 'Neon', 'Prism'],
+  tr: ['Standart', 'Krom', 'Altın', 'Neon', 'Prizma'],
+};
+export const TIER_COLOR = ['#9aa6bd', '#dfe8f5', '#ffcc2a', '#ff3fa4', '#5ff0a4'];
+export const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
+const RAINBOW = ['#ff3b30', '#ff9a1f', '#ffe14d', '#5ff0a4', '#3bd9ff', '#b04cff', '#ff3fa4'];
+
+/** Extra effect colours for an item's tier (null = standard look). */
+export function tierColors(tier: number, time = 0): string[] | null {
+  switch (tier) {
+    case 2: return ['#ffffff', '#dfe8f5', '#9aa6bd'];
+    case 3: return ['#fff2a8', '#ffcc2a', '#c88a00'];
+    case 4: return ['#ff3fa4', '#3bd9ff', '#b04cff'];
+    case 5: {
+      const i = Math.floor(time * 12);
+      return [RAINBOW[i % 7], RAINBOW[(i + 2) % 7], RAINBOW[(i + 4) % 7]];
+    }
+  }
+  return null;
+}
+export const tierName = (tier: number) => (TIER_NAME[settings.lang] ?? TIER_NAME.en)[clampTier(tier) - 1];
+const clampTier = (t: number) => Math.max(1, Math.min(MAX_TIER, Math.round(t)));
+
+/** Shot powers need the ball; the rest work anywhere. */
+export const SHOT_POWERS = ['fireball', 'ice', 'banana', 'thunder'];
+export const LOADOUT_MIN = 3;
+export const LOADOUT_MAX = 5;
 
 export const itemById = (id: string) => ITEMS.find((i) => i.id === id);
 export const itemName = (i: Item) => i.name[settings.lang] ?? i.name.en;

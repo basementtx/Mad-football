@@ -1,20 +1,24 @@
 import type { Match } from './match';
 import type { Camera } from './camera';
 import { PPM, YS } from './camera';
-import type { Pitch, Player } from './entities';
+import type { Pitch, Player, MysteryBox, Bomb, Bullet } from './entities';
+import { GK_HOLD } from './match';
+import { tierColors } from '../meta/items';
 import type { TeamDef } from './teams';
 import { playerSheet, FRAMES, CELL_W, CELL_H, ANCHOR_X, ANCHOR_Y, PlayerLook } from '../pixel/player';
 import { ballFrame, shadow, ring, arrow, BALL_SIZE } from '../pixel/props';
 import { ramp, css, RGB } from '../pixel/palette';
-import { drawText, measure } from '../pixel/font';
+import { drawText, measure, textCanvas } from '../pixel/font';
 import { clamp, hexToRgb, TAU, pick } from '../engine/math';
 import { settings } from '../engine/storage';
+import { t } from '../engine/i18n';
 
 const SPONSORS = ['MADFOOT', 'BONK COLA', 'NO RULES', 'TURBO BOOTS', 'GG ENERGY', 'KICK HARD', 'RAGE FM', 'SLIDE CO.'];
 const GRASS: RGB[] = ['#174a24', '#1f5e2c', '#277035', '#2f803c', '#389045', '#45a050', '#57b05c'].map((h) => hexToRgb(h) as RGB);
 const DIRT: RGB[] = ['#4f5a2c', '#5d6532', '#6c703c', '#7a7a46'].map((h) => hexToRgb(h) as RGB);
 const LINE: RGB = [236, 242, 230];
 const LINE_W: RGB = [205, 220, 200];
+const RAINBOW = ['#ff3b30', '#ff9a1f', '#ffe14d', '#5ff0a4', '#3bd9ff', '#b04cff', '#ff3fa4'];
 const SKINS = ['#f1cfb0', '#d9a882', '#b47b55', '#7c5135', '#5a3722'];
 const HAIRS = ['#1a1310', '#3b2416', '#6b3e1f', '#c98a3a', '#2a2a2a', '#7a1a10'];
 
@@ -560,7 +564,10 @@ export class Renderer {
     const ents: Ent[] = [];
     for (const p of m.all) ents.push({ y: p.y, draw: () => this.drawPlayer(ctx, cam, p, time) });
     const ballY = b.owner ? b.owner.y + (b.owner.faceY > 0 ? 0.05 : -0.05) : b.y;
-    ents.push({ y: ballY, draw: () => this.drawBall(ctx, cam) });
+    ents.push({ y: ballY, draw: () => this.drawBall(ctx, cam, time) });
+    for (const bx of m.boxes) ents.push({ y: bx.y, draw: () => this.drawBox(ctx, cam, bx, time) });
+    for (const bm of m.bombs) ents.push({ y: bm.y, draw: () => this.drawBomb(ctx, cam, bm, time) });
+    for (const bl of m.bullets) ents.push({ y: bl.y + 0.3, draw: () => this.drawBullet(ctx, cam, bl, time) });
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) ents.push({ y: sy * this.P.hh, draw: () => this.drawFlag(ctx, cam, sx * this.P.hw, sy * this.P.hh, time) });
     ents.sort((a, c) => a.y - c.y);
     for (const e of ents) e.draw();
@@ -648,6 +655,12 @@ export class Renderer {
       ctx.fillRect(bx, by + h - 1, w, 1);
       ctx.globalAlpha = 1;
     }
+    if (p.magnet > 0 && Math.floor(time * 6) % 2 === 0) {
+      ctx.fillStyle = '#ff3b5a';
+      ctx.fillRect(x - 3, y - 2, 2, 1);
+      ctx.fillStyle = '#3bd9ff';
+      ctx.fillRect(x + 2, y - 2, 2, 1);
+    }
     if (p.star && p !== this.m.human && p.state !== 'down' && !this.m.replaying) {
       // small star over the user's created player
       ctx.fillStyle = '#120c1c';
@@ -659,15 +672,153 @@ export class Renderer {
     }
   }
 
-  private drawBall(ctx: CanvasRenderingContext2D, cam: Camera) {
+  // ---------------------------------------------------------------- special items
+
+  /** Spinning, hovering rainbow cube with "?" faces. */
+  private drawBox(ctx: CanvasRenderingContext2D, cam: Camera, bx: MysteryBox, time: number) {
+    const t = time + bx.seed;
+    const grow = Math.min(1, bx.age / 0.45);
+    const pop = grow < 1 ? 1 + Math.sin(grow * Math.PI) * 0.35 : 1;
+    const hover = 0.45 + Math.sin(t * 3) * 0.12;
+    const X = cam.sx(bx.x), Yg = cam.sy(bx.y);
+    if (X < -20 || X > cam.W + 20 || Yg < -30 || Yg > cam.H + 20) return;
+    const rainbow = RAINBOW;
+    // ground glow + shadow
+    const gl = ring(9 + (Math.floor(t * 4) % 2), 3, rainbow[Math.floor(t * 8) % 7]);
+    ctx.globalAlpha = 0.8;
+    ctx.drawImage(gl, X - (gl.width >> 1), Yg - (gl.height >> 1) + 1);
+    ctx.globalAlpha = 1;
+    const sh = shadow(5, 2);
+    ctx.drawImage(sh, X - (sh.width >> 1), Yg - (sh.height >> 1));
+    const s = Math.max(1, Math.round(7 * grow * pop));
+    const Y = cam.sy(bx.y, hover);
+    const h = s * 2;
+    const ang = t * 2.4;
+    const R = s * Math.SQRT2;
+    const cs = [0, 1, 2, 3].map((k) => {
+      const a = ang + (k * Math.PI) / 2;
+      return { x: X + Math.cos(a) * R, dy: Math.sin(a) * R * 0.45 };
+    });
+    // side faces facing the camera
+    for (let k = 0; k < 4; k++) {
+      const c0 = cs[k], c1 = cs[(k + 1) % 4];
+      const nrm = ang + (k * Math.PI) / 2 + Math.PI / 4;
+      const facing = Math.sin(nrm);
+      if (facing <= 0.02) continue;
+      const xa = Math.min(c0.x, c1.x), xb = Math.max(c0.x, c1.x);
+      const x0 = Math.round(xa), x1 = Math.round(xb);
+      if (x1 - x0 < 1) continue;
+      const hue = (t * 140 + k * 90) % 360;
+      const light = 42 + facing * 22;
+      for (let x = x0; x < x1; x++) {
+        const u = (x + 0.5 - c0.x) / (c1.x - c0.x);
+        const dy = c0.dy + (c1.dy - c0.dy) * clamp(u, 0, 1);
+        const yb = Math.round(Y + dy), yt = yb - h;
+        ctx.fillStyle = `hsl(${hue},95%,${light}%)`;
+        ctx.fillRect(x, yt, 1, h);
+        ctx.fillStyle = `hsl(${hue},95%,${light + 18}%)`;
+        ctx.fillRect(x, yt, 1, 1);
+        ctx.fillStyle = '#120c1c';
+        ctx.fillRect(x, yb, 1, 1);
+        if (x === x0 || x === x1 - 1) {
+          ctx.fillStyle = 'rgba(18,12,28,0.85)';
+          ctx.fillRect(x, yt, 1, h);
+        }
+      }
+      // the "?" squeezes with the face as it turns
+      const fw = x1 - x0;
+      if (fw >= 4) {
+        const q = this.qGlyph();
+        const midDy = (c0.dy + c1.dy) / 2;
+        const gw = Math.max(2, Math.round(fw * 0.62)), gh = Math.round(h * 0.78);
+        ctx.drawImage(q, Math.round((x0 + x1) / 2 - gw / 2), Math.round(Y + midDy - h + (h - gh) / 2), gw, gh);
+      }
+    }
+    // top face
+    const tops = cs.map((c) => [c.x, Y + c.dy - h] as [number, number]);
+    const minX = Math.round(Math.min(...tops.map((p) => p[0]))), maxX = Math.round(Math.max(...tops.map((p) => p[0])));
+    const topHue = (t * 140 + 45) % 360;
+    for (let x = minX; x <= maxX; x++) {
+      let lo = Infinity, hi = -Infinity;
+      for (let k = 0; k < 4; k++) {
+        const [ax, ay] = tops[k], [bx2, by2] = tops[(k + 1) % 4];
+        if ((x + 0.5 - ax) * (x + 0.5 - bx2) > 0 || ax === bx2) continue;
+        const y = ay + ((x + 0.5 - ax) / (bx2 - ax)) * (by2 - ay);
+        lo = Math.min(lo, y);
+        hi = Math.max(hi, y);
+      }
+      if (lo > hi) continue;
+      const y0 = Math.round(lo), y1 = Math.round(hi);
+      ctx.fillStyle = `hsl(${topHue},90%,74%)`;
+      ctx.fillRect(x, y0, 1, Math.max(1, y1 - y0));
+      ctx.fillStyle = '#120c1c';
+      ctx.fillRect(x, y0 - 1, 1, 1);
+    }
+    // sparkles orbiting the box
+    for (let i = 0; i < 3; i++) {
+      const a = t * 2.6 + i * 2.1;
+      const sx = Math.round(X + Math.cos(a) * (s + 6)), sy = Math.round(Y - s + Math.sin(a) * (s * 0.6 + 3));
+      if (Math.floor(t * 10 + i * 3) % 3 === 0) continue;
+      ctx.fillStyle = rainbow[(Math.floor(t * 6) + i * 2) % 7];
+      ctx.fillRect(sx, sy, 1, 1);
+      ctx.fillStyle = '#ffffff';
+      if (i === 0) {
+        ctx.fillRect(sx - 1, sy, 3, 1);
+        ctx.fillRect(sx, sy - 1, 1, 3);
+      }
+    }
+  }
+
+  private qCanvas: HTMLCanvasElement | null = null;
+  private qGlyph() {
+    return (this.qCanvas ??= textCanvas('?', { color: '#ffffff', outline: null }));
+  }
+
+  private drawBomb(ctx: CanvasRenderingContext2D, cam: Camera, bm: Bomb, time: number) {
+    const X = cam.sx(bm.x), Y = cam.sy(bm.y, bm.z) - 3;
+    const sh = shadow(3, 1);
+    ctx.drawImage(sh, cam.sx(bm.x) - (sh.width >> 1), cam.sy(bm.y) - (sh.height >> 1));
+    const hot = bm.fuse < 0.45 && Math.floor(time * 16) % 2 === 0;
+    ctx.fillStyle = '#120c1c';
+    ctx.fillRect(X - 3, Y - 2, 7, 5);
+    ctx.fillRect(X - 2, Y - 3, 5, 7);
+    ctx.fillStyle = hot ? '#ff3b30' : '#3a3a4e';
+    ctx.fillRect(X - 2, Y - 2, 5, 5);
+    ctx.fillStyle = hot ? '#ffb0a0' : '#7a7a96';
+    ctx.fillRect(X - 1, Y - 1, 1, 1);
+    const tc = tierColors(bm.tier, time);
+    if (tc) {
+      ctx.fillStyle = tc[0];
+      ctx.fillRect(X - 2, Y + 1, 5, 1);
+    }
+    // fuse + spark
+    ctx.fillStyle = '#c8a070';
+    ctx.fillRect(X + 1, Y - 4, 1, 1);
+    ctx.fillStyle = Math.floor(time * 20) % 2 ? '#ffe14d' : '#ffffff';
+    ctx.fillRect(X + 2, Y - 5, 1, 1);
+  }
+
+  private drawBullet(ctx: CanvasRenderingContext2D, cam: Camera, bl: Bullet, time: number) {
+    if (bl.delay > 0) return;
+    const X = cam.sx(bl.x), Y = cam.sy(bl.y, 0.9);
+    const [ux, uy] = [bl.vx / 34, (bl.vy / 34) * 0.75];
+    const tc = tierColors(bl.tier, time);
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = i === 0 ? '#ffffff' : i < 2 ? '#fff3a0' : tc ? tc[i % tc.length] : '#ffb02e';
+      ctx.fillRect(Math.round(X - ux * i), Math.round(Y - uy * i), 1, 1);
+    }
+  }
+
+  private drawBall(ctx: CanvasRenderingContext2D, cam: Camera, time: number) {
     const b = this.m.ball;
     const x = cam.sx(b.x), y = cam.sy(b.y, b.z) - 4;
+    const tc = b.fire > 0 ? tierColors(b.tier, time) : null;
     // motion trail
     if (b.trail.length > 1) {
       for (let i = 0; i < b.trail.length - 1; i++) {
         const t = b.trail[i];
         const k = i / b.trail.length;
-        ctx.fillStyle = b.fire > 0 ? (k > 0.5 ? '#ffd25a' : '#ff6a1a') : `rgba(255,255,255,${0.15 + k * 0.35})`;
+        ctx.fillStyle = tc ? tc[i % tc.length] : b.fire > 0 ? (k > 0.5 ? '#ffd25a' : '#ff6a1a') : `rgba(255,255,255,${0.15 + k * 0.35})`;
         const sz = b.fire > 0 ? 2 + Math.floor(k * 3) : 1 + Math.floor(k * 2);
         ctx.fillRect(cam.sx(t.x) - (sz >> 1), cam.sy(t.y, t.z) - 4 - (sz >> 1), sz, sz);
       }
@@ -698,6 +849,7 @@ export class Renderer {
 
   private drawAimLine(ctx: CanvasRenderingContext2D, cam: Camera, h: Player, time: number) {
     const a = this.m.aim!;
+    if (this.m.aimPath && this.m.aimPath.length > 2) return this.drawAimPath(ctx, cam, h, time);
     const dx = a.x - h.x, dy = a.y - h.y;
     const len = Math.hypot(dx, dy);
     if (len < 1.2) return;
@@ -738,6 +890,34 @@ export class Renderer {
     }
   }
 
+  /** Dotted preview of a (curled) shot while charging. */
+  private drawAimPath(ctx: CanvasRenderingContext2D, cam: Camera, h: Player, time: number) {
+    const path = this.m.aimPath!;
+    const a = this.m.aim!;
+    const curled = Math.abs(this.m.curl) > 0.05;
+    const col = a.kind === 'pass' ? '160,220,255' : curled ? '255,226,120' : '255,246,210';
+    const boost = Math.min(1, h.charge) * 0.3;
+    let acc = (time * 30) % 3;
+    let px = cam.sx(path[0][0]), py = cam.sy(path[0][1]);
+    const total = path.length;
+    for (let i = 1; i < total; i++) {
+      const nx = cam.sx(path[i][0]), ny = cam.sy(path[i][1]);
+      acc += Math.hypot(nx - px, ny - py);
+      px = nx;
+      py = ny;
+      if (i < 3 || acc < 3) continue;
+      acc = 0;
+      const alpha = (0.45 + boost) * (1 - (i / total) * 0.6);
+      ctx.fillStyle = `rgba(${col},${alpha.toFixed(3)})`;
+      ctx.fillRect(nx, ny, 1, 1);
+    }
+    const [ex, ey] = path[total - 1];
+    ctx.fillStyle = `rgba(${col},${(0.6 + boost).toFixed(3)})`;
+    const X = cam.sx(ex), Y = cam.sy(ey);
+    ctx.fillRect(X - 1, Y, 3, 1);
+    ctx.fillRect(X, Y - 1, 1, 3);
+  }
+
   private drawOverheads(ctx: CanvasRenderingContext2D, cam: Camera, time: number) {
     const m = this.m;
     const h = m.human;
@@ -756,6 +936,20 @@ export class Renderer {
     }
     const ar = arrow('#ffe14d');
     ctx.drawImage(ar, x - (ar.width >> 1), top);
+    if (h.isGK && m.ball.owner === h) {
+      // keeper holding time: release before it runs out
+      const left = Math.max(0, GK_HOLD - h.holdT);
+      const k = left / GK_HOLD;
+      const w = 22, yy = top - 6;
+      ctx.fillStyle = '#120c1c';
+      ctx.fillRect(x - w / 2 - 1, yy - 1, w + 2, 4);
+      ctx.fillStyle = '#2a3046';
+      ctx.fillRect(x - w / 2, yy, w, 2);
+      ctx.fillStyle = k > 0.5 ? '#5ff0a4' : k > 0.25 ? '#ffe14d' : Math.floor(time * 8) % 2 ? '#ff3b30' : '#ff9a8a';
+      ctx.fillRect(x - w / 2, yy, Math.round(w * k), 2);
+      drawText(ctx, left < 2 ? t().holdBall : String(Math.ceil(left)), x, yy - 9, { color: left < 2 ? '#ff6a5a' : '#ffffff', align: 'center' });
+      return;
+    }
     // stamina
     let yb = top - 5;
     if (h.stamina < 0.999) {
