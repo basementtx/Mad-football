@@ -4,8 +4,9 @@
 #
 # Stable download link: https://github.com/basementtx/Mad-football/releases/latest/download/MadFootball.apk
 #
-# Signing: uses the repo secrets ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD /
-# ANDROID_KEY_ALIAS. Updates only install over an APK signed with the same key.
+# Signing: uses the repo secret ANDROID_KEYSTORE_BASE64, either "<password>:<base64 keystore>"
+# (single secret) or plain base64 plus ANDROID_KEYSTORE_PASSWORD (and optional ANDROID_KEY_ALIAS,
+# default "madfootball"). Updates only install over an APK signed with the same key.
 # Without the secrets a throw-away key is generated (the APK installs, but each
 # new build then has to be installed after uninstalling the previous one).
 name: Android APK
@@ -74,7 +75,13 @@ jobs:
           KS_ALIAS_SECRET: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           if [ -n "$KS_B64" ]; then
-            echo "$KS_B64" | base64 -d > ks.jks; KS_PASS="$KS_PASS_SECRET"; KS_ALIAS="$KS_ALIAS_SECRET"
+            # one-secret form: "<password>:<base64 keystore>" (easy to paste from a phone)
+            case "$KS_B64" in
+              *:*) KS_PASS="${KS_B64%%:*}"; KS_B64="${KS_B64#*:}" ;;
+              *) KS_PASS="$KS_PASS_SECRET" ;;
+            esac
+            KS_ALIAS="${KS_ALIAS_SECRET:-madfootball}"
+            echo "$KS_B64" | tr -d ' \r\n' | base64 -d > ks.jks
           else
             echo "::warning::ANDROID_KEYSTORE_BASE64 secret not set - signing with a throw-away key; in-place updates will not work."
             KS_PASS=$(openssl rand -hex 16); KS_ALIAS=madfootball

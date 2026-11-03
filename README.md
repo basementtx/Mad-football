@@ -123,9 +123,4 @@ Her push'ta GitHub Actions (`.github/workflows/android-apk.yml`) imzalı bir APK
 - **İndirme bağlantısı (hep en yenisi):** https://github.com/basementtx/Mad-football/releases/latest/download/MadFootball.apk
 - Telefonda bağlantıyı açıp APK'yı indirin ve kurun. Android "bilinmeyen kaynaklardan yükleme" izni isteyebilir.
 - **Otomatik güncelleme:** uygulama açılışta ve arka plandan döndüğünde GitHub'daki son sürüme bakıyor. Yeni bir derleme varsa üstte "Yeni sürüm hazır → GÜNCELLE" çıkıyor. Dokununca yeni APK iniyor ve eski sürümün üzerine kuruluyor; kayıtlar ve ayarlar korunuyor. Yüklü derleme numarası ana menünün altında yazıyor.
-- **İmzalama anahtarı:** güncellemelerin eskisinin üzerine kurulabilmesi için tüm APK'lar aynı anahtarla imzalanmalı. Anahtar repoda tutulmuyor; şu üç repo secret'ından okunuyor (Settings → Secrets and variables → Actions):
-  - `ANDROID_KEYSTORE_BASE64`: keystore dosyasının base64 hali
-  - `ANDROID_KEYSTORE_PASSWORD`: keystore şifresi
-  - `ANDROID_KEY_ALIAS`: anahtar adı
-
-  Secret'lar yoksa derleme yine bir APK üretiyor, ama her seferinde geçici bir anahtar kullanıyor. Bu durumda yeni sürümü kurmadan önce eskisini kaldırmak gerekiyor.
+- **İmzalama anahtarı:** güncellemelerin eskisinin üzerine kurulabilmesi için tüm APK'lar aynı anahtarla imzalanmalı. Anahtar repoda tutulmuyor; tek bir repo secret'ından okunuyor: `ANDROID_KEYSTORE_BASE64` (Settings → Secrets and variables → Actions). Değeri `şifre:base64-keystore` biçiminde. İsterseniz şifreyi ayrıca `ANDROID_KEYSTORE_PASSWORD` olarak da verebilirsiniz. Secret yoksa derleme her seferinde geçici bir anahtar kullanır; o zaman yeni sürümü kurmadan önce eskisini kaldırmak gerekir.
