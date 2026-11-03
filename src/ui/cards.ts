@@ -36,7 +36,7 @@ export function cardHTML(c: CardData, o: CardOpts = {}) {
     <div class="pc-stats">
       ${STAT_KEYS.map((k) => `<span><b>${c.stats[k]}</b><i>${L.stat[k]}</i></span>`).join('')}
     </div>
-    <div class="pc-tier">${c.custom ? '★ ' + L.you : L.cardRarity[r]}</div>
+    <div class="pc-tier">${c.custom ? L.you : L.cardRarity[r]}</div>
     ${o.badge ? `<div class="pc-badge">${o.badge}</div>` : ''}
   </div>`;
 }

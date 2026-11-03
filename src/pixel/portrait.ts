@@ -89,11 +89,13 @@ export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
       }
   }
   if (st === 5) {
-    // long hair falling behind the shoulders
-    for (let y = 4; y < 23; y++)
+    // long hair: a rounded mass around the head that falls to the shoulders
+    for (let y = 1; y < 22; y++)
       for (let x = 0; x < W; x++) {
-        const dx = Math.abs(x + 0.5 - cx);
-        if (dx < 8 - Math.max(0, y - 19) * 0.8 && dx > 3.5 - (y < 12 ? 4 : 0)) set(x, y, shade(HR, -(x - cx) / 7 - 0.1 - (y > 17 ? 0.5 : 0)));
+        const dx = Math.abs(x + 0.5 - cx), dy = y + 0.5 - hy;
+        const crown = dy < 2 && (dx / 7.3) ** 2 + ((dy + 0.6) / 8.3) ** 2 < 1;
+        const sides = dy >= 0 && dy < 10 && dx > 4.4 && dx < 7.3 - Math.max(0, dy - 5) * 0.55;
+        if (crown || sides) set(x, y, shade(HR, -(x - cx) / 7 - 0.1 - (dy > 6 ? 0.45 : 0)));
       }
   }
 

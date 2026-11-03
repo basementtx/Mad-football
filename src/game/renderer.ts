@@ -65,8 +65,8 @@ export class Renderer {
     return Math.round(y * PPM * YS - z * PPM) + this.OY;
   }
   private P3(x: number, y: number, z: number): [number, number] {
-    // goals stand straight up (no outward lean)
-    return [this.WX(x), this.WY(y, z)];
+    // tall objects at the ends lean outward a little, so the goal frames read clearly
+    return [this.WX(x) + Math.round(z * PPM * 0.3 * Math.sign(x)), this.WY(y, z)];
   }
 
   // ---------------------------------------------------------------- turf wear

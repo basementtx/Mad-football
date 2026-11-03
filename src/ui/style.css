@@ -384,44 +384,62 @@ canvas.flag { width: 39px; height: 27px; display: block; }
 .badge { position: absolute; top: 6px; right: 6px; background: var(--red); color: #fff; font-family: var(--display); font-size: 8px; padding: 4px 6px; animation: blink 1.2s steps(2) infinite; box-shadow: 2px 2px 0 var(--ink); }
 
 /* ---------------------------------------------------------------- player cards */
-.pcard { --w: 96px; position: relative; width: var(--w); height: calc(var(--w) * 1.42); flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; padding: calc(var(--w) * 0.07) calc(var(--w) * 0.08) 0; overflow: hidden;
-  --bg: #a8692f; --lt: #d89a5a; --dk: #5a2e10; --tx: #2a1404;
-  background: linear-gradient(180deg, var(--lt) 0 5%, var(--bg) 5% 100%);
+.pcard { --w: 96px; position: relative; width: var(--w); height: calc(var(--w) * 1.42); flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; padding: calc(var(--w) * 0.075) calc(var(--w) * 0.09) 0; overflow: hidden;
+  --bg: #b07438; --lt: #e8b27a; --dk: #5a2e10; --tx: #2a1404; --glow: rgba(255,226,180,0.85); --plate: rgba(70,30,6,0.22);
+  background:
+    radial-gradient(ellipse 62% 42% at 64% 30%, var(--glow) 0%, transparent 72%),
+    repeating-linear-gradient(118deg, rgba(255,255,255,0.07) 0 calc(var(--w) * 0.05), transparent calc(var(--w) * 0.05) calc(var(--w) * 0.13)),
+    linear-gradient(165deg, var(--lt) 0%, var(--bg) 34%, var(--bg) 66%, var(--dk) 135%);
   color: var(--tx);
-  box-shadow: 0 -3px 0 0 var(--ink), 0 3px 0 0 var(--ink), -3px 0 0 0 var(--ink), 3px 0 0 0 var(--ink), inset 0 0 0 2px var(--lt), inset 0 -4px 0 0 var(--dk);
+  box-shadow: 0 -3px 0 0 var(--ink), 0 3px 0 0 var(--ink), -3px 0 0 0 var(--ink), 3px 0 0 0 var(--ink),
+    inset 0 0 0 2px var(--lt), inset 0 0 0 calc(var(--w) * 0.035) var(--bg), inset 0 0 0 calc(var(--w) * 0.035 + 1px) rgba(255,255,255,0.35), inset 0 -4px 0 0 var(--dk);
   clip-path: polygon(0 6%, 6% 0, 94% 0, 100% 6%, 100% 92%, 50% 100%, 0 92%);
 }
 .pcard.sm { --w: 70px; }
 .pcard.lg { --w: 128px; }
-.pcard.r-silver { --bg: #b8c0cc; --lt: #eef2f8; --dk: #5e6674; --tx: #1a1e26; }
-.pcard.r-gold { --bg: #f0c030; --lt: #fff2a0; --dk: #9a6a00; --tx: #2a1a00; }
-.pcard.r-hero { --bg: #7a2ad8; --lt: #d8a0ff; --dk: #3a0a80; --tx: #ffffff; }
-.pcard.r-legend { --bg: #1a1430; --lt: #ffd23f; --dk: #ff3fa4; --tx: #fff2a8; }
+.pcard.r-silver { --bg: #b4bcc8; --lt: #f4f7fb; --dk: #4e5664; --tx: #161a22; --glow: rgba(255,255,255,0.95); --plate: rgba(30,40,60,0.16); }
+.pcard.r-gold { --bg: #eab52a; --lt: #fff4b0; --dk: #8a5a00; --tx: #2a1a00; --glow: rgba(255,250,210,0.95); --plate: rgba(110,70,0,0.2); }
+.pcard.r-hero { --bg: #6a22c8; --lt: #dcaeff; --dk: #24065a; --tx: #ffffff; --glow: rgba(230,180,255,0.7); --plate: rgba(20,0,50,0.35); }
+.pcard.r-legend { --bg: #17112c; --lt: #ffd23f; --dk: #ff3fa4; --tx: #fff2a8; --glow: rgba(255,210,63,0.45); --plate: rgba(0,0,0,0.4); }
+.pcard.custom { --bg: #128f96; --lt: #9af4f4; --dk: #043e44; --tx: #ffffff; --glow: rgba(160,255,250,0.6); --plate: rgba(0,30,34,0.3); }
 @keyframes legend-hue { to { filter: hue-rotate(360deg); } }
-.pcard.custom { --bg: #14a0a0; --lt: #8af0f0; --dk: #064a4a; --tx: #ffffff; }
 .pcard.sel { outline: 3px solid #fff; outline-offset: 2px; }
-.pc-shine { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
-.r-gold .pc-shine, .r-hero .pc-shine, .r-legend .pc-shine, .custom .pc-shine { background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,0.35) 40% 46%, transparent 46%); background-size: 300% 100%; animation: shine 2.6s steps(14) infinite; }
-/* legend: only the frame cycles colours, never the portrait */
-.r-legend::before { content: ''; position: absolute; inset: 0; z-index: 0; background: linear-gradient(135deg, rgba(255,63,164,0.35), rgba(255,210,63,0.25) 50%, rgba(59,217,255,0.35)); animation: legend-hue 2.4s steps(12) infinite; pointer-events: none; }
+/* shine sweep (all cards, stronger on the rare ones) + twinkles on hero / legend */
+.pc-shine { position: absolute; inset: 0; pointer-events: none; z-index: 3; background: linear-gradient(110deg, transparent 42%, rgba(255,255,255,0.18) 42% 46%, transparent 46%); background-size: 300% 100%; animation: shine 4s steps(20) infinite; }
+.r-gold .pc-shine, .r-hero .pc-shine, .r-legend .pc-shine, .custom .pc-shine { background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,0.38) 40% 45%, transparent 45% 48%, rgba(255,255,255,0.2) 48% 49%, transparent 49%); background-size: 300% 100%; animation-duration: 2.6s; }
 @keyframes shine { from { background-position: 150% 0; } to { background-position: -50% 0; } }
-/* top: OVR / position / crest stacked on the left, portrait on the right (FIFA layout) */
+.r-hero .pc-shine::after, .r-legend .pc-shine::after { content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 18% 58%, #fff 0 1.5px, transparent 2px), radial-gradient(circle at 86% 14%, #fff 0 1.5px, transparent 2px), radial-gradient(circle at 78% 64%, #fff 0 1px, transparent 1.5px), radial-gradient(circle at 30% 12%, #fff 0 1px, transparent 1.5px);
+  animation: twinkle 1.4s steps(2) infinite; }
+@keyframes twinkle { 50% { opacity: 0.15; } }
+/* legend: only the frame cycles colours, never the portrait */
+.r-legend::before { content: ''; position: absolute; inset: 0; z-index: 0; background: linear-gradient(135deg, rgba(255,63,164,0.45), rgba(255,210,63,0.3) 50%, rgba(59,217,255,0.45)); animation: legend-hue 2.4s steps(12) infinite; pointer-events: none; }
+/* top: OVR / position / crest stacked on the left, portrait on the right */
 .pc-top { position: relative; z-index: 1; width: 100%; height: calc(var(--w) * 0.66); display: flex; align-items: flex-end; }
-.pc-head { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; width: calc(var(--w) * 0.24); gap: calc(var(--w) * 0.02); z-index: 2; }
-.pc-ovr { font-family: var(--display); font-size: calc(var(--w) * 0.15); line-height: 1; letter-spacing: -0.04em; text-shadow: 1px 1px 0 rgba(255,255,255,0.35); }
+.pc-head { position: absolute; left: calc(var(--w) * -0.01); top: calc(var(--w) * 0.01); display: flex; flex-direction: column; align-items: center; width: calc(var(--w) * 0.24); gap: calc(var(--w) * 0.018); z-index: 2; }
+.pc-ovr { font-family: var(--display); font-size: calc(var(--w) * 0.16); line-height: 1; letter-spacing: -0.05em; text-shadow: 1px 1px 0 rgba(255,255,255,0.4), 2px 2px 0 rgba(0,0,0,0.15); }
 .r-hero .pc-ovr, .r-legend .pc-ovr, .custom .pc-ovr { text-shadow: 2px 2px 0 var(--ink); }
-.pc-pos { font-family: var(--display); font-size: calc(var(--w) * 0.062); line-height: 1; }
-.pc-crest { width: calc(var(--w) * 0.17); height: calc(var(--w) * 0.19); margin-top: calc(var(--w) * 0.02); }
-.pc-portrait { width: calc(var(--w) * 0.64); height: calc(var(--w) * 0.6); margin-left: auto; margin-right: calc(var(--w) * -0.04); }
-.pc-name { position: relative; z-index: 1; width: 100%; text-align: center; font-family: var(--display); font-size: calc(var(--w) * 0.07); line-height: 1.3; padding-top: calc(var(--w) * 0.025); border-top: 2px solid var(--dk); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pc-stats { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1fr; column-gap: calc(var(--w) * 0.1); row-gap: calc(var(--w) * 0.012); margin-top: calc(var(--w) * 0.03); width: 86%; }
+.pc-pos { font-family: var(--display); font-size: calc(var(--w) * 0.06); line-height: 1; padding-bottom: calc(var(--w) * 0.02); border-bottom: 2px solid var(--dk); }
+.r-hero .pc-pos, .r-legend .pc-pos, .custom .pc-pos { border-color: var(--lt); }
+.pc-crest { width: calc(var(--w) * 0.17); height: calc(var(--w) * 0.19); margin-top: calc(var(--w) * 0.01); filter: drop-shadow(1px 1px 0 rgba(0,0,0,0.3)); }
+.pc-portrait { width: calc(var(--w) * 0.66); height: calc(var(--w) * 0.62); margin-left: auto; margin-right: calc(var(--w) * -0.05); filter: drop-shadow(calc(var(--w) * 0.015) calc(var(--w) * 0.015) 0 rgba(0,0,0,0.22)); }
+/* name plate */
+.pc-name { position: relative; z-index: 1; width: calc(100% + var(--w) * 0.12); margin: 0 calc(var(--w) * -0.06); text-align: center; font-family: var(--display); font-size: calc(var(--w) * 0.07); line-height: 1; padding: calc(var(--w) * 0.03) calc(var(--w) * 0.06); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: linear-gradient(90deg, transparent, var(--plate) 18%, var(--plate) 82%, transparent);
+  border-top: 1px solid rgba(255,255,255,0.35); box-shadow: 0 1px 0 rgba(0,0,0,0.18); }
+.r-hero .pc-name, .r-legend .pc-name, .custom .pc-name { text-shadow: 1px 1px 0 var(--ink); }
+/* stats: two columns with a centre rule */
+.pc-stats { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1fr; column-gap: calc(var(--w) * 0.12); row-gap: calc(var(--w) * 0.014); margin-top: calc(var(--w) * 0.035); width: 84%; }
+.pc-stats::before { content: ''; position: absolute; left: 50%; top: 6%; bottom: 6%; width: 1px; background: currentColor; opacity: 0.3; }
 .pc-stats span { display: flex; align-items: baseline; justify-content: space-between; font-family: var(--display); white-space: nowrap; }
 .pc-stats b { font-size: calc(var(--w) * 0.062); }
-.pc-stats i { font-style: normal; font-size: calc(var(--w) * 0.048); opacity: 0.8; }
-.pc-tier { position: relative; z-index: 1; font-family: var(--display); font-size: calc(var(--w) * 0.045); margin-top: auto; margin-bottom: calc(var(--w) * 0.12); opacity: 0.85; }
-.pcard.sm .pc-stats, .pcard.sm .pc-tier { display: none; }
+.pc-stats i { font-style: normal; font-size: calc(var(--w) * 0.046); opacity: 0.75; }
+/* rarity pill near the bottom tip */
+.pc-tier { position: relative; z-index: 1; font-family: var(--display); font-size: calc(var(--w) * 0.042); line-height: 1; margin-top: auto; margin-bottom: calc(var(--w) * 0.115); padding: calc(var(--w) * 0.018) calc(var(--w) * 0.05); background: var(--dk); color: var(--lt); box-shadow: 0 0 0 1px rgba(255,255,255,0.25); }
+.custom .pc-tier { background: var(--lt); color: var(--dk); }
+.pcard.sm .pc-stats, .pcard.sm .pc-tier, .pcard.sm .pc-crest { display: none; }
 .pcard.sm { height: calc(var(--w) * 1.22); }
-.pcard.sm .pc-crest { display: none; }
+.pcard.sm .pc-name { font-size: calc(var(--w) * 0.08); }
 .pc-badge { position: absolute; top: 18%; right: -2px; z-index: 3; background: var(--red); color: #fff; font-family: var(--display); font-size: 7px; padding: 3px 5px; transform: rotate(8deg); box-shadow: 2px 2px 0 var(--ink); }
 
 /* ---------------------------------------------------------------- item tiles */
