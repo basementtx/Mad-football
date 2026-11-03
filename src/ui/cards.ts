@@ -24,15 +24,17 @@ export function cardHTML(c: CardData, o: CardOpts = {}) {
   return `
   <div class="pcard r-${r} ${o.size ?? 'md'} ${o.selected ? 'sel' : ''} ${c.custom ? 'custom' : ''}" ${o.attrs ?? ''}>
     <div class="pc-shine"></div>
-    <div class="pc-head">
-      <div class="pc-ovr">${ovr}</div>
-      <div class="pc-pos">${L.pos[c.pos]}</div>
-      ${o.club ? crestTag(o.club, 'pc-crest') : ''}
+    <div class="pc-top">
+      <div class="pc-head">
+        <div class="pc-ovr">${ovr}</div>
+        <div class="pc-pos">${L.pos[c.pos]}</div>
+        ${o.club ? crestTag(o.club, 'pc-crest') : ''}
+      </div>
+      ${paintTag(portraitSource(lookFor(kit, c.look, c.pos === 'GK')), 'pc-portrait')}
     </div>
-    ${paintTag(portraitSource(lookFor(kit, c.look, c.pos === 'GK')), 'pc-portrait')}
     <div class="pc-name">${esc(shortName(c))}</div>
     <div class="pc-stats">
-      ${STAT_KEYS.map((k) => `<span><b>${c.stats[k]}</b>${L.stat[k]}</span>`).join('')}
+      ${STAT_KEYS.map((k) => `<span><b>${c.stats[k]}</b><i>${L.stat[k]}</i></span>`).join('')}
     </div>
     <div class="pc-tier">${c.custom ? '★ ' + L.you : L.cardRarity[r]}</div>
     ${o.badge ? `<div class="pc-badge">${o.badge}</div>` : ''}

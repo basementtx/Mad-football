@@ -73,6 +73,13 @@ export class Match {
   private lockY = 0;
   curl = 0;
 
+  /** turf wear events for the renderer: [x, y, radius m, amount, kind 0 scuff / 1 skid / 2 scorch] */
+  wearQ: [number, number, number, number, number][] = [];
+  wear(x: number, y: number, r: number, amt: number, kind = 0) {
+    if (this.cfg.demo && this.wearQ.length > 200) return;
+    if (this.wearQ.length < 600) this.wearQ.push([x, y, r, amt, kind]);
+  }
+
   // ---- special items
   boxes: MysteryBox[] = [];
   bombs: Bomb[] = [];
@@ -832,6 +839,7 @@ export class Match {
     p.kickAnim = 0.3;
     p.possT = 0;
     p.face = Math.atan2(vy, vx);
+    if (power > 0.6) this.wear(p.x + p.faceX * 0.3, p.y + p.faceY * 0.3 + 0.1, 0.25, 30 * power, 0);
     audio.kick(power);
   }
 
@@ -1034,6 +1042,8 @@ export class Match {
     this.fx.emit('spark', bm.x, bm.y, 0.4, { n: 26, speed: 11, up: 6, life: 0.5, colors: ['#ffffff', ...col] });
     this.fx.emit('smoke', bm.x, bm.y, 0.6, { n: 10, speed: 2.5, up: 2, life: 1.2, size: 0.8, color: '#555' });
     this.fx.dust(bm.x, bm.y, 16);
+    this.wear(bm.x, bm.y, 1.1, 255, 2);
+    this.wear(bm.x, bm.y, 1.9, 90, 0);
     this.fx.doFlash(0.45, col[0]);
     this.fx.addShake(0.9);
     audio.boom();
@@ -1337,6 +1347,7 @@ export class Match {
     v.kickCd = 0.3;
     this.fx.impact(v.x, v.y, 1.0);
     this.fx.dust(v.x, v.y, 10, ix, iy);
+    this.wear(v.x, v.y + 0.1, 0.6, 110, 0);
     this.fx.addShake(0.32);
     audio.hit(1);
     const humanInvolved = v === this.human || a === this.human;
@@ -1457,6 +1468,9 @@ export class Match {
         p.vx += dvx;
         p.vy += dvy;
         if (m > 0.12) p.face = rotateToward(p.face, Math.atan2(my, mx), (hasBall ? 11 : 16) * dt);
+        if (this.phase === 'play' && Math.random() < (sprint ? 0.25 : 0.06) * Math.min(1, Math.hypot(p.vx, p.vy) / 5)) {
+          this.wear(p.x + rand(-0.15, 0.15), p.y + 0.15, p.isGK ? 0.3 : 0.2, sprint ? 12 : 7, 0);
+        }
         if (sprint) {
           p.sprinting = true;
           p.stamina -= dt * 0.26;
@@ -1474,6 +1488,8 @@ export class Match {
         p.vx *= k;
         p.vy *= k;
         if (Math.random() < 0.5) this.fx.dust(p.x, p.y, 1, p.vx, p.vy);
+        // skid mark along the slide
+        this.wear(p.x, p.y + 0.15, 0.32, 18 * Math.min(1, Math.hypot(p.vx, p.vy) / 8), 1);
         // hits
         for (const q of this.all) {
           if (q === p || q.team === p.team || p.slideHit.has(q)) continue;
@@ -1497,6 +1513,7 @@ export class Match {
         break;
       }
       case 'down': {
+        if (Math.hypot(p.vx, p.vy) > 2.5) this.wear(p.x, p.y + 0.1, 0.4, 10, 1);
         const k = Math.exp(-4.5 * dt);
         p.vx *= k;
         p.vy *= k;
@@ -1520,10 +1537,15 @@ export class Match {
           p.z = 0;
           p.setState('recover', 0.55);
           this.fx.dust(p.x, p.y, 6);
+          this.wear(p.x, p.y + 0.1, 0.6, 55, 1);
         }
         break;
       }
     }
+
+    // anything that lifted the player (header jump, celebration hop, goal blast) falls back down;
+    // a height left over from a header used to keep players floating in the header pose
+    if (p.state !== 'dive' && p.state !== 'celebrate' && p.z > 0) p.z = Math.max(0, p.z - dt * 2.6);
 
     p.x += p.vx * dt;
     p.y += p.vy * dt;

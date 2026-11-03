@@ -1,4 +1,4 @@
-import { clamp, damp, sign } from '../engine/math';
+import { clamp, damp } from '../engine/math';
 import type { Pitch } from './entities';
 
 /** Pixels per meter on the virtual (low-res) framebuffer. */
@@ -49,7 +49,8 @@ export class Camera {
   }
   /** Tall objects at the ends (goals) lean outward a little for depth. */
   sxz(x: number, z: number) {
-    return this.sx(x) + Math.round(z * this.s * 0.3 * sign(x));
+    void z;
+    return this.sx(x);
   }
 
   follow(tx: number, ty: number, dt: number, P: Pitch, speed = 4.5) {

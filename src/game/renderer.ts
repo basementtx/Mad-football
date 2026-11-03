@@ -65,7 +65,74 @@ export class Renderer {
     return Math.round(y * PPM * YS - z * PPM) + this.OY;
   }
   private P3(x: number, y: number, z: number): [number, number] {
-    return [this.WX(x) + Math.round(z * PPM * 0.3 * Math.sign(x)), this.WY(y, z)];
+    // goals stand straight up (no outward lean)
+    return [this.WX(x), this.WY(y, z)];
+  }
+
+  // ---------------------------------------------------------------- turf wear
+  private wear: HTMLCanvasElement | null = null;
+  private wearG: CanvasRenderingContext2D | null = null;
+  private wearLvl: Uint8Array = new Uint8Array(0);
+  private wearX = 0;
+  private wearY = 0;
+  private wearW = 0;
+  private wearH = 0;
+
+  private initWear() {
+    const P = this.P;
+    // only the grass inside the boards wears
+    const x0 = this.WX(-P.hw - P.margin), x1 = this.WX(P.hw + P.margin);
+    const y0 = this.WY(-P.hh - P.margin), y1 = this.WY(P.hh + P.margin);
+    this.wearX = x0;
+    this.wearY = y0;
+    this.wearW = x1 - x0;
+    this.wearH = y1 - y0;
+    const c = document.createElement('canvas');
+    c.width = this.wearW;
+    c.height = this.wearH;
+    this.wear = c;
+    this.wearG = c.getContext('2d')!;
+    this.wearLvl = new Uint8Array(this.wearW * this.wearH);
+  }
+
+  /** Apply queued wear events from the match to the persistent wear layer. */
+  private paintWear() {
+    const q = this.m.wearQ;
+    if (!q.length) return;
+    if (!this.wear) this.initWear();
+    const g = this.wearG!;
+    const W = this.wearW, H = this.wearH;
+    for (const [wx, wy, r, amt, kind] of q) {
+      const cx = this.WX(wx) - this.wearX, cy = this.WY(wy) - this.wearY;
+      const rx = Math.max(1, r * PPM), ry = Math.max(1, r * PPM * YS);
+      const minX = Math.max(0, Math.floor(cx - rx)), maxX = Math.min(W - 1, Math.ceil(cx + rx));
+      const minY = Math.max(0, Math.floor(cy - ry)), maxY = Math.min(H - 1, Math.ceil(cy + ry));
+      for (let y = minY; y <= maxY; y++)
+        for (let x = minX; x <= maxX; x++) {
+          const d = Math.hypot((x + 0.5 - cx) / rx, (y + 0.5 - cy) / ry);
+          if (d > 1) continue;
+          // ragged, dithered edges
+          if (Math.random() > (1 - d * d) * 0.9 + 0.1) continue;
+          const i = y * W + x;
+          const before = this.wearLvl[i];
+          const add = amt * (1 - d * 0.6) * (0.6 + Math.random() * 0.8);
+          const lvl = kind === 2 ? 255 : Math.min(250, before + add);
+          this.wearLvl[i] = lvl;
+          const band = (v: number) => (v < 28 ? 0 : v < 80 ? 1 : v < 140 ? 2 : v < 205 ? 3 : 4);
+          if (band(lvl) === band(before) && kind !== 2) continue;
+          g.clearRect(x, y, 1, 1);
+          if (kind === 2) g.fillStyle = Math.random() < 0.5 ? '#1e1a14' : '#2c241a'; // scorch
+          else {
+            const b = band(lvl);
+            if (b === 0) continue;
+            const c = DIRT[[3, 3, 2, 1, 0][b]];
+            const alpha = [0, 0.45, 0.8, 1, 1][b];
+            g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;
+          }
+          g.fillRect(x, y, 1, 1);
+        }
+    }
+    q.length = 0;
   }
 
   // ---------------------------------------------------------------- build
@@ -515,6 +582,9 @@ export class Renderer {
       vi = exc > 0.45 ? 1 + (step % 2) : step % 6 === 0 ? 1 : 0;
     }
     ctx.drawImage(this.variants[vi], bx, by);
+    // turf wear: slides, falls, sprints and bombs leave marks that stay for the match
+    this.paintWear();
+    if (this.wear) ctx.drawImage(this.wear, bx + this.wearX, by + this.wearY);
 
     // LED boards (scrolling)
     const L = this.ledRect;
