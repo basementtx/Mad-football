@@ -288,10 +288,10 @@ function drawKeyHints(ctx: CanvasRenderingContext2D, W: number, H: number, u: nu
   const text = `WASD  •  J/Space ${L.shoot}/${L.tackleBtn}  •  K ${L.pass}  •  Shift ${L.sprint}  •  I ${L.spin}  •  Esc`;
   ctx.save();
   ctx.font = `${11 * u}px ${FONT}`;
-  ctx.textAlign = 'right';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'bottom';
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.fillText(text, W - 14, H - 10);
+  ctx.fillText(text, 14, H - 10, Math.max(120, W / 2 - 110 * u));
   ctx.restore();
 }
 
