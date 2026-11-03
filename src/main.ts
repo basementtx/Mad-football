@@ -20,6 +20,7 @@ import { showSplash, showHub } from './ui/hub';
 import { profile, lineupCards } from './meta/profile';
 import type { CardData } from './meta/cards';
 import { t } from './engine/i18n';
+import { initUpdater } from './engine/update';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 let ctx = canvas.getContext('2d', { alpha: false })!;
@@ -254,6 +255,7 @@ async function boot() {
   newDemo();
   input.enabled = false;
   showSplash(handlers);
+  initUpdater();
   requestAnimationFrame(frame);
 }
 void boot();

@@ -1,0 +1,104 @@
+# Builds a signed Android APK on every push and publishes it as the latest
+# GitHub Release. The installed app checks this release on start-up and offers
+# the update (see src/engine/update.ts).
+#
+# Stable download link: https://github.com/basementtx/Mad-football/releases/latest/download/MadFootball.apk
+#
+# Signing: uses the repo secrets ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD /
+# ANDROID_KEY_ALIAS. Updates only install over an APK signed with the same key.
+# Without the secrets a throw-away key is generated (the APK installs, but each
+# new build then has to be installed after uninstalling the previous one).
+name: Android APK
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore: ['README.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      BUILD: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install
+        run: npm ci
+
+      - name: Build web game
+        run: VITE_BUILD=$BUILD npm run build
+
+      - name: Create Android project
+        run: |
+          npx cap add android
+          cp android-overrides/MainActivity.java android/app/src/main/java/com/madfootball/game/MainActivity.java
+          npx --yes @capacitor/assets@3 generate --android --assetPath resources --iconBackgroundColor '#07121c' --splashBackgroundColor '#07121c' || echo "icon generation skipped"
+          npx cap sync android
+
+      - name: Version, orientation
+        run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode $BUILD/; s/versionName \"[^\"]*\"/versionName \"0.4.$BUILD\"/" android/app/build.gradle
+          sed -i 's/android:name=".MainActivity"/android:name=".MainActivity"\n            android:screenOrientation="sensorLandscape"/' android/app/src/main/AndroidManifest.xml
+          grep -nE "versionCode|versionName" android/app/build.gradle
+          grep -n "screenOrientation" android/app/src/main/AndroidManifest.xml
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Sign APK
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS_SECRET: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS_SECRET: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > ks.jks; KS_PASS="$KS_PASS_SECRET"; KS_ALIAS="$KS_ALIAS_SECRET"
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 secret not set - signing with a throw-away key; in-place updates will not work."
+            KS_PASS=$(openssl rand -hex 16); KS_ALIAS=madfootball
+            keytool -genkeypair -keystore ks.jks -storepass "$KS_PASS" -keypass "$KS_PASS" -alias "$KS_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Mad Football CI" >/dev/null
+          fi
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/zipalign" -f -p 4 android/app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks ks.jks --ks-pass "pass:$KS_PASS" --ks-key-alias "$KS_ALIAS" --out MadFootball.apk aligned.apk
+          "$BT/apksigner" verify MadFootball.apk
+          rm ks.jks
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MadFootball-build-${{ github.run_number }}
+          path: MadFootball.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Mad Football build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: 'true'
+          files: MadFootball.apk
+          body: |
+            Otomatik Android derlemesi #${{ github.run_number }} (`${{ github.ref_name }}` @ ${{ github.sha }}).
+            Telefonda **MadFootball.apk** dosyasını indirip kurun. Yüklü uygulama yeni derlemeleri kendisi bildirir.

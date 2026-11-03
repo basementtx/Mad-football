@@ -604,3 +604,21 @@ canvas.flag { width: 39px; height: 27px; display: block; }
   .tr .tn { font-size: 13px; }
   .fixture { gap: 4px; padding: 8px; }
 }
+
+/* ---------------------------------------------------------------- self-update banner (Android) */
+#update-banner {
+  position: fixed; z-index: 50; left: 50%; transform: translateX(-50%);
+  top: max(8px, var(--sat));
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px 8px 14px;
+  background: var(--panel); color: var(--text);
+  font-family: var(--ui); font-size: 15px;
+  box-shadow: 0 0 0 3px var(--ink), 0 6px 0 3px rgba(0,0,0,0.35);
+}
+#update-banner small { color: var(--muted); }
+#update-banner button {
+  font-family: var(--display); font-weight: 700; font-size: 13px; border: 0; cursor: pointer;
+  padding: 7px 12px; box-shadow: 0 0 0 2px var(--ink);
+}
+#update-banner .upd-go { background: var(--yellow); color: var(--ink); }
+#update-banner .upd-later { background: var(--panel-lt); color: var(--text); }
