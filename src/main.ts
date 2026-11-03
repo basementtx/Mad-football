@@ -60,6 +60,11 @@ function resize() {
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 
+function applyLang() {
+  document.documentElement.lang = settings.lang;
+  document.querySelector('#rotate p')!.textContent = t().rotate;
+}
+
 function newDemo() {
   const a = Math.floor(Math.random() * TEAMS.length);
   let b = Math.floor(Math.random() * TEAMS.length);
@@ -116,6 +121,7 @@ const handlers: MenuHandlers = {
     showTitle(handlers);
   },
   settingsChanged() {
+    applyLang();
     resize();
     if (game) game.renderer = new Renderer(game.match);
     if (demo) demo.renderer = new Renderer(demo.match);
@@ -186,8 +192,7 @@ if (import.meta.env.DEV) {
 
 async function boot() {
   resize();
-  document.documentElement.lang = settings.lang;
-  document.querySelector('#rotate p')!.textContent = t().rotate;
+  applyLang();
   try {
     await Promise.race([document.fonts.load('16px "Press Start 2P"'), new Promise((r) => setTimeout(r, 1500))]);
   } catch {

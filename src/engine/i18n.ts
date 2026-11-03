@@ -1,4 +1,4 @@
-import { settings } from './storage';
+import { settings, Lang } from './storage';
 
 const tr = {
   tagline: 'Hakem yok. Kural yok. Sadece gol.',
@@ -122,4 +122,12 @@ const en: Dict = {
   skip: 'Press any button to skip',
 };
 
-export const t = (): Dict => (settings.lang === 'en' ? en : tr);
+const DICTS: Record<Lang, Dict> = { en, tr };
+
+/** Available languages, in display order. `flag` is a pixel flag id (see pixel/flags.ts). */
+export const LANGS: { code: Lang; name: string; flag: string }[] = [
+  { code: 'en', name: 'English', flag: 'gb' },
+  { code: 'tr', name: 'Türkçe', flag: 'tr' },
+];
+
+export const t = (): Dict => DICTS[settings.lang] ?? en;

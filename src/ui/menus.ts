@@ -2,7 +2,8 @@ import { TEAMS, TeamDef, teamRating } from '../game/teams';
 import { playerSheet, FRAMES, CELL_W, CELL_H } from '../pixel/player';
 import { textCanvas } from '../pixel/font';
 import { ramp, css } from '../pixel/palette';
-import { t } from '../engine/i18n';
+import { t, LANGS } from '../engine/i18n';
+import { flagCanvas } from '../pixel/flags';
 import { settings, saveSettings, record, lastSetup, saveSetup } from '../engine/storage';
 import { audio } from '../engine/audio';
 import type { Match } from '../game/match';
@@ -37,6 +38,16 @@ function stars(v: number) {
   let s = '';
   for (let i = 1; i <= 5; i++) s += `<span class="star ${i <= full ? 'on' : i - 0.5 === full ? 'half' : ''}">■</span>`;
   return s;
+}
+
+/** Copy the pixel flags into every <canvas data-flag> currently in the UI. */
+function paintFlags() {
+  ui().querySelectorAll<HTMLCanvasElement>('canvas[data-flag]').forEach((c) => {
+    const f = flagCanvas(c.dataset.flag!);
+    c.width = f.width;
+    c.height = f.height;
+    c.getContext('2d')!.drawImage(f, 0, 0);
+  });
 }
 
 const SKIN_P = ['#f1cfb0', '#c98d63', '#7a4d30', '#e5b48f'];
@@ -101,8 +112,18 @@ export function showTitle(h: MenuHandlers) {
         </div>
       </div>
     </div>
-    <div class="version">v0.1 • ${esc(L.hint)}</div>
+    <button class="lang-quick" data-act="lang" aria-label="${L.language}"><canvas class="pix flag" data-flag="${LANGS.find((l) => l.code === settings.lang)!.flag}"></canvas><span>${settings.lang.toUpperCase()}</span></button>
+    <div class="version">v0.2 • ${esc(L.hint)}</div>
   `;
+  paintFlags();
+  bind('[data-act=lang]', () => {
+    const i = LANGS.findIndex((l) => l.code === settings.lang);
+    settings.lang = LANGS[(i + 1) % LANGS.length].code;
+    saveSettings();
+    audio.select();
+    h.settingsChanged();
+    showTitle(h);
+  });
   document.getElementById('logo-top')!.appendChild(logoCanvas('MAD', 4, '#fff6b8', '#ffb21f', '#7a2a08'));
   document.getElementById('logo-bottom')!.appendChild(logoCanvas('FOOTBALL', 3, '#ffffff', '#ff4a3a', '#5a0a10'));
   bind('[data-act=play]', () => {
@@ -250,7 +271,7 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
           ${toggle('minimap', L.minimap)}
           ${seg(L.zoom, 'zoom', [[1.18, L.near], [1, L.mid], [0.84, L.far]], settings.zoom)}
           ${seg(L.quality, 'quality', [['high', L.high], ['low', L.low]], settings.quality)}
-          ${seg(L.language, 'lang', [['tr', 'Türkçe'], ['en', 'English']], settings.lang)}
+          <div class="set-row lang-row"><span>${L.language}</span><div class="langs">${LANGS.map((l) => `<button class="lang-btn ${settings.lang === l.code ? 'on' : ''}" data-lang="${l.code}"><canvas class="pix flag" data-flag="${l.flag}"></canvas><span>${l.name}</span></button>`).join('')}</div></div>
         </div>
       </div>
     </div>`;
@@ -272,9 +293,16 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
     const v = el.dataset.val!;
     if (k === 'zoom') settings.zoom = Number(v);
     if (k === 'quality') settings.quality = v as 'high' | 'low';
-    if (k === 'lang') settings.lang = v as 'tr' | 'en';
     saveSettings();
     audio.click();
+    h.settingsChanged();
+    showSettings(h, back, inGame);
+  });
+  paintFlags();
+  bind('[data-lang]', (el) => {
+    settings.lang = el.dataset.lang as typeof settings.lang;
+    saveSettings();
+    audio.select();
     h.settingsChanged();
     showSettings(h, back, inGame);
   });

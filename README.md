@@ -23,7 +23,7 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **Tamamen sentezlenmiş ses** (dosya yok): tribün uğultusu, düdük, korna, vuruş ve çarpışma sesleri.
 - **Mobil öncelikli kontroller**: yüzen joystick ve duruma göre değişen 4 tuş (ŞUT/KAY/İT/KAFA, PAS/DEĞİŞ, DEPAR, ÇALIM/GÜÇ). Solak modu, titreşim desteği ve çentikli ekranlar için güvenli alan desteği var.
 - Kariyer kaydı (G/B/M), altın, maçın yıldızı ve maç istatistikleri.
-- Türkçe ve İngilizce arayüz.
+- İngilizce (varsayılan) ve Türkçe arayüz; dil, ayarlardan ya da ana menüdeki piksel bayrak düğmesinden değiştirilebilir.
 
 ## Kontroller
 

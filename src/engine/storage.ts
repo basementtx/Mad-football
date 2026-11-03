@@ -7,7 +7,9 @@ export interface Settings {
   minimap: boolean;
   zoom: number;
   quality: 'high' | 'low';
-  lang: 'tr' | 'en';
+  lang: Lang;
+  /** settings schema version */
+  v: number;
 }
 
 export interface Record {
@@ -30,7 +32,8 @@ const DEFAULT_SETTINGS: Settings = {
   minimap: true,
   zoom: 1,
   quality: 'high',
-  lang: 'tr',
+  lang: 'en',
+  v: 2,
 };
 
 const DEFAULT_RECORD: Record = {
@@ -55,7 +58,21 @@ function save(key: string, value: unknown) {
   }
 }
 
+export type Lang = 'en' | 'tr';
+
 export const settings: Settings = load('mf.settings', DEFAULT_SETTINGS);
+// v1 defaulted to Turkish; from v2 the default language is English
+const storedVersion = (() => {
+  try {
+    return (JSON.parse(localStorage.getItem('mf.settings') || '{}') as { v?: number }).v ?? 1;
+  } catch {
+    return 1;
+  }
+})();
+if (storedVersion < 2) {
+  settings.lang = 'en';
+  settings.v = 2;
+}
 export const record: Record = load('mf.record', DEFAULT_RECORD);
 
 export const saveSettings = () => save('mf.settings', settings);
