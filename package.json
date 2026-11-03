@@ -1,0 +1,21 @@
+{
+  "name": "mad-football",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Mad Football - 2D no-rules arcade football for mobile",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "@fontsource/rubik": "^5.3.0",
+    "@fontsource/russo-one": "^5.3.0"
+  }
+}

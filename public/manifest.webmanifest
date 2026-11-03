@@ -1,0 +1,11 @@
+{
+  "name": "Mad Football",
+  "short_name": "Mad Football",
+  "description": "No refs. No rules. Just goals.",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#07121c",
+  "theme_color": "#07121c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
