@@ -4,7 +4,7 @@ import type { Camera } from './camera';
 import { drawText } from '../pixel/font';
 import { ring, star } from '../pixel/props';
 
-type PType = 'dust' | 'grass' | 'spark' | 'confetti' | 'fire' | 'smoke' | 'star' | 'ring';
+type PType = 'dust' | 'grass' | 'spark' | 'confetti' | 'fire' | 'smoke' | 'star' | 'ring' | 'pix' | 'rocket' | 'bolt' | 'coin' | 'vortex' | 'snow';
 
 interface Particle {
   type: PType;
@@ -14,6 +14,10 @@ interface Particle {
   size: number;
   color: string;
   rot: number; vr: number;
+  /** gravity override */
+  g?: number;
+  /** vortex centre */
+  cx?: number; cy?: number;
 }
 
 interface FloatText {
@@ -44,6 +48,12 @@ export class FX {
   timeScale = 1;
   private slowT = 0;
   private slowScale = 1;
+  private timers: { t: number; fn: () => void }[] = [];
+
+  /** run fn after `t` seconds of game time */
+  after(t: number, fn: () => void) {
+    this.timers.push({ t, fn });
+  }
 
   get max() {
     return settings.quality === 'high' ? 700 : 250;
@@ -51,6 +61,7 @@ export class FX {
 
   clear() {
     this.particles.length = 0;
+    this.timers.length = 0;
     this.texts.length = 0;
     this.banners.length = 0;
     this.shake = 0;
@@ -97,6 +108,7 @@ export class FX {
         color: opts.colors ? pick(opts.colors) : opts.color ?? '#fff',
         rot: rand(0, TAU),
         vr: rand(-10, 10),
+        g: opts.g,
       });
     }
   }
@@ -116,13 +128,152 @@ export class FX {
     this.emit('confetti', x, y, 2.5, { n, speed: 8, up: 9, life: 2.8, size: 0.28, colors, spread: 1.5 });
   }
 
+  /** Power-shot trail by kind */
+  powerTrail(kind: string, x: number, y: number, z: number) {
+    switch (kind) {
+      case 'ice':
+        this.emit('pix', x, y, z, { n: 3, speed: 1, up: 0.6, life: 0.5, size: 0.25, colors: ['#ffffff', '#bfe8ff', '#5fc8ff'], g: 0 });
+        if (Math.random() < 0.5) this.emit('snow', x, y, z + 0.3, { n: 1, speed: 1, up: 1, life: 0.8, size: 0.2, color: '#ffffff' });
+        break;
+      case 'thunder':
+        this.emit('spark', x, y, z, { n: 4, speed: 6, up: 3, life: 0.25, colors: ['#ffffff', '#fff6a0', '#3bd9ff'] });
+        this.emit('pix', x, y, z, { n: 2, speed: 0.4, up: 0, life: 0.3, size: 0.3, colors: ['#3bd9ff', '#ffffff'], g: 0 });
+        break;
+      case 'banana':
+        this.emit('pix', x, y, z, { n: 3, speed: 0.6, up: 0.2, life: 0.5, size: 0.3, colors: ['#fff07a', '#ffd21f', '#ff9a1f'], g: 0 });
+        break;
+      default:
+        this.fireTrail(x, y, z);
+    }
+  }
+
+  /** Cosmetic ball trail by item id */
+  ballTrail(id: string, x: number, y: number, z: number) {
+    const hi = settings.quality === 'high';
+    if (!hi && Math.random() < 0.5) return;
+    switch (id) {
+      case 'tr_fire': this.emit('fire', x, y, z, { n: 2, speed: 0.8, up: 1, life: 0.35, size: 0.4, colors: ['#ffef8a', '#ffb02e', '#ff5a1f'] }); break;
+      case 'tr_sparkle': if (Math.random() < 0.6) this.emit('pix', x, y, z, { n: 1, speed: 0.8, up: 0.4, life: 0.6, size: 0.15, colors: ['#ffffff', '#fff3a0'], g: 0 }); break;
+      case 'tr_smoke': this.emit('smoke', x, y, z, { n: 1, speed: 0.4, up: 0.6, life: 0.9, size: 0.45, color: '#777' }); break;
+      case 'tr_rainbow': {
+        const c = ['#ff3b30', '#ff9a1f', '#ffe14d', '#5ff0a4', '#3f8cff', '#b04cff'][Math.floor(performance.now() / 60) % 6];
+        this.emit('pix', x, y, z, { n: 2, speed: 0.1, up: 0, life: 0.55, size: 0.3, color: c, g: 0 });
+        break;
+      }
+      case 'tr_electric': this.emit('spark', x, y, z, { n: 2, speed: 5, up: 3, life: 0.2, colors: ['#ffffff', '#3bd9ff'] }); break;
+      case 'tr_galaxy':
+        this.emit('pix', x, y, z, { n: 2, speed: 0.5, up: 0.2, life: 0.7, size: 0.25, colors: ['#3a1a8a', '#8a5cff', '#d8b0ff'], g: 0 });
+        if (Math.random() < 0.15) this.emit('star', x, y, z, { n: 1, speed: 0.5, up: 1, life: 0.5, size: 0.3, color: '#ffffff' });
+        break;
+      case 'tr_gold':
+        this.emit('pix', x, y, z, { n: 2, speed: 0.4, up: 0.2, life: 0.6, size: 0.25, colors: ['#fff2a8', '#ffcc2a', '#c88a00'], g: 0 });
+        if (Math.random() < 0.1) this.emit('coin', x, y, z, { n: 1, speed: 1, up: 3, life: 0.8, size: 0.3, color: '#ffcc2a' });
+        break;
+    }
+  }
+
+  /** Lightning strike at a ground point */
+  bolt(x: number, y: number) {
+    this.emit('bolt', x, y, 0, { n: 1, speed: 0, up: 0, life: 0.3, size: 1, color: '#ffffff', g: 0 });
+    this.emit('spark', x, y, 0.3, { n: 10, speed: 6, up: 4, life: 0.4, colors: ['#ffffff', '#3bd9ff', '#fff6a0'] });
+    this.doFlash(0.25, '#bfefff');
+  }
+
+  /** Rocket-League style goal explosion */
+  goalExplosion(id: string, x: number, y: number, team: string[]) {
+    this.addShake(0.6);
+    switch (id) {
+      case 'gx_fireworks': {
+        this.confetti(x, y, team, 40);
+        const cols = ['#ff3b30', '#ffe14d', '#5ff0a4', '#3f8cff', '#ff3fa4', '#ffffff'];
+        for (let i = 0; i < 7; i++) {
+          this.after(i * 0.12, () => {
+            const c = pick(cols);
+            const rx = x + rand(-5, 5), ry = y + rand(-6, 6);
+            this.emit('rocket', rx, ry, 0.2, { n: 1, speed: 0.5, up: 9, life: rand(0.55, 0.8), size: 0.3, color: c, g: 6 });
+            this.after(0.6, () => this.emit('spark', rx, ry, 4.5, { n: 26, speed: 9, up: 4, life: 0.8, colors: [c, '#ffffff'] }));
+          });
+        }
+        break;
+      }
+      case 'gx_pixelrain': {
+        const cols = ['#ff3b30', '#ff9a1f', '#ffe14d', '#5ff0a4', '#3f8cff', '#b04cff', '#ff3fa4'];
+        for (let i = 0; i < 18; i++) this.after(i * 0.05, () => {
+          for (let k = 0; k < 8; k++) this.emit('pix', x + rand(-8, 8), y + rand(-8, 8), rand(6, 10), { n: 1, speed: 0.2, up: 0, life: 1.6, size: 0.3, color: pick(cols), g: 7 });
+        });
+        this.emit('ring', x, y, 0.1, { n: 1, life: 0.6, size: 2, color: '#ffffff' });
+        break;
+      }
+      case 'gx_ice': {
+        this.doFlash(0.6, '#bfe8ff');
+        this.emit('spark', x, y, 1, { n: 40, speed: 12, up: 6, life: 0.8, colors: ['#ffffff', '#bfe8ff', '#5fc8ff'] });
+        this.emit('pix', x, y, 1, { n: 40, speed: 7, up: 6, life: 1.2, size: 0.3, colors: ['#ffffff', '#bfe8ff', '#8ad8ff'] });
+        for (let i = 0; i < 20; i++) this.after(i * 0.06, () => this.emit('snow', x + rand(-9, 9), y + rand(-9, 9), 7, { n: 3, speed: 0.6, up: 0, life: 2.2, size: 0.2, color: '#ffffff' }));
+        this.emit('ring', x, y, 0.1, { n: 1, life: 0.7, size: 2.5, color: '#bfe8ff' });
+        break;
+      }
+      case 'gx_lightning': {
+        for (let i = 0; i < 6; i++) this.after(i * 0.13, () => this.bolt(x + rand(-4, 4), y + rand(-5, 5)));
+        this.emit('spark', x, y, 1, { n: 30, speed: 10, up: 5, life: 0.6, colors: ['#ffffff', '#fff6a0', '#3bd9ff'] });
+        break;
+      }
+      case 'gx_supernova': {
+        this.doFlash(1, '#ffffff');
+        this.addShake(0.6);
+        this.slowmo(0.2, 1.4);
+        for (let i = 0; i < 4; i++) this.after(i * 0.12, () => this.emit('ring', x, y, 0.1, { n: 1, life: 0.9, size: 3 + i, color: i % 2 ? '#ffe14d' : '#ffffff' }));
+        this.emit('spark', x, y, 1, { n: 60, speed: 18, up: 6, life: 0.8, colors: ['#ffffff', '#ffe14d', '#ff9a1f'] });
+        this.emit('pix', x, y, 1, { n: 50, speed: 10, up: 8, life: 1.3, size: 0.35, colors: ['#ffffff', '#fff3a0', ...team] });
+        break;
+      }
+      case 'gx_dragon': {
+        for (let i = 0; i < 40; i++) this.after(i * 0.025, () => {
+          const a = i * 0.55, r = 1.5 + i * 0.05;
+          this.emit('fire', x + Math.cos(a) * r, y + Math.sin(a) * r, i * 0.15, { n: 4, speed: 0.6, up: 2.5, life: 0.7, size: 0.7, colors: ['#ffef8a', '#ffb02e', '#ff5a1f', '#c21a0a'] });
+        });
+        this.after(1.0, () => {
+          this.emit('fire', x, y, 1, { n: 50, speed: 9, up: 6, life: 0.7, size: 0.7, colors: ['#ffef8a', '#ffb02e', '#ff5a1f'] });
+          this.emit('smoke', x, y, 1, { n: 14, speed: 3, up: 2, life: 1.4, size: 0.9, color: '#444' });
+          this.doFlash(0.4, '#ff8a3a');
+          this.addShake(0.6);
+        });
+        break;
+      }
+      case 'gx_blackhole': {
+        this.slowmo(0.4, 1.6);
+        for (let i = 0; i < 70; i++) {
+          const a = rand(0, TAU), r = rand(4, 9);
+          this.add({ type: 'vortex', x: x + Math.cos(a) * r, y: y + Math.sin(a) * r, z: rand(0, 3), vx: 0, vy: 0, vz: 0, life: 0.9, max: 0.9, size: 0.3, color: pick(['#b04cff', '#3a1a8a', '#ffffff', '#ff3fa4']), rot: a, vr: r, cx: x, cy: y, g: 0 });
+        }
+        this.after(0.9, () => {
+          this.doFlash(0.9, '#d8b0ff');
+          this.addShake(1);
+          for (let i = 0; i < 3; i++) this.emit('ring', x, y, 0.1, { n: 1, life: 0.8, size: 3 + i * 1.5, color: i ? '#b04cff' : '#ffffff' });
+          this.emit('spark', x, y, 1, { n: 60, speed: 16, up: 6, life: 0.9, colors: ['#ffffff', '#d8b0ff', '#b04cff', '#ff3fa4'] });
+          this.emit('pix', x, y, 1, { n: 40, speed: 9, up: 7, life: 1.4, size: 0.35, colors: ['#3a1a8a', '#b04cff', '#ffffff'] });
+        });
+        break;
+      }
+      case 'gx_goldrush': {
+        this.doFlash(0.4, '#ffe14d');
+        for (let i = 0; i < 24; i++) this.after(i * 0.05, () => this.emit('coin', x, y, 1.5, { n: 4, speed: 6, up: 10, life: 2.2, size: 0.3, color: '#ffcc2a' }));
+        this.emit('pix', x, y, 1, { n: 40, speed: 8, up: 6, life: 1.2, size: 0.25, colors: ['#ffffff', '#fff2a8', '#ffcc2a'] });
+        break;
+      }
+      default:
+        this.confetti(x, y, team);
+    }
+  }
+
   fireTrail(x: number, y: number, z: number) {
     this.emit('fire', x, y, z, { n: 3, speed: 1.2, up: 1.5, life: 0.4, size: 0.5, colors: ['#ffef8a', '#ffb02e', '#ff5a1f', '#ff2a1a'] });
     if (Math.random() < 0.4) this.emit('smoke', x, y, z + 0.2, { n: 1, speed: 0.6, up: 1.2, life: 0.9, size: 0.6, color: 'rgba(60,50,50,0.4)' });
   }
 
   text(x: number, y: number, z: number, text: string, color = '#fff', size = 1) {
-    this.texts.push({ x, y, z, text, color, life: 1.3, max: 1.3, size });
+    // stagger texts that pop at the same moment so they don't stack
+    const n = this.texts.filter((t) => t.max - t.life < 0.3).length;
+    this.texts.push({ x: x + (n % 2 ? 1 : -1) * n * 0.9, y, z: z + n * 0.7, text, color, life: 1.3, max: 1.3, size });
     if (this.texts.length > 6) this.texts.shift();
   }
 
@@ -149,8 +300,17 @@ export class FX {
         this.particles.splice(i, 1);
         continue;
       }
-      const g = p.type === 'confetti' ? 3 : p.type === 'fire' || p.type === 'smoke' ? -1.5 : p.type === 'star' ? 6 : 14;
+      if (p.type === 'vortex') {
+        p.rot += dt * 7;
+        p.vr *= Math.exp(-3.2 * dt);
+        p.x = p.cx! + Math.cos(p.rot) * p.vr;
+        p.y = p.cy! + Math.sin(p.rot) * p.vr;
+        p.z *= Math.exp(-2 * dt);
+        continue;
+      }
+      const g = p.g ?? (p.type === 'confetti' ? 3 : p.type === 'fire' || p.type === 'smoke' ? -1.5 : p.type === 'star' ? 6 : p.type === 'snow' ? 1.2 : 14);
       p.vz -= g * dt;
+      if (p.type === 'snow') p.vz = Math.max(p.vz, -1.4);
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.z += p.vz * dt;
@@ -164,6 +324,14 @@ export class FX {
         p.vz *= -0.3;
         p.vx *= 0.6;
         p.vy *= 0.6;
+      }
+    }
+    for (let i = this.timers.length - 1; i >= 0; i--) {
+      const tm = this.timers[i];
+      tm.t -= dt;
+      if (tm.t <= 0) {
+        this.timers.splice(i, 1);
+        tm.fn();
       }
     }
     for (let i = this.texts.length - 1; i >= 0; i--) {
@@ -219,6 +387,59 @@ export class FX {
           ctx.fillStyle = p.color;
           const flip = Math.floor(p.rot * 2) % 2 === 0;
           ctx.fillRect(sx, sy, flip ? 2 : 1, flip ? 1 : 2);
+          break;
+        }
+        case 'pix':
+        case 'snow': {
+          const sz = Math.max(1, Math.round(p.size * 8 * (p.type === 'pix' ? 0.4 + k * 0.6 : 1)));
+          ctx.globalAlpha = k > 0.3 ? 1 : 0.55;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(sx - (sz >> 1), sy - (sz >> 1), sz, sz);
+          break;
+        }
+        case 'rocket': {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(sx - 1, sy - 1, 2, 3);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(sx - 1, sy + 2, 2, 2);
+          ctx.fillStyle = '#ffb02e';
+          ctx.fillRect(sx, sy + 4, 1, 2 + (Math.random() * 3) | 0);
+          break;
+        }
+        case 'coin': {
+          const w = Math.abs(Math.cos(p.rot)) > 0.5 ? 3 : 1;
+          ctx.fillStyle = '#7a4a00';
+          ctx.fillRect(sx - (w >> 1) - 1, sy - 2, w + 2, 5);
+          ctx.fillStyle = '#ffcc2a';
+          ctx.fillRect(sx - (w >> 1), sy - 1, w, 3);
+          ctx.fillStyle = '#fff2a8';
+          ctx.fillRect(sx - (w >> 1), sy - 1, 1, 1);
+          break;
+        }
+        case 'vortex': {
+          ctx.fillStyle = p.color;
+          ctx.fillRect(sx, sy, 2, 2);
+          break;
+        }
+        case 'bolt': {
+          // jagged lightning from the sky to the ground point
+          let x = sx + 10, y = sy - 90;
+          const seed = Math.floor(p.rot * 1000);
+          ctx.globalAlpha = k > 0.5 ? 1 : 0.6;
+          for (let i = 0; y < sy; i++) {
+            const nx = sx + (((seed * (i + 3) * 7919) % 13) - 6) * (1 - i / 14) * 0.9;
+            const ny = Math.min(sy, y + 7);
+            const steps = Math.max(1, Math.abs(ny - y));
+            for (let j = 0; j < steps; j++) {
+              const px = Math.round(x + ((nx - x) * j) / steps), py = Math.round(y + j);
+              ctx.fillStyle = '#3bd9ff';
+              ctx.fillRect(px - 1, py, 3, 1);
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(px, py, 1, 1);
+            }
+            x = nx;
+            y = ny;
+          }
           break;
         }
         case 'star': {

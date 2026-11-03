@@ -1,4 +1,6 @@
 import { TeamDef } from './teams';
+import type { CardData } from '../meta/cards';
+import { attrsOf } from '../meta/cards';
 import { pick, randInt } from '../engine/math';
 
 export interface Pitch {
@@ -49,7 +51,9 @@ export const PHYS = {
   downTime: 1.45,
 };
 
-export type Difficulty = 'easy' | 'normal' | 'hard' | 'insane';
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'insane' | 'legend';
+
+export const DIFF_REWARD: Record<Difficulty, number> = { easy: 0.6, normal: 1, hard: 1.5, insane: 2.2, legend: 3 };
 
 export interface DiffParams {
   react: number;
@@ -68,6 +72,7 @@ export const DIFF: Record<Difficulty, DiffParams> = {
   normal: { react: 0.24, speedMul: 0.95, aggression: 0.7, shootErr: 0.11, gkCatch: 22.5, gkReact: 0.2, stealMul: 0.85, dodge: 0.32, passiveness: 0.25 },
   hard: { react: 0.15, speedMul: 1.01, aggression: 1.0, shootErr: 0.075, gkCatch: 25.5, gkReact: 0.13, stealMul: 1.05, dodge: 0.55, passiveness: 0.1 },
   insane: { react: 0.09, speedMul: 1.07, aggression: 1.35, shootErr: 0.05, gkCatch: 28.5, gkReact: 0.085, stealMul: 1.25, dodge: 0.75, passiveness: 0 },
+  legend: { react: 0.06, speedMul: 1.12, aggression: 1.6, shootErr: 0.035, gkCatch: 31, gkReact: 0.06, stealMul: 1.45, dodge: 0.9, passiveness: 0 },
 };
 
 export type PState = 'run' | 'slide' | 'down' | 'recover' | 'shove' | 'spin' | 'dive' | 'celebrate' | 'sad';
@@ -89,6 +94,10 @@ export class Team {
   score = 0;
   rage = 0;
   opp!: Team;
+  /** equipped loadout (human team) */
+  power = 'fireball';
+  goalfx = 'gx_classic';
+  trail = 'tr_basic';
   stats: TeamStats = { shots: 0, onTarget: 0, knockdowns: 0, tackles: 0, possession: 0, passes: 0, saves: 0, powerShots: 0 };
 
   constructor(
@@ -141,6 +150,13 @@ export class Player {
   holdT = 0;
   hitByFire = 0;
   slideHit = new Set<Player>();
+  /** frozen by an ice shot (seconds) */
+  frozen = 0;
+  /** turbo rampage power (seconds) */
+  turbo = 0;
+  /** the user's own created player */
+  star = false;
+  card: CardData | null = null;
   diveDirX = 0;
   diveDirY = 0;
 
@@ -191,6 +207,17 @@ export class Player {
     if (role === 'DEF') this.tackle += 0.1;
   }
 
+  /** Use a player card for attributes and looks. */
+  applyCard(c: CardData) {
+    this.card = c;
+    Object.assign(this, attrsOf(c));
+    this.skin = c.look.skin;
+    this.hair = c.look.hair;
+    this.hairStyle = c.look.hairStyle;
+    this.beard = c.look.beard;
+    this.number = c.number;
+  }
+
   get isGK() {
     return this.role === 'GK';
   }
@@ -223,6 +250,8 @@ export class Ball {
   lockTime = 0;
   kickAge = 10;
   fire = 0;
+  /** visual/behaviour kind of the active power shot */
+  power: 'fire' | 'ice' | 'thunder' | 'banana' = 'fire';
   passTarget: Player | null = null;
   shotBy: Team | null = null;
   inGoal = 0;

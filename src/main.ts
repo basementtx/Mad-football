@@ -10,7 +10,11 @@ import { Game } from './game/game';
 import { Renderer } from './game/renderer';
 import { TEAMS } from './game/teams';
 import type { Difficulty } from './game/entities';
-import { showTitle, showPause, showResults, hideUI, MenuHandlers } from './ui/menus';
+import { DIFF_REWARD } from './game/entities';
+import { showPause, showResults, hideUI, MenuHandlers, homeDef } from './ui/menus';
+import { showSplash, showHub } from './ui/hub';
+import { profile, lineupCards } from './meta/profile';
+import type { CardData } from './meta/cards';
 import { t } from './engine/i18n';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -70,7 +74,8 @@ function newDemo() {
   let b = Math.floor(Math.random() * TEAMS.length);
   if (b === a) b = (a + 1) % TEAMS.length;
   demo = new Game({ home: TEAMS[a], away: TEAMS[b], size: 4, duration: 90, difficulty: 'hard', demo: true }, null);
-  demo.match.onEnd = () => newDemo();
+  // menu backdrop: a calm stadium (players warming up), not a running match
+  demo.ambient = true;
   demo.resize(W, H);
 }
 
@@ -92,9 +97,19 @@ const handlers: MenuHandlers = {
   startMatch() {
     requestFullscreen();
     audio.unlock();
-    const home = TEAMS[lastSetup.home];
+    const home = homeDef(lastSetup.home);
     const away = TEAMS[lastSetup.away];
-    game = new Game({ home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty: lastSetup.difficulty as Difficulty, demo: false }, input);
+    const isClub = lastSetup.home < 0;
+    const homeCards = isClub ? lineupCards().filter((c): c is CardData => !!c) : undefined;
+    game = new Game(
+      {
+        home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty: lastSetup.difficulty as Difficulty, demo: false,
+        homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
+        starId: isClub ? profile.myPlayer : null,
+        loadout: profile.equipped,
+      },
+      input,
+    );
     game.match.onEnd = () => endMatch();
     game.resize(W, H);
     input.reset();
@@ -118,7 +133,11 @@ const handlers: MenuHandlers = {
     mode = 'menu';
     input.enabled = false;
     audio.resume();
-    showTitle(handlers);
+    showHub(handlers);
+  },
+  firstTap() {
+    audio.unlock();
+    requestFullscreen();
   },
   settingsChanged() {
     applyLang();
@@ -156,7 +175,7 @@ function endMatch() {
   record.goalsFor += a.score;
   record.goalsAgainst += b.score;
   record.knockdowns += a.stats.knockdowns;
-  const diffMul = { easy: 0.6, normal: 1, hard: 1.5, insane: 2.2 }[m.cfg.difficulty];
+  const diffMul = DIFF_REWARD[m.cfg.difficulty] ?? 1;
   const coins = Math.round(((res === 'w' ? 100 : res === 'd' ? 40 : 15) + a.score * 10 + a.stats.knockdowns * 2) * diffMul);
   record.coins += coins;
   saveRecord();
@@ -200,7 +219,7 @@ async function boot() {
   }
   newDemo();
   input.enabled = false;
-  showTitle(handlers);
+  showSplash(handlers);
   requestAnimationFrame(frame);
 }
 void boot();

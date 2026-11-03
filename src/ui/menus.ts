@@ -1,37 +1,15 @@
 import { TEAMS, TeamDef, teamRating } from '../game/teams';
-import { playerSheet, FRAMES, CELL_W, CELL_H } from '../pixel/player';
-import { textCanvas } from '../pixel/font';
-import { ramp, css } from '../pixel/palette';
 import { t, LANGS } from '../engine/i18n';
-import { flagCanvas } from '../pixel/flags';
 import { settings, saveSettings, record, lastSetup, saveSetup } from '../engine/storage';
 import { audio } from '../engine/audio';
 import type { Match } from '../game/match';
 import type { Difficulty, Player } from '../game/entities';
+import { DIFF_REWARD } from '../game/entities';
+import { clubTeamDef, clubOverall } from '../meta/profile';
+import { ui, esc, bind, setScreen, paintTag, paintAll, crestTag, flagTag, spriteSource, lookFor, coinTag, MenuHandlers } from './common';
+import { showHub } from './hub';
 
-export interface MenuHandlers {
-  startMatch: () => void;
-  resume: () => void;
-  restart: () => void;
-  quit: () => void;
-  settingsChanged: () => void;
-}
-
-const ui = () => document.getElementById('ui')!;
-
-function esc(s: string) {
-  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-}
-
-function bind(sel: string, fn: (el: HTMLElement) => void) {
-  ui().querySelectorAll<HTMLElement>(sel).forEach((el) =>
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      audio.unlock();
-      fn(el);
-    }),
-  );
-}
+export type { MenuHandlers };
 
 function stars(v: number) {
   const full = Math.round(v * 2) / 2;
@@ -40,139 +18,49 @@ function stars(v: number) {
   return s;
 }
 
-/** Copy the pixel flags into every <canvas data-flag> currently in the UI. */
-function paintFlags() {
-  ui().querySelectorAll<HTMLCanvasElement>('canvas[data-flag]').forEach((c) => {
-    const f = flagCanvas(c.dataset.flag!);
-    c.width = f.width;
-    c.height = f.height;
-    c.getContext('2d')!.drawImage(f, 0, 0);
-  });
-}
-
 const SKIN_P = ['#f1cfb0', '#c98d63', '#7a4d30', '#e5b48f'];
 const HAIR_P = ['#1a1310', '#c98a3a', '#3b2416', '#b02a1a'];
 
-/** Blit one pixel-art frame of a footballer into a small canvas (CSS scales it, pixelated). */
-function spriteCanvas(canvas: HTMLCanvasElement, look: Parameters<typeof playerSheet>[0], frame: string, left = false) {
-  const sheet = playerSheet(look).canvas;
-  canvas.width = CELL_W;
-  canvas.height = CELL_H;
-  const g = canvas.getContext('2d')!;
-  g.imageSmoothingEnabled = false;
-  g.clearRect(0, 0, CELL_W, CELL_H);
-  // floor glow
-  const rp = ramp(look.kit.primary);
-  g.fillStyle = css(rp[1], 0.6);
-  g.fillRect(9, 34, 22, 2);
-  g.fillRect(12, 33, 16, 4);
-  g.drawImage(sheet, FRAMES[frame] * CELL_W, (left ? 1 : 0) * CELL_H, CELL_W, CELL_H, 0, 0, CELL_W, CELL_H);
+/** Home-side choices: -1 = the user's own club, 0.. = built-in teams. */
+export function homeDef(idx: number): TeamDef {
+  return idx < 0 ? clubTeamDef() ?? TEAMS[0] : TEAMS[idx];
 }
 
-function kitPreview(canvas: HTMLCanvasElement, team: TeamDef, seed: number) {
-  spriteCanvas(canvas, { kit: team, isGK: false, skin: SKIN_P[seed % 4], hair: HAIR_P[seed % 4], hairStyle: seed % 7, beard: seed % 3 === 0 }, 'idle0', seed % 2 === 1);
-}
-
-/** Pixel logo rendered with the in-game bitmap font. */
-function logoCanvas(text: string, scale: number, color: string, color2: string, shadow: string) {
-  const src = textCanvas(text, { scale, color, color2, outline: '#120c1c', thick: Math.max(1, Math.floor(scale / 2)), shadow });
-  const c = document.createElement('canvas');
-  c.width = src.width;
-  c.height = src.height;
-  c.getContext('2d')!.drawImage(src, 0, 0);
-  c.className = 'pix';
-  return c;
-}
-
-// ------------------------------------------------------------------ title
-
-export function showTitle(h: MenuHandlers) {
-  const L = t();
-  const r = record;
-  ui().className = 'screen-title';
-  ui().innerHTML = `
-    <div class="title-wrap">
-      <div class="logo">
-        <div class="logo-top" id="logo-top"></div>
-        <div class="logo-bottom" id="logo-bottom"></div>
-        <div class="logo-tag">${esc(L.tagline)}</div>
-      </div>
-      <div class="menu-col">
-        <button class="btn btn-primary btn-xl" data-act="play">${L.play} <span class="arrow">▶</span></button>
-        <div class="row">
-          <button class="btn btn-ghost" data-act="howto">${L.howTo}</button>
-          <button class="btn btn-ghost" data-act="settings">${L.settings}</button>
-        </div>
-        <div class="career">
-          <span class="career-title">${L.record}</span>
-          <span class="pill win">${r.wins}${L.w}</span>
-          <span class="pill draw">${r.draws}${L.d}</span>
-          <span class="pill loss">${r.losses}${L.l}</span>
-          <span class="pill coin">🪙 ${r.coins}</span>
-        </div>
-      </div>
-    </div>
-    <button class="lang-quick" data-act="lang" aria-label="${L.language}"><canvas class="pix flag" data-flag="${LANGS.find((l) => l.code === settings.lang)!.flag}"></canvas><span>${settings.lang.toUpperCase()}</span></button>
-    <div class="version">v0.2 • ${esc(L.hint)}</div>
-  `;
-  paintFlags();
-  bind('[data-act=lang]', () => {
-    const i = LANGS.findIndex((l) => l.code === settings.lang);
-    settings.lang = LANGS[(i + 1) % LANGS.length].code;
-    saveSettings();
-    audio.select();
-    h.settingsChanged();
-    showTitle(h);
-  });
-  document.getElementById('logo-top')!.appendChild(logoCanvas('MAD', 4, '#fff6b8', '#ffb21f', '#7a2a08'));
-  document.getElementById('logo-bottom')!.appendChild(logoCanvas('FOOTBALL', 3, '#ffffff', '#ff4a3a', '#5a0a10'));
-  bind('[data-act=play]', () => {
-    audio.select();
-    showSetup(h);
-  });
-  bind('[data-act=howto]', () => {
-    audio.click();
-    showHowTo(() => showTitle(h));
-  });
-  bind('[data-act=settings]', () => {
-    audio.click();
-    showSettings(h, () => showTitle(h));
-  });
-}
-
-// ------------------------------------------------------------------ setup
+// ------------------------------------------------------------------ match setup (step 1: teams)
 
 export function showSetup(h: MenuHandlers) {
   const L = t();
-  ui().className = 'screen-setup';
-  const diffs: Difficulty[] = ['easy', 'normal', 'hard', 'insane'];
+  if (lastSetup.home >= 0 && clubTeamDef() && lastSetup.home === lastSetup.away) lastSetup.home = -1;
   const render = () => {
-    const home = TEAMS[lastSetup.home], away = TEAMS[lastSetup.away];
-    const card = (team: TeamDef, side: 'home' | 'away', label: string) => `
+    const home = homeDef(lastSetup.home), away = TEAMS[lastSetup.away];
+    const isClub = lastSetup.home < 0;
+    const rating = isClub ? Math.min(5, Math.max(1, (clubOverall() - 40) / 11)) : teamRating(home);
+    const card = (team: TeamDef, side: 'home' | 'away', label: string, r: number, seed: number) => `
       <div class="team-card" style="--c1:${team.primary};--c2:${team.secondary}">
         <div class="team-label">${label}</div>
         <div class="team-main">
           <button class="nav" data-nav="${side}" data-dir="-1">‹</button>
-          <canvas class="kit pix" data-kit="${side}"></canvas>
+          ${paintTag(spriteSource(lookFor(team, { skin: SKIN_P[seed % 4], hair: HAIR_P[seed % 4], hairStyle: seed % 7, beard: seed % 3 === 0 }), 'idle0', seed % 2 === 1), 'kit')}
           <button class="nav" data-nav="${side}" data-dir="1">›</button>
         </div>
-        <div class="team-name"><span class="crest">${team.crest}</span>${esc(team.name)}</div>
-        <div class="stars">${stars(teamRating(team))}</div>
+        <div class="team-name">${crestTag(team, 'crest-sm')}${esc(team.name)}</div>
+        <div class="stars">${stars(r)}</div>
         <div class="stats">
           ${statBar(L.pace, team.pace)}${statBar(L.power, team.power)}${statBar(L.tackle, team.tackle)}${statBar(L.skill, team.skill)}
         </div>
       </div>`;
-    ui().innerHTML = `
-      <div class="setup-wrap">
+    setScreen(
+      'screen-setup',
+      `<div class="setup-wrap">
         <div class="setup-head">
           <button class="btn btn-ghost btn-sm" data-act="back">‹ ${L.back}</button>
           <div class="setup-title">${L.quickMatch}</div>
           <div style="width:80px"></div>
         </div>
         <div class="teams-row">
-          ${card(home, 'home', L.yourTeam)}
+          ${card(home, 'home', isClub ? L.myClubOpt.toUpperCase() : L.yourTeam, rating, lastSetup.home + 3)}
           <div class="vs">VS</div>
-          ${card(away, 'away', L.opponent)}
+          ${card(away, 'away', L.opponent, teamRating(away), lastSetup.away + 2)}
         </div>
         <div class="options">
           <div class="opt">
@@ -183,58 +71,79 @@ export function showSetup(h: MenuHandlers) {
             <div class="opt-label">${L.duration}</div>
             <div class="seg">${[120, 180, 300].map((d) => `<button class="${lastSetup.duration === d ? 'on' : ''}" data-dur="${d}">${d / 60} ${L.min}</button>`).join('')}</div>
           </div>
-          <div class="opt">
-            <div class="opt-label">${L.difficulty}</div>
-            <div class="seg">${diffs.map((d) => `<button class="${lastSetup.difficulty === d ? 'on' : ''} d-${d}" data-diff="${d}">${L[d]}</button>`).join('')}</div>
-          </div>
-          <button class="btn btn-primary btn-start" data-act="start">${L.start} ▶</button>
+          <button class="btn btn-primary btn-start" data-act="next">${L.next} ▶</button>
         </div>
-      </div>`;
-    ui().querySelectorAll<HTMLCanvasElement>('canvas[data-kit]').forEach((c) => {
-      const side = c.dataset.kit as 'home' | 'away';
-      kitPreview(c, side === 'home' ? home : away, side === 'home' ? lastSetup.home + 1 : lastSetup.away + 2);
-    });
-    bind('[data-act=back]', () => {
-      audio.click();
-      showTitle(h);
-    });
+      </div>`,
+    );
+    bind('[data-act=back]', () => { audio.click(); showHub(h); });
     bind('[data-nav]', (el) => {
       audio.click();
       const side = el.dataset.nav as 'home' | 'away';
       const dir = Number(el.dataset.dir);
-      const other = side === 'home' ? lastSetup.away : lastSetup.home;
-      let v = side === 'home' ? lastSetup.home : lastSetup.away;
-      do v = (v + dir + TEAMS.length) % TEAMS.length;
-      while (v === other);
-      if (side === 'home') lastSetup.home = v;
-      else lastSetup.away = v;
+      if (side === 'home') {
+        // -1 (my club) .. TEAMS.length-1, skipping the opponent
+        const min = clubTeamDef() ? -1 : 0;
+        let v = lastSetup.home;
+        do {
+          v += dir;
+          if (v >= TEAMS.length) v = min;
+          if (v < min) v = TEAMS.length - 1;
+        } while (v === lastSetup.away);
+        lastSetup.home = v;
+      } else {
+        let v = lastSetup.away;
+        do v = (v + dir + TEAMS.length) % TEAMS.length;
+        while (v === lastSetup.home);
+        lastSetup.away = v;
+      }
       saveSetup();
       render();
     });
-    bind('[data-size]', (el) => {
-      audio.click();
-      lastSetup.size = Number(el.dataset.size);
-      saveSetup();
-      render();
-    });
-    bind('[data-dur]', (el) => {
-      audio.click();
-      lastSetup.duration = Number(el.dataset.dur);
-      saveSetup();
-      render();
-    });
-    bind('[data-diff]', (el) => {
-      audio.click();
-      lastSetup.difficulty = el.dataset.diff!;
-      saveSetup();
-      render();
-    });
-    bind('[data-act=start]', () => {
-      audio.select();
-      h.startMatch();
-    });
+    bind('[data-size]', (el) => { audio.click(); lastSetup.size = Number(el.dataset.size); saveSetup(); render(); });
+    bind('[data-dur]', (el) => { audio.click(); lastSetup.duration = Number(el.dataset.dur); saveSetup(); render(); });
+    bind('[data-act=next]', () => { audio.select(); showDifficulty(h); });
   };
   render();
+}
+
+// ------------------------------------------------------------------ match setup (step 2: difficulty)
+
+const DIFFS: Difficulty[] = ['easy', 'normal', 'hard', 'insane', 'legend'];
+const DIFF_COL: Record<Difficulty, string> = { easy: '#2fb45a', normal: '#2f7bff', hard: '#e8701a', insane: '#e8322b', legend: '#b04cff' };
+
+export function showDifficulty(h: MenuHandlers) {
+  const L = t();
+  const home = homeDef(lastSetup.home), away = TEAMS[lastSetup.away];
+  setScreen(
+    'screen-setup',
+    `<div class="setup-wrap">
+      <div class="setup-head">
+        <button class="btn btn-ghost btn-sm" data-act="back">‹ ${L.back}</button>
+        <div class="setup-title">${L.difficulty}</div>
+        <div class="vs-mini">${crestTag(home, 'crest-sm')}<span>${esc(home.short)}</span><b>VS</b><span>${esc(away.short)}</span>${crestTag(away, 'crest-sm')}</div>
+      </div>
+      <div class="diff-row">
+        ${DIFFS.map((d, i) => `
+          <button class="diff-card ${lastSetup.difficulty === d ? 'on' : ''}" data-diff="${d}" style="--dc:${DIFF_COL[d]}">
+            <div class="diff-skulls">${'■'.repeat(i + 1)}</div>
+            <div class="diff-name">${(L as unknown as Record<string, string>)[d]}</div>
+            <div class="diff-desc">${esc(L.diffDesc[d])}</div>
+            <div class="diff-rew">${L.rewards} ×${DIFF_REWARD[d]}</div>
+          </button>`).join('')}
+      </div>
+      <div class="options">
+        <button class="btn btn-primary btn-start" data-act="start">${L.start} ▶</button>
+      </div>
+    </div>`,
+  );
+  bind('[data-act=back]', () => { audio.click(); showSetup(h); });
+  bind('[data-diff]', (el) => {
+    lastSetup.difficulty = el.dataset.diff!;
+    saveSetup();
+    audio.click();
+    showDifficulty(h);
+  });
+  bind('[data-act=start]', () => { audio.select(); h.startMatch(); });
 }
 
 function statBar(label: string, v: number) {
@@ -245,15 +154,15 @@ function statBar(label: string, v: number) {
 
 export function showSettings(h: MenuHandlers, back: () => void, inGame = false) {
   const L = t();
-  ui().className = 'screen-settings' + (inGame ? ' in-game' : '');
   const toggle = (key: keyof typeof settings, label: string) =>
     `<div class="set-row"><span>${label}</span><button class="toggle ${settings[key] ? 'on' : ''}" data-toggle="${key}"><i></i></button></div>`;
   const seg = (label: string, key: string, opts: [string | number, string][], cur: string | number) =>
     `<div class="set-row"><span>${label}</span><div class="seg small">${opts
       .map(([v, l]) => `<button class="${cur === v ? 'on' : ''}" data-seg="${key}" data-val="${v}">${l}</button>`)
       .join('')}</div></div>`;
-  ui().innerHTML = `
-    <div class="panel">
+  setScreen(
+    'screen-settings' + (inGame ? ' in-game' : ''),
+    `<div class="panel">
       <div class="panel-head">
         <button class="btn btn-ghost btn-sm" data-act="back">‹ ${L.back}</button>
         <div class="panel-title">${L.settings}</div>
@@ -262,23 +171,23 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
       <div class="panel-body cols">
         <div>
           ${toggle('sound', L.sound)}
-          <div class="set-row"><span>${L.volume}</span><input type="range" min="0" max="1" step="0.05" value="${settings.volume}" data-range="volume"></div>
+          <div class="set-row"><span>${L.volume}</span><input type="range" min="0" max="1" step="0.05" value="${settings.volume}" data-range="volume" id="set-volume"></div>
           ${toggle('vibration', L.vibration)}
           ${toggle('autoSwitch', L.autoSwitch)}
           ${toggle('leftHanded', L.leftHanded)}
+          ${seg(L.joystick, 'joy', [['float', L.joyFloat], ['fixed', L.joyFixed]], settings.joyFixed ? 'fixed' : 'float')}
         </div>
         <div>
           ${toggle('minimap', L.minimap)}
           ${seg(L.zoom, 'zoom', [[1.18, L.near], [1, L.mid], [0.84, L.far]], settings.zoom)}
           ${seg(L.quality, 'quality', [['high', L.high], ['low', L.low]], settings.quality)}
-          <div class="set-row lang-row"><span>${L.language}</span><div class="langs">${LANGS.map((l) => `<button class="lang-btn ${settings.lang === l.code ? 'on' : ''}" data-lang="${l.code}"><canvas class="pix flag" data-flag="${l.flag}"></canvas><span>${l.name}</span></button>`).join('')}</div></div>
+          <div class="set-row lang-row"><span>${L.language}</span><div class="langs">${LANGS.map((l) => `<button class="lang-btn ${settings.lang === l.code ? 'on' : ''}" data-lang="${l.code}">${flagTag(l.flag)}<span>${l.name}</span></button>`).join('')}</div></div>
         </div>
       </div>
-    </div>`;
-  bind('[data-act=back]', () => {
-    audio.click();
-    back();
-  });
+    </div>`,
+  );
+  const again = () => showSettings(h, back, inGame);
+  bind('[data-act=back]', () => { audio.click(); back(); });
   bind('[data-toggle]', (el) => {
     const k = el.dataset.toggle as 'sound' | 'vibration' | 'autoSwitch' | 'leftHanded' | 'minimap';
     settings[k] = !settings[k];
@@ -286,25 +195,25 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
     audio.applyVolume();
     audio.click();
     h.settingsChanged();
-    showSettings(h, back, inGame);
+    again();
   });
   bind('[data-seg]', (el) => {
     const k = el.dataset.seg!;
     const v = el.dataset.val!;
     if (k === 'zoom') settings.zoom = Number(v);
     if (k === 'quality') settings.quality = v as 'high' | 'low';
+    if (k === 'joy') settings.joyFixed = v === 'fixed';
     saveSettings();
     audio.click();
     h.settingsChanged();
-    showSettings(h, back, inGame);
+    again();
   });
-  paintFlags();
   bind('[data-lang]', (el) => {
     settings.lang = el.dataset.lang as typeof settings.lang;
     saveSettings();
     audio.select();
     h.settingsChanged();
-    showSettings(h, back, inGame);
+    again();
   });
   ui().querySelector<HTMLInputElement>('[data-range=volume]')?.addEventListener('input', (e) => {
     settings.volume = Number((e.target as HTMLInputElement).value);
@@ -317,9 +226,9 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
 
 export function showHowTo(back: () => void) {
   const L = t();
-  ui().className = 'screen-howto';
-  ui().innerHTML = `
-    <div class="panel">
+  setScreen(
+    'screen-howto',
+    `<div class="panel">
       <div class="panel-head">
         <button class="btn btn-ghost btn-sm" data-act="back">‹ ${L.back}</button>
         <div class="panel-title">${L.howTo}</div>
@@ -328,29 +237,28 @@ export function showHowTo(back: () => void) {
       <div class="panel-body howto-grid">
         ${L.howToItems.map(([i, title, d]) => `<div class="howto-item"><div class="hi-icon">${i}</div><div><b>${esc(title)}</b><p>${esc(d)}</p></div></div>`).join('')}
       </div>
-    </div>`;
-  bind('[data-act=back]', () => {
-    audio.click();
-    back();
-  });
+    </div>`,
+  );
+  bind('[data-act=back]', () => { audio.click(); back(); });
 }
 
 // ------------------------------------------------------------------ pause
 
 export function showPause(h: MenuHandlers, m: Match) {
   const L = t();
-  ui().className = 'screen-pause';
   const [a, b] = m.teams;
-  ui().innerHTML = `
-    <div class="pause-box">
+  setScreen(
+    'screen-pause',
+    `<div class="pause-box">
       <div class="panel-title">${L.paused}</div>
-      <div class="mini-score"><span style="color:${a.def.primary}">${a.def.short}</span> ${a.score} - ${b.score} <span style="color:${b.def.primary}">${b.def.short}</span></div>
+      <div class="mini-score">${crestTag(a.def, 'crest-sm')}<span style="color:${a.def.primary}">${esc(a.def.short)}</span> ${a.score} - ${b.score} <span style="color:${b.def.primary}">${esc(b.def.short)}</span>${crestTag(b.def, 'crest-sm')}</div>
       <button class="btn btn-primary" data-act="resume">${L.resume}</button>
       <button class="btn btn-ghost" data-act="settings">${L.settings}</button>
       <button class="btn btn-ghost" data-act="howto">${L.howTo}</button>
       <button class="btn btn-ghost" data-act="restart">${L.restart}</button>
       <button class="btn btn-danger" data-act="quit">${L.quit}</button>
-    </div>`;
+    </div>`,
+  );
   bind('[data-act=resume]', () => h.resume());
   bind('[data-act=restart]', () => h.restart());
   bind('[data-act=quit]', () => h.quit());
@@ -403,9 +311,9 @@ export function showResults(h: MenuHandlers, m: Match, coins: number) {
     <div class="results">
       <div class="res-title ${res}">${res === 'win' ? L.win : res === 'loss' ? L.loss : L.draw}</div>
       <div class="res-score">
-        <div class="res-team" style="--c:${a.def.primary}"><span class="crest">${a.def.crest}</span>${esc(a.def.name)}<small>${scorers(a)}</small></div>
+        <div class="res-team" style="--c:${a.def.primary}">${crestTag(a.def, 'crest-sm')}${esc(a.def.name)}<small>${scorers(a)}</small></div>
         <div class="res-num">${a.score}<span>-</span>${b.score}</div>
-        <div class="res-team right" style="--c:${b.def.primary}"><span class="crest">${b.def.crest}</span>${esc(b.def.name)}<small>${scorers(b)}</small></div>
+        <div class="res-team right" style="--c:${b.def.primary}">${crestTag(b.def, 'crest-sm')}${esc(b.def.name)}<small>${scorers(b)}</small></div>
       </div>
       <div class="res-body">
         <div class="res-stats">
@@ -414,11 +322,11 @@ export function showResults(h: MenuHandlers, m: Match, coins: number) {
         <div class="res-side">
           <div class="mvp" style="--c:${mvp.team.def.primary}">
             <div class="mvp-label">⭐ ${L.mvp}</div>
-            <canvas class="mvp-kit pix"></canvas>
+            ${paintTag(spriteSource(lookFor(mvp.team.def, mvp, mvp.isGK), 'cel0'), 'mvp-kit')}
             <div class="mvp-name">${esc(mvp.name)} <small>#${mvp.number}</small></div>
             <div class="mvp-line">⚽ ${mvp.goals} · 💥 ${mvp.knockdowns} · 🧤 ${mvp.saves}</div>
           </div>
-          <div class="coins">+${coins} 🪙</div>
+          <div class="coins">+${coins} ${coinTag()}</div>
         </div>
       </div>
       <div class="row">
@@ -426,8 +334,7 @@ export function showResults(h: MenuHandlers, m: Match, coins: number) {
         <button class="btn btn-primary" data-act="restart">${L.rematch} ▶</button>
       </div>
     </div>`;
-  const c = ui().querySelector<HTMLCanvasElement>('.mvp-kit');
-  if (c) spriteCanvas(c, { kit: mvp.team.def, isGK: mvp.isGK, skin: mvp.skin, hair: mvp.hair, hairStyle: mvp.hairStyle, beard: mvp.beard }, 'cel0');
+  paintAll();
   bind('[data-act=quit]', () => h.quit());
   bind('[data-act=restart]', () => h.restart());
   void record;

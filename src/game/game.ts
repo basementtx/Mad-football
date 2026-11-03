@@ -17,6 +17,8 @@ export class Game {
   fx = new FX();
   renderer: Renderer;
   paused = false;
+  /** menu backdrop mode: no match simulation, slow camera pan */
+  ambient = false;
   private acc = 0;
   time = 0;
 
@@ -35,6 +37,15 @@ export class Game {
 
   update(dtReal: number) {
     if (this.paused) return;
+    if (this.ambient) {
+      this.time += dtReal;
+      this.match.excitement = 0.3 + Math.max(0, Math.sin(this.time * 0.4)) * 0.4;
+      audio.setCrowd(0.15);
+      audio.update(dtReal);
+      const P = this.match.pitch;
+      this.cam.follow(Math.sin(this.time * 0.08) * P.hw * 0.7, Math.sin(this.time * 0.05) * P.hh * 0.4, dtReal, P, 1.5);
+      return;
+    }
     const ts = this.fx.timeScale;
     this.acc += dtReal * ts;
     let steps = 0;
@@ -64,8 +75,12 @@ export class Game {
       ty = ty * 0.75 + h.y * 0.25;
     }
     if (m.phase === 'goal' && m.lastGoal && !m.replaying) {
+      // watch the goal explosion first, then the celebrating scorer
       const sc = m.lastGoal.scorer;
-      if (sc && m.phaseT > 0.9) {
+      if (m.phaseT < 1.9) {
+        tx = m.lastGoal.team.side * m.pitch.hw;
+        ty = 0;
+      } else if (sc) {
         tx = sc.x;
         ty = sc.y;
       }
@@ -81,6 +96,8 @@ export class Game {
     const b = m.ball;
     const hasBall = !!h && b.owner === h;
     const rageFull = m.teams[0].rage >= 1;
+    const area = m.teams[0].power === 'shockwave' || m.teams[0].power === 'turbo';
+    const pname = ({ fireball: L.powerShot, ice: 'ICE', thunder: 'BOLT', banana: 'CURVE', shockwave: 'SLAM', turbo: 'TURBO' } as Record<string, string>)[m.teams[0].power] ?? L.powerShot;
     let aText = L.tackleBtn;
     if (hasBall) aText = L.shoot;
     else if (h) {
@@ -98,7 +115,7 @@ export class Game {
       a: { text: aText, color: hasBall ? '#ff4d3d' : '#ff7a1f' },
       b: { text: hasBall ? L.pass : L.switchBtn, color: '#2f9bff' },
       c: { text: L.sprint, color: '#2fc46a' },
-      d: hasBall && rageFull ? { text: L.powerShot, color: '#ff8a1f', glow: true } : { text: L.spin, color: '#a35cff' },
+      d: rageFull && (hasBall || area) ? { text: pname, color: '#ff8a1f', glow: true } : { text: L.spin, color: '#a35cff' },
     };
   }
 

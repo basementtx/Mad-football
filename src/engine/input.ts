@@ -127,8 +127,9 @@ export class Input {
     if (!this.joyActive && this.isJoySide(x)) {
       this.joyActive = true;
       this.joyId = e.pointerId;
-      this.joyOX = x;
-      this.joyOY = y;
+      const home = this.joyHome;
+      this.joyOX = settings.joyFixed ? home.x : x;
+      this.joyOY = settings.joyFixed ? home.y : y;
       this.joyX = x;
       this.joyY = y;
       this.updateJoy();
@@ -144,7 +145,7 @@ export class Input {
       const dx = this.joyX - this.joyOX, dy = this.joyY - this.joyOY;
       const d = Math.hypot(dx, dy);
       const max = this.joyR * 1.25;
-      if (d > max) {
+      if (d > max && !settings.joyFixed) {
         this.joyOX = this.joyX - (dx / d) * max;
         this.joyOY = this.joyY - (dy / d) * max;
       }

@@ -21,7 +21,15 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
   - El yapımı **5x7 bitmap font** (Ç, Ğ, İ, Ö, Ş, Ü dahil). Piksel saha dokusu, çim tutamları ve aşınma; atkı ve bayrak sallayan, 3 kare animasyonlu seyirci; kayan LED panolar; piksel kale ağları; dither'lı vinyet.
 - **Yayın kalitesinde sunum**: gol sonrası ağır çekim, konfeti ve **gol tekrarı**, ekran sarsıntısı, piksel partiküller.
 - **Tamamen sentezlenmiş ses** (dosya yok): tribün uğultusu, düdük, korna, vuruş ve çarpışma sesleri.
-- **Mobil öncelikli kontroller**: yüzen joystick ve duruma göre değişen 4 tuş (ŞUT/KAY/İT/KAFA, PAS/DEĞİŞ, DEPAR, ÇALIM/GÜÇ). Solak modu, titreşim desteği ve çentikli ekranlar için güvenli alan desteği var.
+- **Mobil öncelikli kontroller**: yüzen joystick ve duruma göre değişen 4 tuş (ŞUT/KAY/İT/KAFA, PAS/DEĞİŞ, DEPAR, ÇALIM/GÜÇ). Sabit veya parmağı takip eden joystick seçeneği, solak modu, titreşim desteği ve çentikli ekranlar için güvenli alan desteği var.
+- **Ana menü merkezi**: açılış ekranı, ardından kulüp, kadro, oyuncum, kasalar, koleksiyon ve maç kutucukları.
+- **Kulübünü kur**: isim, 3 harfli kısaltma, 4 forma rengi, forma deseni, piksel arma (5 şekil, 10 simge).
+- **Oyuncunu yarat**: ad, numara, pozisyon, ten, saç modeli ve rengi, sakal; 110 yetenek puanını HIZ/ŞUT/PAS/ÇAL/DEF/FİZ arasında dağıt. Maçta yıldız işaretiyle oynar.
+- **Oyuncu kartları**: genel güç, pozisyon, 6 özellik, piksel portre; Bronz, Gümüş, Altın, Kahraman ve Efsane seviyeleri. Kadro ekranında ilk 5'i seç; maçlar bu kartların değerleriyle oynanır.
+- **Kasalar**: Temel (250), Premium (700) ve Efsane (1800 altın). Her 4 saatte bir bedava temel kasa, başlangıçta bir bedava Premium. İçinden oyuncu kartı, gol patlaması, top izi ve özel güç çıkar; kopyalar altına çevrilir.
+- **Özel güçler** (öfke dolunca): Ateş Topu, Buz Şutu (dondurur), Falso Şutu (kıvrılır), Şimşek Şutu (zincirleme çarpar), Şok Dalgası (çevredeki herkesi devirir), Turbo Öfke (4 sn durdurulamaz hız).
+- **Gol patlamaları** (Rocket League tarzı, kale önündekileri savurur): Konfeti, Havai Fişek, Piksel Yağmuru, Derin Dondurucu, Yıldırım, Süpernova, Ejder Ateşi, Kara Delik, Altına Hücum. **Top izleri**: Alev, Pırıltı, Duman, Gökkuşağı, Elektrik, Galaksi, Midas.
+- **5 zorluk seviyesi** (Kolay → Efsane); ödül çarpanı ×0.6'dan ×3'e çıkar.
 - Kariyer kaydı (G/B/M), altın, maçın yıldızı ve maç istatistikleri.
 - İngilizce (varsayılan) ve Türkçe arayüz; dil, ayarlardan ya da ana menüdeki piksel bayrak düğmesinden değiştirilebilir.
 

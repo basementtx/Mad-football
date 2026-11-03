@@ -8,6 +8,8 @@ export interface Settings {
   zoom: number;
   quality: 'high' | 'low';
   lang: Lang;
+  /** joystick stays in place instead of following the finger */
+  joyFixed: boolean;
   /** settings schema version */
   v: number;
 }
@@ -33,6 +35,7 @@ const DEFAULT_SETTINGS: Settings = {
   zoom: 1,
   quality: 'high',
   lang: 'en',
+  joyFixed: false,
   v: 2,
 };
 
@@ -78,5 +81,10 @@ export const record: Record = load('mf.record', DEFAULT_RECORD);
 export const saveSettings = () => save('mf.settings', settings);
 export const saveRecord = () => save('mf.record', record);
 
-export const lastSetup = load('mf.setup', { home: 0, away: 1, size: 4, duration: 180, difficulty: 'normal' as string });
+export const lastSetup = load('mf.setup', { home: -1, away: 1, size: 4, duration: 180, difficulty: 'normal' as string, v: 3 });
+// v0.3: home side defaults to the user's own club
+if ((lastSetup.v ?? 0) < 3) {
+  lastSetup.home = -1;
+  lastSetup.v = 3;
+}
 export const saveSetup = () => save('mf.setup', lastSetup);

@@ -7,6 +7,8 @@ import { Input } from '../engine/input';
 import { settings } from '../engine/storage';
 import { t } from '../engine/i18n';
 import { runTeamAI, formationSpot } from './ai';
+import type { CardData } from '../meta/cards';
+import { POWER_ID } from '../meta/items';
 
 export type Phase = 'intro' | 'kickoff' | 'play' | 'goal' | 'fulltime' | 'over';
 
@@ -17,6 +19,11 @@ export interface MatchConfig {
   duration: number;
   difficulty: Difficulty;
   demo: boolean;
+  /** home squad from the user's club (slot 0 = GK) */
+  homeCards?: CardData[];
+  /** id of the user's own created player */
+  starId?: string | null;
+  loadout?: { power: string; goalfx: string; trail: string };
 }
 
 interface Frame {
@@ -76,12 +83,23 @@ export class Match {
       const roles = ROLES[cfg.size] ?? ROLES[4];
       const names = [...team.def.names].sort(() => Math.random() - 0.5);
       const nums = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 17, 19, 23].sort(() => Math.random() - 0.5);
+      const cards = team.index === 0 ? cfg.homeCards : undefined;
       roles.forEach((r, i) => {
-        const p = new Player(team, i, r, names[i % names.length], r === 'GK' ? 1 : nums[i]);
+        const card = cards?.[i];
+        const p = new Player(team, i, r, card ? card.name.split(' ').pop()! : names[i % names.length], r === 'GK' ? 1 : nums[i]);
         if (r === 'FWD') p.number = pick([9, 10, 11, 7]);
+        if (card) {
+          p.applyCard(card);
+          p.star = !!cfg.starId && card.id === cfg.starId;
+        }
         team.players.push(p);
         this.all.push(p);
       });
+    }
+    if (cfg.loadout) {
+      home.power = POWER_ID(cfg.loadout.power);
+      home.goalfx = cfg.loadout.goalfx;
+      home.trail = cfg.loadout.trail;
     }
     this.kickoffTeam = Math.random() < 0.5 ? home : away;
     this.setupKickoff(this.kickoffTeam);
@@ -149,6 +167,8 @@ export class Match {
     if (ht.human) {
       const field = ht.players.filter((p) => !p.isGK);
       this.human = kt === ht ? field[field.length - 1] : field.reduce((a, c) => (Math.abs(c.x) < Math.abs(a.x) ? c : a));
+      const star = field.find((p) => p.star);
+      if (star && kt !== ht) this.human = star;
     } else this.human = null;
     this.countShown = -1;
   }
@@ -323,7 +343,7 @@ export class Match {
       b.trail.push({ x, y, z });
       if (b.trail.length > 10) b.trail.shift();
     } else if (b.trail.length) b.trail.shift();
-    if (fire > 0) this.fx.fireTrail(x, y, z + 0.2);
+    if (fire > 0) this.fx.powerTrail(b.power, x, y, z + 0.2);
     return true;
   }
 
@@ -484,7 +504,8 @@ export class Match {
 
     // D: spin / power shot
     if (inp.btn.d.pressed && hp.canAct) {
-      if (hasBall && team.rage >= 1) {
+      const areaPower = team.power === 'shockwave' || team.power === 'turbo';
+      if (team.rage >= 1 && (hasBall || areaPower)) {
         const tgt = this.aimAtGoal(hp, ndx, ndy) ?? [hp.x + ndx * 20, hp.y + ndy * 20];
         this.powerShot(hp, tgt[0], tgt[1]);
       } else this.spin(hp);
@@ -617,26 +638,95 @@ export class Match {
     this.shootDir(p, dx, dy, power, err);
   }
 
+  /** Use the team's equipped power (rage meter full). */
   powerShot(p: Player, tx: number, ty: number) {
     const team = p.team;
-    if (team.rage < 1 || this.ball.owner !== p) return;
+    if (team.rage < 1) return;
+    const kind = team.power;
+    const b = this.ball;
+    if (kind === 'shockwave') return this.shockwave(p);
+    if (kind === 'turbo') return this.turboRampage(p);
+    if (b.owner !== p) return;
     team.rage = 0;
     team.stats.powerShots++;
-    const [dx, dy] = norm(tx - p.x, ty - p.y);
-    const sp = 34 + p.power * 4;
-    this.kick(p, dx * sp, dy * sp, 1.2, 1);
-    const b = this.ball;
+    let [dx, dy] = norm(tx - p.x, ty - p.y);
+    let sp = 34 + p.power * 4;
+    let spin = 0;
+    let vz = 1.2;
+    const look = { fire: ['#ffb02e', '#ff8a1f'], ice: ['#bfe8ff', '#5fc8ff'], thunder: ['#fff6a0', '#3bd9ff'], banana: ['#fff07a', '#ffd21f'] } as const;
+    let pk: 'fire' | 'ice' | 'thunder' | 'banana' = 'fire';
+    if (kind === 'ice') { pk = 'ice'; sp = 31; }
+    else if (kind === 'thunder') { pk = 'thunder'; sp = 44; vz = 0.6; }
+    else if (kind === 'banana') {
+      pk = 'banana';
+      sp = 29;
+      // start wide of the target and bend back in
+      const side = (p.y > 0 ? 1 : -1) * team.side;
+      const a = Math.atan2(dy, dx) + side * 0.62;
+      dx = Math.cos(a);
+      dy = Math.sin(a);
+      spin = -side * 1.05;
+      vz = 0.8;
+    }
+    this.kick(p, dx * sp, dy * sp, vz, 1);
     b.fire = 2.4;
+    b.power = pk;
+    b.spin = spin;
     b.shotBy = team;
     p.shots++;
     team.stats.shots++;
     for (const q of this.all) q.hitByFire = 0;
     audio.power();
     vibrate(60);
-    this.fx.doFlash(0.6, '#ffb02e');
+    this.fx.doFlash(0.6, look[pk][0]);
     this.fx.addShake(0.6);
     this.fx.slowmo(0.35, 0.35);
-    this.fx.banner(t().powerShotBanner, '', '#ff8a1f', 1.2, false);
+    this.fx.banner(this.powerName(kind), '', look[pk][1], 1.2, false);
+    this.excitement = 1;
+  }
+
+  private powerName(kind: string) {
+    const L = t();
+    return ({ fireball: L.powerShotBanner, ice: L.pIce, thunder: L.pThunder, banana: L.pBanana, shockwave: L.pShock, turbo: L.pTurbo } as Record<string, string>)[kind] ?? L.powerShotBanner;
+  }
+
+  private shockwave(p: Player) {
+    const team = p.team;
+    team.rage = 0;
+    team.stats.powerShots++;
+    p.setState('shove', 0.35);
+    for (const q of team.opp.players) {
+      const d = dist(p.x, p.y, q.x, q.y);
+      if (d < 6.5) {
+        const [ux, uy] = norm(q.x - p.x, q.y - p.y);
+        q.invuln = 0;
+        this.knockdown(q, p, ux * (12 - d), uy * (12 - d), 1.8);
+      }
+    }
+    for (let i = 0; i < 3; i++) this.fx.emit('ring', p.x, p.y, 0.1, { n: 1, life: 0.5 + i * 0.15, size: 1.6 + i * 0.6, color: '#d8b0ff' });
+    this.fx.dust(p.x, p.y, 24);
+    this.fx.emit('spark', p.x, p.y, 0.3, { n: 30, speed: 12, up: 4, life: 0.5, colors: ['#ffffff', '#d8b0ff', '#b04cff'] });
+    audio.power();
+    audio.hit(1);
+    vibrate([50, 30, 80]);
+    this.fx.doFlash(0.5, '#d8b0ff');
+    this.fx.addShake(1);
+    this.fx.banner(this.powerName('shockwave'), '', '#b04cff', 1.2, false);
+    this.excitement = 1;
+  }
+
+  private turboRampage(p: Player) {
+    const team = p.team;
+    team.rage = 0;
+    team.stats.powerShots++;
+    p.turbo = 4;
+    p.invuln = 0.2;
+    p.stamina = 1;
+    audio.power();
+    vibrate(60);
+    this.fx.doFlash(0.4, '#ff6a4a');
+    this.fx.addShake(0.5);
+    this.fx.banner(this.powerName('turbo'), '', '#ff3b30', 1.2, false);
     this.excitement = 1;
   }
 
@@ -830,6 +920,23 @@ export class Match {
     const b = this.ball;
     const hasBall = b.owner === p;
     p.sprinting = false;
+    p.frozen = Math.max(0, p.frozen - dt);
+    if (p.turbo > 0) {
+      p.turbo -= dt;
+      p.invuln = Math.max(p.invuln, 0.05);
+      p.stamina = 1;
+      if (Math.random() < 0.7) this.fx.emit('fire', p.x - p.vx * 0.05, p.y - p.vy * 0.05, 0.6, { n: 1, speed: 0.5, up: 0.5, life: 0.3, size: 0.5, colors: [p.team.def.primary, '#ffb02e', '#ffffff'] });
+      if (this.phase === 'play' && (p.state === 'run' || p.state === 'spin')) {
+        for (const q of p.team.opp.players) {
+          if (q.state === 'down' || q.state === 'recover') continue;
+          if (dist(p.x, p.y, q.x, q.y) < 1.05) {
+            const [ux, uy] = norm(q.x - p.x, q.y - p.y);
+            q.invuln = 0;
+            this.knockdown(q, p, ux * 9 + p.vx * 0.4, uy * 9 + p.vy * 0.4, 1.5);
+          }
+        }
+      }
+    }
 
     switch (p.state) {
       case 'run':
@@ -850,6 +957,7 @@ export class Match {
         if (hasBall) max *= 0.93;
         if (p.chargeKind !== 'none') max *= 0.75;
         if (p.state === 'spin') max *= 1.12;
+        if (p.turbo > 0) max *= 1.5;
         if (p.state === 'sad') max *= 0.45;
         if (p.isGK) max *= 0.95;
         const tvx = mx * max, tvy = my * max;
@@ -991,7 +1099,7 @@ export class Match {
     }
     if (b.fire > 0) {
       b.fire -= dt;
-      this.fx.fireTrail(b.x, b.y, b.z + 0.2);
+      this.fx.powerTrail(b.power, b.x, b.y, b.z + 0.2);
       if (b.speed < 9) b.fire = 0;
     }
 
@@ -1023,7 +1131,7 @@ export class Match {
 
     const px = b.x, py = b.y;
     // curve
-    if (b.spin !== 0 && b.z > 0.05) {
+    if (b.spin !== 0 && (b.z > 0.05 || (b.fire > 0 && b.power === 'banana'))) {
       const c = b.spin * dt * 3;
       const vx = b.vx * Math.cos(c) - b.vy * Math.sin(c);
       const vy = b.vx * Math.sin(c) + b.vy * Math.cos(c);
@@ -1058,6 +1166,8 @@ export class Match {
     }
     b.rot += sp * dt * 3;
 
+    // equipped cosmetic trail of whoever touched it last
+    if (b.fire <= 0 && sp > 11 && b.lastTouch && b.lastTouch.team.trail !== 'tr_basic') this.fx.ballTrail(b.lastTouch.team.trail, b.x, b.y, b.z + 0.25);
     // trail
     if (sp > 16 || b.fire > 0) {
       b.trail.push({ x: b.x, y: b.y, z: b.z });
@@ -1200,9 +1310,9 @@ export class Match {
       // fireball flattens everyone in its path
       if (b.fire > 0 && p !== b.lastTouch && d < 0.95 && b.z < 2.3 && p.hitByFire <= 0) {
         p.hitByFire = 1.5;
-        this.knockdown(p, b.lastTouch, b.vx * 0.35, b.vy * 0.35, 1.9);
-        b.vx *= 0.9;
-        b.vy *= 0.9;
+        this.powerHit(p);
+        b.vx *= b.power === 'thunder' ? 0.95 : 0.9;
+        b.vy *= b.power === 'thunder' ? 0.95 : 0.9;
         continue;
       }
       if (p.isGK) {
@@ -1252,6 +1362,32 @@ export class Match {
         return;
       }
       this.setOwner(p);
+    }
+  }
+
+  /** A power shot ploughs through a player. */
+  private powerHit(p: Player) {
+    const b = this.ball;
+    const by = b.lastTouch;
+    if (b.power === 'ice') {
+      p.invuln = 0;
+      if (this.knockdown(p, by, b.vx * 0.15, b.vy * 0.15, 2.4)) {
+        p.frozen = 2.4;
+        this.fx.emit('spark', p.x, p.y, 1, { n: 14, speed: 5, up: 3, life: 0.6, colors: ['#ffffff', '#bfe8ff', '#5fc8ff'] });
+      }
+    } else if (b.power === 'thunder') {
+      this.knockdown(p, by, b.vx * 0.3, b.vy * 0.3, 2.0);
+      this.fx.bolt(p.x, p.y);
+      // chain to nearby players of the same team
+      for (const q of p.team.players) {
+        if (q === p || q.hitByFire > 0 || dist(p.x, p.y, q.x, q.y) > 4) continue;
+        q.hitByFire = 1.5;
+        q.invuln = 0;
+        this.knockdown(q, by, (q.x - p.x) * 2, (q.y - p.y) * 2, 1.6);
+        this.fx.bolt(q.x, q.y);
+      }
+    } else {
+      this.knockdown(p, by, b.vx * 0.35, b.vy * 0.35, 1.9);
     }
   }
 
@@ -1398,7 +1534,18 @@ export class Match {
       if (p.state === 'run' || p.state === 'spin') p.setState(p.team === scoring ? 'celebrate' : 'sad');
     }
     const gx = b.inGoal * P.hw;
-    this.fx.confetti(gx, 0, [scoring.def.primary, scoring.def.secondary, '#ffffff', '#ffd23f']);
+    this.fx.goalExplosion(scoring.goalfx, gx + b.inGoal * 1, 0, [scoring.def.primary, scoring.def.secondary, '#ffffff', '#ffd23f']);
+    // explosion blast: players near the goal get thrown back
+    for (const p of this.all) {
+      const d = dist(p.x, p.y, gx, 0);
+      if (d > 8 || p.isGK && p.team !== scoring && d > 3) continue;
+      const [ux, uy] = norm(p.x - gx, p.y || 0.01);
+      const f = (8 - d) * 2.2;
+      p.setState('down', 0.9 + (8 - d) * 0.08);
+      p.vx = ux * f;
+      p.vy = uy * f;
+      p.chargeKind = 'none';
+    }
     this.fx.slowmo(0.3, 1.1);
     this.fx.addShake(0.7);
     this.fx.doFlash(0.5);

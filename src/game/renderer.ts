@@ -629,6 +629,34 @@ export class Renderer {
     const flash = p.state === 'down' && p.stateT < 0.1;
     const row = (left ? 1 : 0) + (flash ? 2 : 0);
     ctx.drawImage(sheet, fi * CELL_W, row * CELL_H, CELL_W, CELL_H, x - ANCHOR_X, y - ANCHOR_Y, CELL_W, CELL_H);
+    if (p.frozen > 0) {
+      // ice block around the frozen player
+      const lying = p.state === 'down' || p.state === 'recover';
+      const w = lying ? 30 : 16, h = lying ? 12 : 30;
+      const bx = x - (w >> 1), by = y - h + 1;
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#8ad8ff';
+      ctx.fillRect(bx, by, w, h);
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#e8f8ff';
+      ctx.fillRect(bx, by, w, 1);
+      ctx.fillRect(bx, by, 1, h);
+      ctx.fillRect(bx + 2, by + 2, 1, 4);
+      ctx.fillRect(bx + 3, by + 2, 2, 1);
+      ctx.fillStyle = '#2a78b8';
+      ctx.fillRect(bx + w - 1, by, 1, h);
+      ctx.fillRect(bx, by + h - 1, w, 1);
+      ctx.globalAlpha = 1;
+    }
+    if (p.star && p !== this.m.human && p.state !== 'down' && !this.m.replaying) {
+      // small star over the user's created player
+      ctx.fillStyle = '#120c1c';
+      ctx.fillRect(x - 2, y - 37, 5, 5);
+      ctx.fillStyle = '#ffe14d';
+      ctx.fillRect(x - 1, y - 36, 3, 3);
+      ctx.fillRect(x, y - 37, 1, 5);
+      ctx.fillRect(x - 2, y - 35, 5, 1);
+    }
   }
 
   private drawBall(ctx: CanvasRenderingContext2D, cam: Camera) {
