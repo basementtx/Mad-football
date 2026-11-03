@@ -1,7 +1,6 @@
-import '@fontsource/russo-one';
-import '@fontsource/rubik/400.css';
-import '@fontsource/rubik/700.css';
-import '@fontsource/rubik/900.css';
+import '@fontsource/press-start-2p';
+import '@fontsource/pixelify-sans/400.css';
+import '@fontsource/pixelify-sans/700.css';
 import './ui/style.css';
 
 import { Input, Insets } from './engine/input';
@@ -15,10 +14,10 @@ import { showTitle, showPause, showResults, hideUI, MenuHandlers } from './ui/me
 import { t } from './engine/i18n';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
-const ctx = canvas.getContext('2d', { alpha: false })!;
+let ctx = canvas.getContext('2d', { alpha: false })!;
 const input = new Input(canvas);
 
-let W = 0, H = 0, dpr = 1;
+let W = 0, H = 0;
 let mode: 'menu' | 'play' | 'paused' | 'results' = 'menu';
 let demo: Game | null = null;
 let game: Game | null = null;
@@ -34,15 +33,27 @@ function readInsets(): Insets {
   };
 }
 
+/**
+ * Pixel-perfect display: the game renders into a low-res virtual framebuffer
+ * (~232 px tall) that is scaled up by an integer factor with nearest-neighbour.
+ */
 function resize() {
-  W = window.innerWidth;
-  H = window.innerHeight;
-  dpr = Math.min(window.devicePixelRatio || 1, settings.quality === 'high' ? 2 : 1.25);
-  canvas.width = Math.floor(W * dpr);
-  canvas.height = Math.floor(H * dpr);
-  canvas.style.width = W + 'px';
-  canvas.style.height = H + 'px';
-  input.resize(W, H, readInsets());
+  const cssW = window.innerWidth, cssH = window.innerHeight;
+  const dpr = window.devicePixelRatio || 1;
+  const devW = Math.round(cssW * dpr), devH = Math.round(cssH * dpr);
+  const px = Math.max(1, Math.round(devH / (232 / settings.zoom)));
+  W = Math.ceil(devW / px);
+  H = Math.ceil(devH / px);
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.width = (W * px) / dpr + 'px';
+  canvas.style.height = (H * px) / dpr + 'px';
+  ctx = canvas.getContext('2d', { alpha: false })!;
+  ctx.imageSmoothingEnabled = false;
+  const k = px / dpr; // css px per virtual px
+  input.k = k;
+  const ins = readInsets();
+  input.resize(W, H, { top: ins.top / k, right: ins.right / k, bottom: ins.bottom / k, left: ins.left / k });
   demo?.resize(W, H);
   game?.resize(W, H);
 }
@@ -157,7 +168,7 @@ let last = performance.now();
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false;
   if (mode === 'play' || mode === 'paused' || (mode === 'results' && game)) {
     game!.update(mode === 'play' || mode === 'results' ? dt : 0);
     game!.draw(ctx, W, H, mode === 'play');
@@ -178,7 +189,7 @@ async function boot() {
   document.documentElement.lang = settings.lang;
   document.querySelector('#rotate p')!.textContent = t().rotate;
   try {
-    await Promise.race([document.fonts.load('20px "Russo One"'), new Promise((r) => setTimeout(r, 1500))]);
+    await Promise.race([document.fonts.load('16px "Press Start 2P"'), new Promise((r) => setTimeout(r, 1500))]);
   } catch {
     /* ignore */
   }

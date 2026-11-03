@@ -16,7 +16,10 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **Yapay zekâ**: pres, alan kapatma, adam markajı, koşular, pas tercihleri. 4 zorluk seviyesi var: Kolay, Normal, Zor, Çılgın.
 - **8 özgün takım**: her birinin kendi forma deseni ve hız, güç, sertlik, teknik değerleri var.
 - **3v3, 4v4 ve 5v5**; 2, 3 ve 5 dakikalık maçlar.
-- **Yayın kalitesinde sunum**: 3/4 kamera, stadyum, tribünde tepki veren seyirci, kayan LED reklam panoları, perspektifli kale ağları, gol sonrası ağır çekim, konfeti ve **gol tekrarı**, ekran sarsıntısı, partiküller.
+- **Pixel art grafikler**: oyun ~232 px yükseklikte sanal bir çerçeveye çizilip tam sayı katlarla, keskin piksellerle büyütülüyor.
+  - Oyuncu sprite'ları iskeletten **piksel piksel** üretiliyor: piksel başına ışıklandırma, ton kaydırmalı renk paletleri, iç ve dış hatlar, takım formasına göre desen (çizgili, yatay çizgili, yarım, kuşak, V). Koşu, şut, kayma, yere düşme, kalkma, plonjon, sevinç, itme, kafa ve üzgün kareleri var.
+  - El yapımı **5x7 bitmap font** (Ç, Ğ, İ, Ö, Ş, Ü dahil). Piksel saha dokusu, çim tutamları ve aşınma; atkı ve bayrak sallayan, 3 kare animasyonlu seyirci; kayan LED panolar; piksel kale ağları; dither'lı vinyet.
+- **Yayın kalitesinde sunum**: gol sonrası ağır çekim, konfeti ve **gol tekrarı**, ekran sarsıntısı, piksel partiküller.
 - **Tamamen sentezlenmiş ses** (dosya yok): tribün uğultusu, düdük, korna, vuruş ve çarpışma sesleri.
 - **Mobil öncelikli kontroller**: yüzen joystick ve duruma göre değişen 4 tuş (ŞUT/KAY/İT/KAFA, PAS/DEĞİŞ, DEPAR, ÇALIM/GÜÇ). Solak modu, titreşim desteği ve çentikli ekranlar için güvenli alan desteği var.
 - Kariyer kaydı (G/B/M), altın, maçın yıldızı ve maç istatistikleri.
@@ -47,8 +50,10 @@ Teknoloji: TypeScript, Vite ve harici oyun motoru kullanmayan özel bir Canvas 2
 ```
 src/
   engine/   input (joystick + tuşlar + klavye), audio (WebAudio sentezi), storage, i18n, math
-  game/     match (kurallar + fizik), ai (takım yapay zekâsı), entities, renderer, sprites,
-            camera, fx (partikül/yazı/banner), hud, game (döngü + kamera)
+  game/     match (kurallar + fizik), ai (takım yapay zekâsı), entities, renderer (piksel stadyum),
+            camera (piksel hassas), fx (partikül/yazı/banner), hud, game (döngü + kamera)
+  pixel/    player (prosedürel sprite üretici), props (top, gölge, tuşlar), font (bitmap font), palette
+tools/sheet.html   geliştirme aracı: tüm oyuncu sprite karelerini gösterir (npm run dev → /tools/sheet.html)
   ui/       menüler (DOM) + stil
 ```
 

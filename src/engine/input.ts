@@ -39,7 +39,9 @@ export class Input {
   joyOY = 0;
   joyX = 0;
   joyY = 0;
-  readonly joyR = 62;
+  readonly joyR = 24;
+  /** css pixels per virtual pixel */
+  k = 1;
 
   layout: BtnLayout[] = [];
   pauseRect = { x: 0, y: 0, w: 0, h: 0 };
@@ -63,31 +65,29 @@ export class Input {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
+  /** W/H/insets are in virtual (framebuffer) pixels */
   resize(W: number, H: number, insets: Insets) {
     this.W = W;
     this.H = H;
     this.insets = insets;
-    const s = clamp(Math.min(W, H) / 400, 0.8, 1.35);
-    const right = W - insets.right - 20 * s;
-    const bottom = H - Math.max(insets.bottom, 8) - 18 * s;
+    const right = W - insets.right - 8;
+    const bottom = H - Math.max(insets.bottom, 3) - 6;
     let L: BtnLayout[] = [
-      { id: 'a', x: right - 52 * s, y: bottom - 56 * s, r: 50 * s },
-      { id: 'b', x: right - 152 * s, y: bottom - 30 * s, r: 38 * s },
-      { id: 'd', x: right - 140 * s, y: bottom - 122 * s, r: 34 * s },
-      { id: 'c', x: right - 40 * s, y: bottom - 160 * s, r: 34 * s },
+      { id: 'a', x: right - 24, y: bottom - 26, r: 21 },
+      { id: 'b', x: right - 70, y: bottom - 15, r: 16 },
+      { id: 'd', x: right - 64, y: bottom - 58, r: 15 },
+      { id: 'c', x: right - 19, y: bottom - 76, r: 15 },
     ];
     if (settings.leftHanded) L = L.map((b) => ({ ...b, x: W - b.x }));
     this.layout = L;
-    const ps = 40 * s;
-    this.pauseRect = settings.leftHanded
-      ? { x: W - insets.right - 12 - ps, y: Math.max(insets.top, 8) + 6, w: ps, h: ps }
-      : { x: insets.left + 12, y: Math.max(insets.top, 8) + 6, w: ps, h: ps };
+    const ps = 16;
+    const top = Math.max(insets.top, 3) + 4;
+    this.pauseRect = settings.leftHanded ? { x: W - insets.right - 6 - ps, y: top, w: ps, h: ps } : { x: insets.left + 6, y: top, w: ps, h: ps };
   }
 
   get joyHome() {
-    const s = clamp(Math.min(this.W, this.H) / 400, 0.8, 1.35);
-    const x = this.insets.left + 40 + 80 * s;
-    return { x: settings.leftHanded ? this.W - x : x, y: this.H - Math.max(this.insets.bottom, 8) - 90 * s };
+    const x = this.insets.left + 46;
+    return { x: settings.leftHanded ? this.W - x : x, y: this.H - Math.max(this.insets.bottom, 3) - 42 };
   }
 
   private isJoySide(x: number) {
@@ -103,9 +103,9 @@ export class Input {
     } catch {
       /* ignore */
     }
-    const { clientX: x, clientY: y } = e;
+    const x = e.clientX / this.k, y = e.clientY / this.k;
     const pr = this.pauseRect;
-    if (x >= pr.x - 10 && x <= pr.x + pr.w + 10 && y >= pr.y - 10 && y <= pr.y + pr.h + 10) {
+    if (x >= pr.x - 6 && x <= pr.x + pr.w + 6 && y >= pr.y - 6 && y <= pr.y + pr.h + 6) {
       this.onPause?.();
       return;
     }
@@ -138,8 +138,8 @@ export class Input {
   private onMove(e: PointerEvent) {
     if (e.pointerId === this.joyId && this.joyActive) {
       e.preventDefault();
-      this.joyX = e.clientX;
-      this.joyY = e.clientY;
+      this.joyX = e.clientX / this.k;
+      this.joyY = e.clientY / this.k;
       // drag the origin along if finger goes too far (floating joystick)
       const dx = this.joyX - this.joyOX, dy = this.joyY - this.joyOY;
       const d = Math.hypot(dx, dy);
@@ -169,7 +169,7 @@ export class Input {
   private updateJoy() {
     const dx = this.joyX - this.joyOX, dy = this.joyY - this.joyOY;
     const d = Math.hypot(dx, dy);
-    const dead = 6;
+    const dead = 3;
     if (d < dead) {
       this.mx = 0;
       this.my = 0;

@@ -5,7 +5,6 @@ import { FX } from './fx';
 import { drawHUD, BtnLabel } from './hud';
 import type { Input, BtnId } from '../engine/input';
 import { audio } from '../engine/audio';
-import { settings } from '../engine/storage';
 import { dist } from '../engine/math';
 import { t } from '../engine/i18n';
 
@@ -27,16 +26,11 @@ export class Game {
     const b = this.match.ball;
     this.cam.x = b.x;
     this.cam.y = b.y;
-    if (!cfg.demo) {
-      this.cam.zoom = 0.72;
-    }
     this.match.start();
   }
 
   resize(W: number, H: number) {
-    this.cam.W = W;
-    this.cam.H = H;
-    this.cam.resize(W, H, settings.zoom);
+    this.cam.resize(W, H);
   }
 
   update(dtReal: number) {
@@ -69,15 +63,6 @@ export class Game {
       tx = tx * 0.75 + h.x * 0.25;
       ty = ty * 0.75 + h.y * 0.25;
     }
-    // zoom behaviour
-    let z = 1;
-    if (m.phase === 'intro') z = 0.72;
-    if (m.phase === 'goal') z = m.phaseT < 2 ? 1.25 : 1.1;
-    if (m.phase === 'fulltime') z = 0.85;
-    if (m.cfg.demo) z = 0.95;
-    if (m.replaying) z = 1.12;
-    cam.zoom += (z - cam.zoom) * Math.min(1, dt * (m.phase === 'goal' ? 3 : 1.5));
-    cam.resize(cam.W, cam.H, settings.zoom);
     if (m.phase === 'goal' && m.lastGoal && !m.replaying) {
       const sc = m.lastGoal.scorer;
       if (sc && m.phaseT > 0.9) {
@@ -113,7 +98,7 @@ export class Game {
       a: { text: aText, color: hasBall ? '#ff4d3d' : '#ff7a1f' },
       b: { text: hasBall ? L.pass : L.switchBtn, color: '#2f9bff' },
       c: { text: L.sprint, color: '#2fc46a' },
-      d: hasBall && rageFull ? { text: '🔥' + L.powerShot, color: '#ff8a1f', glow: true } : { text: L.spin, color: '#a35cff' },
+      d: hasBall && rageFull ? { text: L.powerShot, color: '#ff8a1f', glow: true } : { text: L.spin, color: '#a35cff' },
     };
   }
 

@@ -1,6 +1,8 @@
 import { rand, pick, TAU } from '../engine/math';
 import { settings } from '../engine/storage';
 import type { Camera } from './camera';
+import { drawText } from '../pixel/font';
+import { ring, star } from '../pixel/props';
 
 type PType = 'dust' | 'grass' | 'spark' | 'confetti' | 'fire' | 'smoke' | 'star' | 'ring';
 
@@ -177,113 +179,76 @@ export class FX {
   }
 
   draw(ctx: CanvasRenderingContext2D, cam: Camera) {
-    const s = cam.s;
     for (const p of this.particles) {
       const sx = cam.sx(p.x), sy = cam.sy(p.y, p.z);
       const k = p.life / p.max;
-      const sz = p.size * s;
       switch (p.type) {
         case 'dust':
-        case 'smoke':
-          ctx.globalAlpha = k * 0.9;
-          ctx.fillStyle = p.color;
-          ctx.beginPath();
-          ctx.arc(sx, sy, sz * (1.6 - k * 0.8), 0, TAU);
-          ctx.fill();
+        case 'smoke': {
+          const sz = Math.max(1, Math.round(p.size * 8 * (0.5 + (1 - k) * 0.8)));
+          ctx.fillStyle = p.type === 'dust' ? (k > 0.5 ? '#d8c9a0' : '#b7a57c') : k > 0.5 ? '#5a5260' : '#3c3644';
+          ctx.globalAlpha = k > 0.35 ? 1 : 0.6;
+          ctx.fillRect(sx - (sz >> 1), sy - (sz >> 1), sz, sz);
           break;
+        }
         case 'grass':
-          ctx.globalAlpha = Math.min(1, k * 2);
           ctx.fillStyle = p.color;
-          ctx.fillRect(sx - sz / 2, sy - sz / 2, sz, sz * 1.6);
+          ctx.fillRect(sx, sy, 1, 2);
           break;
-        case 'spark':
-          ctx.globalAlpha = k;
-          ctx.strokeStyle = p.color;
-          ctx.lineWidth = Math.max(1.5, sz * 0.25);
-          ctx.beginPath();
-          ctx.moveTo(sx, sy);
-          ctx.lineTo(sx - p.vx * s * 0.04, sy - (p.vy * cam.ys - p.vz) * s * 0.04);
-          ctx.stroke();
+        case 'spark': {
+          ctx.fillStyle = p.color;
+          const len = Math.max(1, Math.round(k * 3));
+          const dx = Math.sign(p.vx), dy = Math.sign(p.vy * cam.ys - p.vz);
+          for (let i = 0; i < len; i++) ctx.fillRect(sx - dx * i, sy - dy * i, 1, 1);
           break;
-        case 'ring':
-          ctx.globalAlpha = k;
-          ctx.strokeStyle = p.color;
-          ctx.lineWidth = 3 * k + 1;
-          ctx.beginPath();
-          ctx.ellipse(sx, sy, sz * (1 + (1 - k) * 4), sz * (1 + (1 - k) * 4) * 0.7, 0, 0, TAU);
-          ctx.stroke();
+        }
+        case 'ring': {
+          const r = Math.round(2 + (1 - k) * 10 * p.size);
+          const img = ringSprite(r);
+          ctx.globalAlpha = k > 0.5 ? 1 : 0.6;
+          ctx.drawImage(img, sx - (img.width >> 1), sy - (img.height >> 1));
           break;
+        }
         case 'fire': {
-          ctx.globalAlpha = k;
-          ctx.fillStyle = p.color;
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.beginPath();
-          ctx.arc(sx, sy, sz * (0.4 + k * 0.6), 0, TAU);
-          ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
+          const sz = k > 0.66 ? 3 : k > 0.33 ? 2 : 1;
+          ctx.fillStyle = k > 0.7 ? '#fff3a0' : k > 0.45 ? '#ffb02e' : k > 0.2 ? '#ff5a1f' : '#9a2010';
+          ctx.fillRect(sx - (sz >> 1), sy - (sz >> 1), sz, sz);
           break;
         }
         case 'confetti': {
-          ctx.globalAlpha = Math.min(1, k * 3);
           ctx.fillStyle = p.color;
-          ctx.save();
-          ctx.translate(sx, sy);
-          ctx.rotate(p.rot);
-          ctx.scale(1, Math.cos(p.rot * 1.7));
-          ctx.fillRect(-sz / 2, -sz / 4, sz, sz / 2);
-          ctx.restore();
+          const flip = Math.floor(p.rot * 2) % 2 === 0;
+          ctx.fillRect(sx, sy, flip ? 2 : 1, flip ? 1 : 2);
           break;
         }
         case 'star': {
-          ctx.globalAlpha = Math.min(1, k * 2);
-          drawStar(ctx, sx, sy, sz * 0.6, p.rot, p.color);
+          const st = star();
+          ctx.globalAlpha = k > 0.3 ? 1 : 0.5;
+          ctx.drawImage(st, sx - 3, sy - 3);
           break;
         }
       }
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
 
     // floating texts
     for (const t of this.texts) {
-      const k = t.life / t.max;
       const age = t.max - t.life;
-      const pop = age < 0.15 ? 0.6 + (age / 0.15) * 0.6 : age < 0.3 ? 1.2 - ((age - 0.15) / 0.15) * 0.2 : 1;
-      const sx = cam.sx(t.x), sy = cam.sy(t.y, t.z + 2.2);
-      const fs = Math.max(14, s * 0.75 * t.size) * pop;
-      ctx.globalAlpha = Math.min(1, k * 2.5);
-      ctx.font = `${fs}px "Russo One", sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = fs * 0.18;
-      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-      ctx.lineJoin = 'round';
-      ctx.save();
-      ctx.translate(sx, sy);
-      ctx.rotate(-0.08);
-      ctx.strokeText(t.text, 0, 0);
-      ctx.fillStyle = t.color;
-      ctx.fillText(t.text, 0, 0);
-      ctx.restore();
+      const bounce = age < 0.12 ? -3 : age < 0.2 ? 1 : 0;
+      const sx = cam.sx(t.x), sy = cam.sy(t.y, t.z + 2.6) + bounce;
+      if (t.life < 0.25 && Math.floor(t.life * 20) % 2) continue; // blink out
+      drawText(ctx, t.text, sx, sy, { color: t.color, scale: t.size >= 1.1 ? 2 : 1, align: 'center', outline: '#120c1c', thick: 1, shadow: null });
     }
-    ctx.globalAlpha = 1;
   }
 }
 
-export function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, rot: number, color: string) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(rot);
-  ctx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const rr = i % 2 ? r * 0.45 : r;
-    const a = (i / 10) * TAU - Math.PI / 2;
-    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+const ringCache = new Map<number, HTMLCanvasElement>();
+function ringSprite(r: number) {
+  let c = ringCache.get(r);
+  if (!c) {
+    c = ring(r, Math.max(1, Math.round(r * 0.6)), '#ffffff');
+    ringCache.set(r, c);
   }
-  ctx.closePath();
-  ctx.fillStyle = color;
-  ctx.fill();
-  ctx.lineWidth = Math.max(1, r * 0.15);
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-  ctx.stroke();
-  ctx.restore();
+  return c;
 }
+

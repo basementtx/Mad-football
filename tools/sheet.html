@@ -1,0 +1,21 @@
+<!doctype html><html><body style="background:#3a7d3c;margin:0">
+<canvas id="c" style="image-rendering:pixelated"></canvas>
+<script type="module">
+import { playerSheet, CELL_W, CELL_H, FRAME_COUNT } from '/src/pixel/player.ts';
+import { TEAMS } from '/src/game/teams.ts';
+const looks = [
+  { kit: TEAMS[0], isGK: false, skin: '#e5b48f', hair: '#3b2416', hairStyle: 0, beard: false },
+  { kit: TEAMS[1], isGK: false, skin: '#7a4d30', hair: '#1a1310', hairStyle: 2, beard: true },
+  { kit: TEAMS[2], isGK: false, skin: '#f3d2b5', hair: '#e8d27a', hairStyle: 6, beard: false },
+  { kit: TEAMS[3], isGK: true, skin: '#c98d63', hair: '#b02a1a', hairStyle: 3, beard: false },
+  { kit: TEAMS[4], isGK: false, skin: '#a8714a', hair: '#20263a', hairStyle: 5, beard: false },
+  { kit: TEAMS[5], isGK: false, skin: '#5a3722', hair: '#1a1310', hairStyle: 4, beard: true },
+];
+const c = document.getElementById('c'); const S = +(new URLSearchParams(location.search).get("s")||3);
+c.width = CELL_W * FRAME_COUNT; c.height = CELL_H * (looks.length + 1);
+c.style.width = c.width * S + 'px';
+const g = c.getContext('2d');
+looks.forEach((l, i) => { const sh = playerSheet(l).canvas; g.drawImage(sh, 0, 0, sh.width, CELL_H, 0, i * CELL_H, sh.width, CELL_H); });
+const sh = playerSheet(looks[0]).canvas; g.drawImage(sh, 0, CELL_H, sh.width, CELL_H, 0, looks.length * CELL_H, sh.width, CELL_H);
+g.fillStyle='rgba(0,0,0,.25)'; for (let y=0;y<=looks.length;y++) g.fillRect(0,y*CELL_H+35,c.width,1);
+</script></body></html>

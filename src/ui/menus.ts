@@ -1,5 +1,7 @@
 import { TEAMS, TeamDef, teamRating } from '../game/teams';
-import { drawFootballer } from '../game/sprites';
+import { playerSheet, FRAMES, CELL_W, CELL_H } from '../pixel/player';
+import { textCanvas } from '../pixel/font';
+import { ramp, css } from '../pixel/palette';
 import { t } from '../engine/i18n';
 import { settings, saveSettings, record, lastSetup, saveSetup } from '../engine/storage';
 import { audio } from '../engine/audio';
@@ -33,38 +35,42 @@ function bind(sel: string, fn: (el: HTMLElement) => void) {
 function stars(v: number) {
   const full = Math.round(v * 2) / 2;
   let s = '';
-  for (let i = 1; i <= 5; i++) s += `<span class="star ${i <= full ? 'on' : i - 0.5 === full ? 'half' : ''}">★</span>`;
+  for (let i = 1; i <= 5; i++) s += `<span class="star ${i <= full ? 'on' : i - 0.5 === full ? 'half' : ''}">■</span>`;
   return s;
 }
 
-function kitPreview(canvas: HTMLCanvasElement, team: TeamDef, seed: number) {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const w = canvas.clientWidth || 90, h = canvas.clientHeight || 110;
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
+const SKIN_P = ['#f1cfb0', '#c98d63', '#7a4d30', '#e5b48f'];
+const HAIR_P = ['#1a1310', '#c98a3a', '#3b2416', '#b02a1a'];
+
+/** Blit one pixel-art frame of a footballer into a small canvas (CSS scales it, pixelated). */
+function spriteCanvas(canvas: HTMLCanvasElement, look: Parameters<typeof playerSheet>[0], frame: string, left = false) {
+  const sheet = playerSheet(look).canvas;
+  canvas.width = CELL_W;
+  canvas.height = CELL_H;
   const g = canvas.getContext('2d')!;
-  g.scale(dpr, dpr);
-  g.clearRect(0, 0, w, h);
-  const k = h / 2.75;
-  // glow floor
-  const fg = g.createRadialGradient(w / 2, h - 8, 2, w / 2, h - 8, w * 0.45);
-  fg.addColorStop(0, team.primary + 'aa');
-  fg.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = fg;
-  g.fillRect(0, 0, w, h);
-  g.fillStyle = 'rgba(0,0,0,0.35)';
-  g.beginPath();
-  g.ellipse(w / 2, h - 8, k * 0.5, k * 0.15, 0, 0, Math.PI * 2);
-  g.fill();
-  g.save();
-  g.translate(w / 2, h - 8);
-  drawFootballer(
-    g,
-    { kit: team, isGK: false, skin: ['#f1cfb0', '#c98d63', '#7a4d30', '#e5b48f'][seed % 4], hair: ['#1a1310', '#c98a3a', '#3b2416', '#b02a1a'][seed % 4], hairStyle: seed % 7, beard: seed % 3 === 0, number: 10, build: 1 },
-    { runPhase: 0, speed: 0, facingLeft: seed % 2 === 1, state: 'run', stateT: 0, stateDur: 0, kickAnim: 0, charge: 0, hasBallGK: false, diveUp: 0, spinT: 0 },
-    k / 1.18,
-  );
-  g.restore();
+  g.imageSmoothingEnabled = false;
+  g.clearRect(0, 0, CELL_W, CELL_H);
+  // floor glow
+  const rp = ramp(look.kit.primary);
+  g.fillStyle = css(rp[1], 0.6);
+  g.fillRect(9, 34, 22, 2);
+  g.fillRect(12, 33, 16, 4);
+  g.drawImage(sheet, FRAMES[frame] * CELL_W, (left ? 1 : 0) * CELL_H, CELL_W, CELL_H, 0, 0, CELL_W, CELL_H);
+}
+
+function kitPreview(canvas: HTMLCanvasElement, team: TeamDef, seed: number) {
+  spriteCanvas(canvas, { kit: team, isGK: false, skin: SKIN_P[seed % 4], hair: HAIR_P[seed % 4], hairStyle: seed % 7, beard: seed % 3 === 0 }, 'idle0', seed % 2 === 1);
+}
+
+/** Pixel logo rendered with the in-game bitmap font. */
+function logoCanvas(text: string, scale: number, color: string, color2: string, shadow: string) {
+  const src = textCanvas(text, { scale, color, color2, outline: '#120c1c', thick: Math.max(1, Math.floor(scale / 2)), shadow });
+  const c = document.createElement('canvas');
+  c.width = src.width;
+  c.height = src.height;
+  c.getContext('2d')!.drawImage(src, 0, 0);
+  c.className = 'pix';
+  return c;
 }
 
 // ------------------------------------------------------------------ title
@@ -76,8 +82,8 @@ export function showTitle(h: MenuHandlers) {
   ui().innerHTML = `
     <div class="title-wrap">
       <div class="logo">
-        <div class="logo-top">MAD</div>
-        <div class="logo-bottom">FOOTBALL</div>
+        <div class="logo-top" id="logo-top"></div>
+        <div class="logo-bottom" id="logo-bottom"></div>
         <div class="logo-tag">${esc(L.tagline)}</div>
       </div>
       <div class="menu-col">
@@ -97,6 +103,8 @@ export function showTitle(h: MenuHandlers) {
     </div>
     <div class="version">v0.1 • ${esc(L.hint)}</div>
   `;
+  document.getElementById('logo-top')!.appendChild(logoCanvas('MAD', 4, '#fff6b8', '#ffb21f', '#7a2a08'));
+  document.getElementById('logo-bottom')!.appendChild(logoCanvas('FOOTBALL', 3, '#ffffff', '#ff4a3a', '#5a0a10'));
   bind('[data-act=play]', () => {
     audio.select();
     showSetup(h);
@@ -124,7 +132,7 @@ export function showSetup(h: MenuHandlers) {
         <div class="team-label">${label}</div>
         <div class="team-main">
           <button class="nav" data-nav="${side}" data-dir="-1">‹</button>
-          <canvas class="kit" data-kit="${side}"></canvas>
+          <canvas class="kit pix" data-kit="${side}"></canvas>
           <button class="nav" data-nav="${side}" data-dir="1">›</button>
         </div>
         <div class="team-name"><span class="crest">${team.crest}</span>${esc(team.name)}</div>
@@ -378,7 +386,7 @@ export function showResults(h: MenuHandlers, m: Match, coins: number) {
         <div class="res-side">
           <div class="mvp" style="--c:${mvp.team.def.primary}">
             <div class="mvp-label">⭐ ${L.mvp}</div>
-            <canvas class="mvp-kit"></canvas>
+            <canvas class="mvp-kit pix"></canvas>
             <div class="mvp-name">${esc(mvp.name)} <small>#${mvp.number}</small></div>
             <div class="mvp-line">⚽ ${mvp.goals} · 💥 ${mvp.knockdowns} · 🧤 ${mvp.saves}</div>
           </div>
@@ -391,21 +399,7 @@ export function showResults(h: MenuHandlers, m: Match, coins: number) {
       </div>
     </div>`;
   const c = ui().querySelector<HTMLCanvasElement>('.mvp-kit');
-  if (c) {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const w = c.clientWidth || 70, hh = c.clientHeight || 80;
-    c.width = w * dpr;
-    c.height = hh * dpr;
-    const g = c.getContext('2d')!;
-    g.scale(dpr, dpr);
-    g.translate(w / 2, hh - 4);
-    drawFootballer(
-      g,
-      { kit: mvp.team.def, isGK: mvp.isGK, skin: mvp.skin, hair: mvp.hair, hairStyle: mvp.hairStyle, beard: mvp.beard, number: mvp.number, build: mvp.build },
-      { runPhase: 0, speed: 0, facingLeft: false, state: 'celebrate', stateT: 0.1, stateDur: 0, kickAnim: 0, charge: 0, hasBallGK: false, diveUp: 0, spinT: 0 },
-      (hh - 8) / 2.9 / 1.18,
-    );
-  }
+  if (c) spriteCanvas(c, { kit: mvp.team.def, isGK: mvp.isGK, skin: mvp.skin, hair: mvp.hair, hairStyle: mvp.hairStyle, beard: mvp.beard }, 'cel0');
   bind('[data-act=quit]', () => h.quit());
   bind('[data-act=restart]', () => h.restart());
   void record;

@@ -1,11 +1,11 @@
 import type { Match } from './match';
 import type { Input, BtnId } from '../engine/input';
-import { roundRect } from './sprites';
-import { clamp, easeOutBack, TAU, rgba } from '../engine/math';
+import { clamp } from '../engine/math';
 import { settings } from '../engine/storage';
 import { t } from '../engine/i18n';
-
-const FONT = '"Russo One", sans-serif';
+import { drawText, measure } from '../pixel/font';
+import { disc, ringDisc } from '../pixel/props';
+import { ramp, css } from '../pixel/palette';
 
 export interface BtnLabel {
   text: string;
@@ -13,377 +13,225 @@ export interface BtnLabel {
   glow?: boolean;
 }
 
+const INK = '#120c1c';
+
+/** Bevelled pixel panel. */
+export function panel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill = '#1b2236', light = '#2e3a58', dark = '#0b0f1a') {
+  ctx.fillStyle = INK;
+  ctx.fillRect(x - 1, y, w + 2, h);
+  ctx.fillRect(x, y - 1, w, h + 2);
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = light;
+  ctx.fillRect(x, y, w, 1);
+  ctx.fillStyle = dark;
+  ctx.fillRect(x, y + h - 1, w, 1);
+}
+
 export function drawHUD(ctx: CanvasRenderingContext2D, m: Match, input: Input, W: number, H: number, time: number, labels: Record<BtnId, BtnLabel> | null) {
   const ins = input.insets;
-  const u = clamp(Math.min(W, H) / 400, 0.8, 1.5);
   if (m.replaying) {
-    drawReplay(ctx, m, W, H, u, time, input.touchMode);
+    drawReplay(ctx, m, W, H, time);
     return;
   }
   if (!m.cfg.demo) {
-    drawScoreboard(ctx, m, W, ins.top, u);
-    if (settings.minimap) drawMinimap(ctx, m, W, ins, u);
-    drawRage(ctx, m, W, H, ins, u, time);
-    drawPauseBtn(ctx, input, u);
-    if (input.touchMode && labels) drawTouch(ctx, input, labels, time, u);
-    else if (labels) drawKeyHints(ctx, W, H, u);
+    drawScoreboard(ctx, m, W, ins.top);
+    if (settings.minimap) drawMinimap(ctx, m, W, ins);
+    drawRage(ctx, m, W, H, ins, time);
+    drawPauseBtn(ctx, input);
+    if (input.touchMode && labels) drawTouch(ctx, input, labels, time);
+    else if (labels && W >= 300) drawKeyHints(ctx, H, ins);
   }
-  drawBanners(ctx, m, W, H, u);
+  drawBanners(ctx, m, W, H, time);
 }
 
-function drawScoreboard(ctx: CanvasRenderingContext2D, m: Match, W: number, top: number, u: number) {
+function drawScoreboard(ctx: CanvasRenderingContext2D, m: Match, W: number, top: number) {
   const [h, a] = m.teams;
-  const y = Math.max(top, 6) + 8 * u;
-  const bw = 250 * u, bh = 40 * u;
-  const x = W / 2 - bw / 2;
-  ctx.save();
-  // shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  roundRect(ctx, x + 2, y + 3, bw, bh, 10 * u);
-  ctx.fill();
-  // main plate
-  const g = ctx.createLinearGradient(0, y, 0, y + bh);
-  g.addColorStop(0, '#1b2236');
-  g.addColorStop(1, '#0b0f1a');
-  ctx.fillStyle = g;
-  roundRect(ctx, x, y, bw, bh, 10 * u);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  // team colour tabs
-  const tab = 10 * u;
-  ctx.save();
-  roundRect(ctx, x, y, bw, bh, 10 * u);
-  ctx.clip();
-  ctx.fillStyle = h.def.primary;
-  ctx.fillRect(x, y, tab, bh);
-  ctx.fillStyle = h.def.secondary;
-  ctx.fillRect(x + tab, y, 3 * u, bh);
-  ctx.fillStyle = a.def.primary;
-  ctx.fillRect(x + bw - tab, y, tab, bh);
-  ctx.fillStyle = a.def.secondary;
-  ctx.fillRect(x + bw - tab - 3 * u, y, 3 * u, bh);
-  ctx.restore();
-
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#fff';
-  ctx.font = `${16 * u}px ${FONT}`;
-  ctx.textAlign = 'left';
-  ctx.fillText(h.def.short, x + tab + 10 * u, y + bh / 2 + 1);
-  ctx.textAlign = 'right';
-  ctx.fillText(a.def.short, x + bw - tab - 10 * u, y + bh / 2 + 1);
-  // score box
-  const sw = 86 * u;
-  const sg = ctx.createLinearGradient(0, y, 0, y + bh);
-  sg.addColorStop(0, '#ffe14d');
-  sg.addColorStop(1, '#ffb800');
-  ctx.fillStyle = sg;
-  roundRect(ctx, W / 2 - sw / 2, y + 4 * u, sw, bh - 8 * u, 7 * u);
-  ctx.fill();
-  ctx.fillStyle = '#121212';
-  ctx.font = `${22 * u}px ${FONT}`;
-  ctx.textAlign = 'center';
-  const pop = m.goalFlash > 0 ? 1 + m.goalFlash * 0.25 : 1;
-  ctx.save();
-  ctx.translate(W / 2, y + bh / 2 + 1);
-  ctx.scale(pop, pop);
-  ctx.fillText(`${h.score}  -  ${a.score}`, 0, 0);
-  ctx.restore();
-  // clock
-  const cw = 70 * u, chh = 22 * u;
-  const cy = y + bh + 2 * u;
-  ctx.fillStyle = 'rgba(8,10,18,0.85)';
-  roundRect(ctx, W / 2 - cw / 2, cy, cw, chh, 6 * u);
-  ctx.fill();
+  const y = Math.max(top, 3) + 5;
+  const w = 118, hh = 15;
+  const x = Math.round(W / 2 - w / 2);
+  panel(ctx, x, y, w, hh);
+  for (const [tx, team, inner] of [[x, h, x + 4], [x + w - 4, a, x + w - 5]] as const) {
+    const rp = ramp(team.def.primary);
+    ctx.fillStyle = css(rp[2]);
+    ctx.fillRect(tx, y, 4, hh);
+    ctx.fillStyle = css(rp[3]);
+    ctx.fillRect(tx, y, 4, 1);
+    ctx.fillStyle = team.def.secondary;
+    ctx.fillRect(inner, y, 1, hh);
+  }
+  drawText(ctx, h.def.short, x + 9, y + 4, { color: '#fff', outline: null });
+  drawText(ctx, a.def.short, x + w - 8, y + 4, { color: '#fff', outline: null, align: 'right' });
+  const sw = 38;
+  const sx = Math.round(W / 2 - sw / 2);
+  panel(ctx, sx, y + 2, sw, hh - 4, '#ffcc2a', '#fff0a0', '#c88a00');
+  const pop = m.goalFlash > 0.6 && Math.floor(m.time * 10) % 2 === 0;
+  drawText(ctx, `${h.score}-${a.score}`, W / 2, y + 4, { color: pop ? '#ffffff' : INK, outline: null, align: 'center' });
   const c = Math.ceil(m.clock);
   const mm = Math.floor(c / 60), ss = c % 60;
-  ctx.fillStyle = c <= 10 && m.phase === 'play' ? (Math.floor(m.time * 4) % 2 ? '#ff5a4a' : '#fff') : '#fff';
-  ctx.font = `${14 * u}px ${FONT}`;
-  ctx.fillText(`${mm}:${ss.toString().padStart(2, '0')}`, W / 2, cy + chh / 2 + 1);
-  ctx.restore();
+  const cw = 30;
+  panel(ctx, Math.round(W / 2 - cw / 2), y + hh + 2, cw, 11, '#0d121f', '#1f2840', '#06080f');
+  const urgent = c <= 10 && m.phase === 'play' && Math.floor(m.time * 4) % 2 === 0;
+  drawText(ctx, `${mm}:${ss.toString().padStart(2, '0')}`, W / 2, y + hh + 4, { color: urgent ? '#ff5a4a' : '#ffffff', outline: null, align: 'center' });
 }
 
-function drawMinimap(ctx: CanvasRenderingContext2D, m: Match, W: number, ins: Input['insets'], u: number) {
+function drawMinimap(ctx: CanvasRenderingContext2D, m: Match, W: number, ins: Input['insets']) {
   const P = m.pitch;
-  const mw = 112 * u, mh = mw * (P.hh / P.hw);
-  const x = settings.leftHanded ? ins.left + 12 * u : W - ins.right - mw - 12 * u;
-  const y = Math.max(ins.top, 6) + 10 * u;
-  ctx.save();
-  ctx.globalAlpha = 0.9;
-  ctx.fillStyle = 'rgba(10,40,20,0.7)';
-  roundRect(ctx, x - 3, y - 3, mw + 6, mh + 6, 6);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x, y, mw, mh);
-  ctx.beginPath();
-  ctx.moveTo(x + mw / 2, y);
-  ctx.lineTo(x + mw / 2, y + mh);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(x + mw / 2, y + mh / 2, (P.centerR / P.hw) * mw / 2, 0, TAU);
-  ctx.stroke();
-  const bx = (P.boxDepth / (P.hw * 2)) * mw, by = (P.boxHalf / P.hh) * mh / 2;
-  ctx.strokeRect(x, y + mh / 2 - by, bx, by * 2);
-  ctx.strokeRect(x + mw - bx, y + mh / 2 - by, bx, by * 2);
-  const X = (wx: number) => x + ((wx + P.hw) / (P.hw * 2)) * mw;
-  const Y = (wy: number) => y + ((wy + P.hh) / (P.hh * 2)) * mh;
-  for (const p of m.all) {
-    ctx.fillStyle = p.isGK ? p.team.def.gk : p.team.def.primary;
-    ctx.beginPath();
-    ctx.arc(clamp(X(p.x), x, x + mw), clamp(Y(p.y), y, y + mh), (p === m.human ? 4 : 3) * u, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = p === m.human ? '#ffe14d' : 'rgba(0,0,0,0.6)';
-    ctx.lineWidth = p === m.human ? 2 : 1;
-    ctx.stroke();
+  const mw = 58, mh = Math.round(mw * (P.hh / P.hw));
+  const x = settings.leftHanded ? ins.left + 6 : W - ins.right - mw - 6;
+  const y = Math.max(ins.top, 3) + 5;
+  panel(ctx, x - 2, y - 2, mw + 4, mh + 4, '#163a22', '#215032', '#0b2214');
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillRect(x, y, mw, 1);
+  ctx.fillRect(x, y + mh - 1, mw, 1);
+  ctx.fillRect(x, y, 1, mh);
+  ctx.fillRect(x + mw - 1, y, 1, mh);
+  ctx.fillRect(x + (mw >> 1), y, 1, mh);
+  const bx = Math.round((P.boxDepth / (P.hw * 2)) * mw), by = Math.round(((P.boxHalf / P.hh) * mh) / 2);
+  const cy = y + (mh >> 1);
+  for (const [x0, edge] of [[x, x + bx], [x + mw - bx, x + mw - bx]]) {
+    ctx.fillRect(x0, cy - by, bx, 1);
+    ctx.fillRect(x0, cy + by, bx, 1);
+    ctx.fillRect(edge, cy - by, 1, by * 2);
   }
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(clamp(X(m.ball.x), x, x + mw), clamp(Y(m.ball.y), y, y + mh), 2.5 * u, 0, TAU);
-  ctx.fill();
-  ctx.restore();
+  const X = (wx: number) => clamp(Math.round(x + ((wx + P.hw) / (P.hw * 2)) * mw), x, x + mw - 2);
+  const Y = (wy: number) => clamp(Math.round(y + ((wy + P.hh) / (P.hh * 2)) * mh), y, y + mh - 2);
+  for (const p of m.all) {
+    const px = X(p.x) - 1, py = Y(p.y) - 1;
+    if (p === m.human) {
+      ctx.fillStyle = '#ffe14d';
+      ctx.fillRect(px - 1, py - 1, 4, 4);
+    }
+    ctx.fillStyle = p.isGK ? p.team.def.gk : p.team.def.primary;
+    ctx.fillRect(px, py, 2, 2);
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(X(m.ball.x) - 1, Y(m.ball.y) - 1, 2, 2);
 }
 
-function drawRage(ctx: CanvasRenderingContext2D, m: Match, W: number, H: number, ins: Input['insets'], u: number, time: number) {
+function drawRage(ctx: CanvasRenderingContext2D, m: Match, W: number, H: number, ins: Input['insets'], time: number) {
   const team = m.teams[0];
   if (!team.human) return;
-  const bw = 150 * u, bh = 12 * u;
-  const x = W / 2 - bw / 2;
-  const y = H - Math.max(ins.bottom, 6) - 24 * u;
+  const segs = 10, sw = 6, gap = 1;
+  const w = segs * (sw + gap) - gap;
+  const x = Math.round(W / 2 - w / 2);
+  const y = H - Math.max(ins.bottom, 3) - 9;
   const full = team.rage >= 1;
-  ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
-  roundRect(ctx, x - 3, y - 3, bw + 6, bh + 6, 8 * u);
-  ctx.fill();
-  const g = ctx.createLinearGradient(x, 0, x + bw, 0);
-  g.addColorStop(0, '#ff3b1f');
-  g.addColorStop(0.6, '#ff8a1f');
-  g.addColorStop(1, '#ffe14d');
-  ctx.fillStyle = g;
-  ctx.save();
-  roundRect(ctx, x, y, bw, bh, 6 * u);
-  ctx.clip();
-  ctx.fillRect(x, y, bw * team.rage, bh);
-  // moving shine
-  if (full) {
-    const sx = x + ((time * 1.5) % 1) * bw * 1.4 - bw * 0.2;
-    const sg = ctx.createLinearGradient(sx - 20, 0, sx + 20, 0);
-    sg.addColorStop(0, 'rgba(255,255,255,0)');
-    sg.addColorStop(0.5, 'rgba(255,255,255,0.7)');
-    sg.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = sg;
-    ctx.fillRect(x, y, bw, bh);
+  panel(ctx, x - 2, y - 2, w + 4, 8, '#0b0f1a', '#1b2236', '#05070d');
+  const n = team.rage * segs;
+  for (let i = 0; i < segs; i++) {
+    const k = clamp(n - i, 0, 1);
+    const col = full ? (Math.floor(time * 8 + i) % 2 ? '#ffe14d' : '#ff8a1f') : i < 4 ? '#ff3b1f' : i < 7 ? '#ff6a1f' : '#ffa21f';
+    ctx.fillStyle = '#2a1a1a';
+    ctx.fillRect(x + i * (sw + gap), y, sw, 4);
+    if (k > 0) {
+      const ww = Math.max(1, Math.round(sw * k));
+      ctx.fillStyle = col;
+      ctx.fillRect(x + i * (sw + gap), y, ww, 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fillRect(x + i * (sw + gap), y, ww, 1);
+    }
   }
-  ctx.restore();
-  if (full) {
-    ctx.shadowColor = '#ff8a1f';
-    ctx.shadowBlur = 14 + Math.sin(time * 8) * 6;
-    ctx.strokeStyle = '#ffd04d';
-    ctx.lineWidth = 2;
-    roundRect(ctx, x - 1, y - 1, bw + 2, bh + 2, 7 * u);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
-  ctx.font = `${11 * u}px ${FONT}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  ctx.fillStyle = full ? '#ffd04d' : 'rgba(255,255,255,0.8)';
-  ctx.fillText(full ? '🔥 ' + t().rageReady : t().rage, W / 2, y - 5);
-  ctx.restore();
+  const label = full ? t().rageReady : t().rage;
+  if (!full || Math.floor(time * 3) % 3 !== 0) drawText(ctx, label, W / 2, y - 11, { color: full ? '#ffd04d' : '#c8d0e0', align: 'center' });
 }
 
-function drawPauseBtn(ctx: CanvasRenderingContext2D, input: Input, u: number) {
+function drawPauseBtn(ctx: CanvasRenderingContext2D, input: Input) {
   const r = input.pauseRect;
-  ctx.save();
-  ctx.fillStyle = 'rgba(10,14,24,0.6)';
-  roundRect(ctx, r.x, r.y, r.w, r.h, 10 * u);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-  ctx.stroke();
-  ctx.fillStyle = '#fff';
-  const bw = r.w * 0.14, bh = r.h * 0.42;
-  ctx.fillRect(r.x + r.w * 0.33, r.y + (r.h - bh) / 2, bw, bh);
-  ctx.fillRect(r.x + r.w * 0.53, r.y + (r.h - bh) / 2, bw, bh);
-  ctx.restore();
+  panel(ctx, r.x, r.y, r.w, r.h);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(r.x + 5, r.y + 4, 2, r.h - 8);
+  ctx.fillRect(r.x + r.w - 7, r.y + 4, 2, r.h - 8);
 }
 
-function drawTouch(ctx: CanvasRenderingContext2D, input: Input, labels: Record<BtnId, BtnLabel>, time: number, u: number) {
-  ctx.save();
-  // joystick
+function drawTouch(ctx: CanvasRenderingContext2D, input: Input, labels: Record<BtnId, BtnLabel>, time: number) {
   const home = input.joyHome;
-  const ox = input.joyActive ? input.joyOX : home.x;
-  const oy = input.joyActive ? input.joyOY : home.y;
+  const ox = Math.round(input.joyActive ? input.joyOX : home.x);
+  const oy = Math.round(input.joyActive ? input.joyOY : home.y);
   const R = input.joyR;
-  ctx.globalAlpha = input.joyActive ? 0.9 : 0.45;
-  ctx.fillStyle = 'rgba(10,14,24,0.45)';
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(ox, oy, R, 0, TAU);
-  ctx.fill();
-  ctx.stroke();
-  // direction ticks
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  for (let i = 0; i < 4; i++) {
-    const a = (i * Math.PI) / 2;
-    ctx.beginPath();
-    ctx.arc(ox + Math.cos(a) * R * 0.78, oy + Math.sin(a) * R * 0.78, 3, 0, TAU);
-    ctx.fill();
-  }
-  const kx = ox + input.mx * R * 0.7, ky = oy + input.my * R * 0.7;
-  const kg = ctx.createRadialGradient(kx - 6, ky - 8, 2, kx, ky, R * 0.45);
-  kg.addColorStop(0, '#ffffff');
-  kg.addColorStop(1, '#b9c3d6');
-  ctx.fillStyle = kg;
-  ctx.beginPath();
-  ctx.arc(kx, ky, R * 0.42, 0, TAU);
-  ctx.fill();
+  ctx.globalAlpha = input.joyActive ? 0.95 : 0.55;
+  const base = ringDisc(R, '#9aa6bd', 110);
+  ctx.drawImage(base, ox - (base.width >> 1), oy - (base.height >> 1));
+  ctx.fillStyle = '#9aa6bd';
+  for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) ctx.fillRect(ox + dx * (R - 5) - 1, oy + dy * (R - 5) - 1, 2, 2);
+  const knob = disc(10, '#c8d0e0', false);
+  ctx.drawImage(knob, Math.round(ox + input.mx * R * 0.65) - (knob.width >> 1), Math.round(oy + input.my * R * 0.65) - (knob.width >> 1));
   ctx.globalAlpha = 1;
 
-  // buttons
   for (const b of input.layout) {
     const st = input.btn[b.id];
     const L = labels[b.id];
-    const sc = st.down ? 0.9 : 1;
-    const r = b.r * sc;
-    ctx.save();
-    ctx.translate(b.x, b.y);
-    if (L.glow) {
-      ctx.shadowColor = L.color;
-      ctx.shadowBlur = 18 + Math.sin(time * 8) * 8;
+    if (L.glow && Math.floor(time * 6) % 2 === 0) {
+      const g = ringDisc(b.r + 3, '#ffe14d', 0);
+      ctx.drawImage(g, Math.round(b.x) - (g.width >> 1), Math.round(b.y) - (g.height >> 1));
     }
-    const g = ctx.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.1, 0, 0, r);
-    g.addColorStop(0, rgba(L.color, st.down ? 1 : 0.95));
-    g.addColorStop(1, rgba(L.color, st.down ? 0.85 : 0.6));
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, TAU);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, r + 2.5, 0, TAU);
-    ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.font = `${Math.max(10, r * 0.34)}px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-    ctx.strokeText(L.text, 0, 1);
-    ctx.fillText(L.text, 0, 1);
-    ctx.restore();
+    const d = disc(b.r, L.color, st.down);
+    ctx.globalAlpha = 0.93;
+    ctx.drawImage(d, Math.round(b.x) - (d.width >> 1), Math.round(b.y) - (d.width >> 1));
+    ctx.globalAlpha = 1;
+    drawText(ctx, L.text, Math.round(b.x) + 1, Math.round(b.y) - 4 + (st.down ? 2 : 0), { color: '#ffffff', align: 'center', outline: css(ramp(L.color)[0]) });
   }
-  ctx.restore();
-  void u;
 }
 
-function drawKeyHints(ctx: CanvasRenderingContext2D, W: number, H: number, u: number) {
+function drawKeyHints(ctx: CanvasRenderingContext2D, H: number, ins: Input['insets']) {
   const L = t();
-  const text = `WASD  •  J/Space ${L.shoot}/${L.tackleBtn}  •  K ${L.pass}  •  Shift ${L.sprint}  •  I ${L.spin}  •  Esc`;
-  ctx.save();
-  ctx.font = `${11 * u}px ${FONT}`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'bottom';
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.fillText(text, 14, H - 10, Math.max(120, W / 2 - 110 * u));
-  ctx.restore();
+  const lines = [`J ${L.shoot}/${L.tackleBtn}  K ${L.pass}`, `SHIFT ${L.sprint}  I ${L.spin}`];
+  lines.forEach((s, i) => drawText(ctx, s, ins.left + 6, H - 24 + i * 10, { color: '#c8d0e0' }));
 }
 
-function drawBanners(ctx: CanvasRenderingContext2D, m: Match, W: number, H: number, u: number) {
+function drawBanners(ctx: CanvasRenderingContext2D, m: Match, W: number, H: number, time: number) {
   for (const b of m.fx.banners) {
     const age = b.max - b.life;
-    const inT = clamp(age / 0.35, 0, 1);
-    const out = clamp(b.life / 0.3, 0, 1);
-    const sc = easeOutBack(inT);
-    ctx.save();
-    ctx.globalAlpha = out;
-    const cy = b.big ? H * 0.42 : H * 0.28;
-    ctx.translate(W / 2, cy);
-    ctx.scale(sc, sc);
-    ctx.rotate(-0.04);
-    const big = b.big ? (b.text.length <= 2 ? 96 : 64) * u : 34 * u;
-    ctx.font = `${big}px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    // backing slash
-    if (b.big && b.text.length > 2) {
-      const tw = Math.min(W * 0.95, ctx.measureText(b.text).width + 120 * u);
-      ctx.save();
-      ctx.transform(1, 0, -0.25, 1, 0, 0);
-      const gg = ctx.createLinearGradient(-tw / 2, 0, tw / 2, 0);
-      gg.addColorStop(0, 'rgba(0,0,0,0)');
-      gg.addColorStop(0.15, 'rgba(0,0,0,0.65)');
-      gg.addColorStop(0.85, 'rgba(0,0,0,0.65)');
-      gg.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = gg;
-      ctx.fillRect(-tw / 2, -big * 0.75, tw, big * (b.sub ? 2.1 : 1.5));
-      ctx.fillStyle = b.color;
-      ctx.fillRect(-tw / 2 + 40 * u, -big * 0.75, tw - 80 * u, 4 * u);
-      ctx.fillRect(-tw / 2 + 40 * u, -big * 0.75 + big * (b.sub ? 2.1 : 1.5) - 4 * u, tw - 80 * u, 4 * u);
-      ctx.restore();
+    const short = b.text.length <= 2;
+    let scale = b.big ? (short ? 6 : 4) : 2;
+    while (scale > 1 && measure(b.text, scale) > W * 0.9) scale--;
+    if (short && age < 0.06) scale = Math.max(1, scale - 2);
+    const cy = Math.round(b.big ? H * 0.34 : H * 0.24);
+    const tw = measure(b.text, scale);
+    const inK = clamp(age / 0.22, 0, 1);
+    const outK = clamp(b.life / 0.22, 0, 1);
+    const dx = short ? 0 : Math.round((1 - inK) * (1 - inK) * -W * 0.8 + (1 - outK) * (1 - outK) * W * 0.8);
+    const rp = ramp(b.color);
+    if (b.big && !short) {
+      const bh = 7 * scale + 14 + (b.sub ? 14 : 0);
+      const by = cy - 7;
+      const bw = Math.min(W, tw + 60);
+      const bx = Math.round(W / 2 - bw / 2) + Math.round(dx * 0.6);
+      ctx.fillStyle = 'rgba(8,6,16,0.8)';
+      for (let i = 0; i < bh; i++) ctx.fillRect(bx + Math.floor((bh - i) / 2) - 6, by + i, bw, 1);
+      ctx.fillStyle = css(rp[2]);
+      ctx.fillRect(bx + Math.floor(bh / 2) - 6, by, bw - 4, 2);
+      ctx.fillRect(bx - 6, by + bh - 2, bw - 4, 2);
     }
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = big * 0.14;
-    ctx.strokeStyle = 'rgba(0,0,0,0.9)';
-    ctx.strokeText(b.text, 0, 0);
-    const tg = ctx.createLinearGradient(0, -big / 2, 0, big / 2);
-    tg.addColorStop(0, '#ffffff');
-    tg.addColorStop(0.55, b.color);
-    tg.addColorStop(1, shadeMix(b.color));
-    ctx.fillStyle = tg;
-    ctx.fillText(b.text, 0, 0);
-    if (b.sub) {
-      ctx.font = `${20 * u}px ${FONT}`;
-      ctx.lineWidth = 5 * u;
-      ctx.strokeText(b.sub, 0, big * 0.78);
-      ctx.fillStyle = '#fff';
-      ctx.fillText(b.sub, 0, big * 0.78);
-    }
-    ctx.restore();
+    const light = css(rp[3]);
+    const flashy = b.big && !short && Math.floor(time * 10) % 2 === 0 && age < 0.6;
+    drawText(ctx, b.text, W / 2 + dx, cy, {
+      scale,
+      color: flashy ? '#ffffff' : light,
+      color2: flashy ? light : css(rp[2]),
+      outline: INK,
+      thick: Math.max(1, Math.floor(scale / 2)),
+      shadow: css(rp[0]),
+      align: 'center',
+    });
+    if (b.sub) drawText(ctx, b.sub, W / 2 + dx, cy + 7 * scale + 5, { color: '#ffffff', align: 'center' });
   }
 }
 
-function shadeMix(hex: string) {
-  return rgba(hex, 1).replace(/rgba\((\d+),(\d+),(\d+),1\)/, (_s, r, g, b) => `rgb(${Math.floor(r * 0.6)},${Math.floor(g * 0.6)},${Math.floor(b * 0.6)})`);
-}
-
-function drawReplay(ctx: CanvasRenderingContext2D, m: Match, W: number, H: number, u: number, time: number, touch: boolean) {
-  const bar = H * 0.09;
-  ctx.save();
+function drawReplay(ctx: CanvasRenderingContext2D, m: Match, W: number, H: number, time: number) {
+  const bar = Math.round(H * 0.09);
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, bar);
   ctx.fillRect(0, H - bar, W, bar);
-  // film grain-ish tint
-  ctx.fillStyle = 'rgba(40,60,90,0.12)';
-  ctx.fillRect(0, bar, W, H - bar * 2);
-  ctx.font = `${18 * u}px ${FONT}`;
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  const x = 34 * u;
+  ctx.fillStyle = 'rgba(20,30,60,0.16)';
+  for (let y = bar; y < H - bar; y += 2) ctx.fillRect(0, y, W, 1);
+  const ty = Math.round(bar / 2 - 4);
   if (Math.floor(time * 2) % 2 === 0) {
     ctx.fillStyle = '#ff3b30';
-    ctx.beginPath();
-    ctx.arc(x, bar / 2, 7 * u, 0, TAU);
-    ctx.fill();
+    ctx.fillRect(10, ty + 1, 5, 5);
   }
-  ctx.fillStyle = '#fff';
-  ctx.fillText(t().replay, x + 16 * u, bar / 2 + 1);
-  const lg = m.lastGoal;
-  if (lg) {
-    ctx.textAlign = 'right';
-    ctx.fillStyle = lg.team.def.primary;
-    ctx.fillText(`${m.teams[0].def.short} ${m.teams[0].score} - ${m.teams[1].score} ${m.teams[1].def.short}`, W - 24, bar / 2 + 1);
-  }
-  ctx.textAlign = 'center';
-  ctx.font = `${12 * u}px ${FONT}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  if (!m.cfg.demo) ctx.fillText(t().skip, W / 2, H - bar / 2);
-  void touch;
-  ctx.restore();
+  drawText(ctx, t().replay, 19, ty, { color: '#ffffff', outline: null });
+  const [h, a] = m.teams;
+  drawText(ctx, `${h.def.short} ${h.score}-${a.score} ${a.def.short}`, W - 10, ty, { color: '#ffe14d', outline: null, align: 'right' });
+  if (!m.cfg.demo) drawText(ctx, t().skip, W / 2, H - bar / 2 - 4, { color: '#8a94aa', outline: null, align: 'center' });
 }
