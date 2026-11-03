@@ -674,104 +674,199 @@ export class Renderer {
 
   // ---------------------------------------------------------------- special items
 
-  /** Spinning, hovering rainbow cube with "?" faces. */
+  /**
+   * Mystery box: a hovering, spinning cube whose faces flow through the rainbow,
+   * with a moving shine, glowing edges, a halo, a light beam, ripples and twinkles.
+   */
   private drawBox(ctx: CanvasRenderingContext2D, cam: Camera, bx: MysteryBox, time: number) {
     const t = time + bx.seed;
     const grow = Math.min(1, bx.age / 0.45);
-    const pop = grow < 1 ? 1 + Math.sin(grow * Math.PI) * 0.35 : 1;
-    const hover = 0.45 + Math.sin(t * 3) * 0.12;
+    const pop = grow < 1 ? 1 + Math.sin(grow * Math.PI) * 0.45 : 1 + Math.sin(t * 5) * 0.04;
+    const hover = 0.55 + Math.sin(t * 3) * 0.14;
     const X = cam.sx(bx.x), Yg = cam.sy(bx.y);
-    if (X < -20 || X > cam.W + 20 || Yg < -30 || Yg > cam.H + 20) return;
-    const rainbow = RAINBOW;
-    // ground glow + shadow
-    const gl = ring(9 + (Math.floor(t * 4) % 2), 3, rainbow[Math.floor(t * 8) % 7]);
-    ctx.globalAlpha = 0.8;
-    ctx.drawImage(gl, X - (gl.width >> 1), Yg - (gl.height >> 1) + 1);
-    ctx.globalAlpha = 1;
-    const sh = shadow(5, 2);
+    if (X < -40 || X > cam.W + 40 || Yg < -50 || Yg > cam.H + 30) return;
+    const baseHue = (t * 110) % 360;
+    const hi = settings.quality === 'high';
+
+    // ---- ground: shadow, pulsing rainbow ring and expanding ripples
+    const sh = shadow(6, 2);
     ctx.drawImage(sh, X - (sh.width >> 1), Yg - (sh.height >> 1));
-    const s = Math.max(1, Math.round(7 * grow * pop));
-    const Y = cam.sy(bx.y, hover);
+    const ringCol = RAINBOW[Math.floor(t * 8) % 7];
+    const gl = ring(10 + (Math.floor(t * 4) % 2), 3, ringCol);
+    ctx.drawImage(gl, X - (gl.width >> 1), Yg - (gl.height >> 1) + 1);
+    for (let i = 0; i < 2; i++) {
+      const k = (t * 0.8 + i * 0.5) % 1;
+      const rr = ring(6 + k * 14, 2 + k * 5, RAINBOW[(Math.floor(t * 3) + i * 3) % 7]);
+      ctx.globalAlpha = (1 - k) * 0.7;
+      ctx.drawImage(rr, X - (rr.width >> 1), Yg - (rr.height >> 1) + 1);
+    }
+    ctx.globalAlpha = 1;
+
+    const s = Math.max(1, Math.round(8 * grow * pop));
     const h = s * 2;
-    const ang = t * 2.4;
+    const Y = cam.sy(bx.y, hover);
+    const cy = Y - s;
+
+    // ---- halo + light beam (additive)
+    ctx.globalCompositeOperation = 'lighter';
+    const halo = this.haloSprite(Math.floor(baseHue / 30) % 12);
+    ctx.globalAlpha = 0.85 + Math.sin(t * 6) * 0.15;
+    ctx.drawImage(halo, X - (halo.width >> 1), cy - (halo.height >> 1));
+    if (hi) {
+      // light beam rising from the top of the cube, fading out
+      const top = Y - h - 2, len = 38;
+      const flick = 0.85 + Math.sin(t * 11) * 0.15;
+      for (let i = 0; i < len; i += 2) {
+        const f = (1 - i / len) * flick;
+        ctx.globalAlpha = 0.32 * f;
+        ctx.fillStyle = `hsl(${(baseHue + i * 6) % 360},100%,68%)`;
+        ctx.fillRect(X - 3, top - i - 2, 7, 2);
+        ctx.globalAlpha = 0.4 * f;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(X - 1, top - i - 2, 3, 2);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+
+    // ---- cube geometry
+    const ang = t * 2.2;
     const R = s * Math.SQRT2;
     const cs = [0, 1, 2, 3].map((k) => {
       const a = ang + (k * Math.PI) / 2;
       return { x: X + Math.cos(a) * R, dy: Math.sin(a) * R * 0.45 };
     });
-    // side faces facing the camera
+    // shine band sweeping across the cube every ~2 s
+    const sweep = ((t * 0.55) % 1) * (s * 7) - s * 2.5;
+    const px = (x: number, y: number, hue: number, light: number) => {
+      const d = x - X + (y - cy) * 0.8 - sweep;
+      if (d > 0 && d < 3) light = Math.min(97, light + 32);
+      ctx.fillStyle = `hsl(${hue % 360},100%,${light}%)`;
+      ctx.fillRect(x, y, 1, 1);
+    };
+    const edges: number[] = [];
     for (let k = 0; k < 4; k++) {
       const c0 = cs[k], c1 = cs[(k + 1) % 4];
-      const nrm = ang + (k * Math.PI) / 2 + Math.PI / 4;
-      const facing = Math.sin(nrm);
+      const facing = Math.sin(ang + (k * Math.PI) / 2 + Math.PI / 4);
       if (facing <= 0.02) continue;
-      const xa = Math.min(c0.x, c1.x), xb = Math.max(c0.x, c1.x);
-      const x0 = Math.round(xa), x1 = Math.round(xb);
+      const x0 = Math.round(Math.min(c0.x, c1.x)), x1 = Math.round(Math.max(c0.x, c1.x));
       if (x1 - x0 < 1) continue;
-      const hue = (t * 140 + k * 90) % 360;
-      const light = 42 + facing * 22;
       for (let x = x0; x < x1; x++) {
-        const u = (x + 0.5 - c0.x) / (c1.x - c0.x);
-        const dy = c0.dy + (c1.dy - c0.dy) * clamp(u, 0, 1);
-        const yb = Math.round(Y + dy), yt = yb - h;
-        ctx.fillStyle = `hsl(${hue},95%,${light}%)`;
-        ctx.fillRect(x, yt, 1, h);
-        ctx.fillStyle = `hsl(${hue},95%,${light + 18}%)`;
-        ctx.fillRect(x, yt, 1, 1);
+        const u = clamp((x + 0.5 - c0.x) / (c1.x - c0.x), 0, 1);
+        const yb = Math.round(Y + c0.dy + (c1.dy - c0.dy) * u), yt = yb - h;
+        for (let y = yt; y < yb; y++) {
+          const v = (y - yt) / h;
+          // rainbow flows diagonally over the faces; lighter at the top
+          const hue = baseHue + (x - X) * 9 + (y - cy) * 7 + k * 30 + 720;
+          px(x, y, hue, 38 + facing * 20 + (1 - v) * 14);
+        }
         ctx.fillStyle = '#120c1c';
         ctx.fillRect(x, yb, 1, 1);
-        if (x === x0 || x === x1 - 1) {
-          ctx.fillStyle = 'rgba(18,12,28,0.85)';
-          ctx.fillRect(x, yt, 1, h);
-        }
       }
-      // the "?" squeezes with the face as it turns
+      edges.push(x0, x1 - 1);
+      // "?" on the face, squeezed with the rotation, pulsing white
       const fw = x1 - x0;
       if (fw >= 4) {
         const q = this.qGlyph();
-        const midDy = (c0.dy + c1.dy) / 2;
-        const gw = Math.max(2, Math.round(fw * 0.62)), gh = Math.round(h * 0.78);
-        ctx.drawImage(q, Math.round((x0 + x1) / 2 - gw / 2), Math.round(Y + midDy - h + (h - gh) / 2), gw, gh);
+        const mid = (c0.dy + c1.dy) / 2;
+        const gw = Math.max(2, Math.round(fw * 0.6)), gh = Math.round(h * 0.72);
+        const gx = Math.round((x0 + x1) / 2 - gw / 2), gy = Math.round(Y + mid - h + (h - gh) / 2);
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(this.qShadow(), gx + 1, gy + 1, gw, gh);
+        ctx.globalAlpha = 0.85 + Math.sin(t * 8) * 0.15;
+        ctx.drawImage(q, gx, gy, gw, gh);
+        ctx.globalAlpha = 1;
       }
+    }
+    // glowing vertical edges
+    for (const ex of edges) {
+      const c = cs.reduce((a, b) => (Math.abs(b.x - ex) < Math.abs(a.x - ex) ? b : a));
+      const yb = Math.round(Y + c.dy);
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillRect(ex, yb - h, 1, h);
     }
     // top face
     const tops = cs.map((c) => [c.x, Y + c.dy - h] as [number, number]);
     const minX = Math.round(Math.min(...tops.map((p) => p[0]))), maxX = Math.round(Math.max(...tops.map((p) => p[0])));
-    const topHue = (t * 140 + 45) % 360;
     for (let x = minX; x <= maxX; x++) {
-      let lo = Infinity, hi = -Infinity;
+      let lo = Infinity, hi2 = -Infinity;
       for (let k = 0; k < 4; k++) {
         const [ax, ay] = tops[k], [bx2, by2] = tops[(k + 1) % 4];
         if ((x + 0.5 - ax) * (x + 0.5 - bx2) > 0 || ax === bx2) continue;
         const y = ay + ((x + 0.5 - ax) / (bx2 - ax)) * (by2 - ay);
         lo = Math.min(lo, y);
-        hi = Math.max(hi, y);
+        hi2 = Math.max(hi2, y);
       }
-      if (lo > hi) continue;
-      const y0 = Math.round(lo), y1 = Math.round(hi);
-      ctx.fillStyle = `hsl(${topHue},90%,74%)`;
-      ctx.fillRect(x, y0, 1, Math.max(1, y1 - y0));
+      if (lo > hi2) continue;
+      const y0 = Math.round(lo), y1 = Math.max(y0 + 1, Math.round(hi2));
+      for (let y = y0; y < y1; y++) px(x, y, baseHue + 180 + (x - X) * 9 - (y - cy) * 9 + 720, 72);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y0, 1, 1);
       ctx.fillStyle = '#120c1c';
       ctx.fillRect(x, y0 - 1, 1, 1);
     }
-    // sparkles orbiting the box
-    for (let i = 0; i < 3; i++) {
-      const a = t * 2.6 + i * 2.1;
-      const sx = Math.round(X + Math.cos(a) * (s + 6)), sy = Math.round(Y - s + Math.sin(a) * (s * 0.6 + 3));
-      if (Math.floor(t * 10 + i * 3) % 3 === 0) continue;
-      ctx.fillStyle = rainbow[(Math.floor(t * 6) + i * 2) % 7];
-      ctx.fillRect(sx, sy, 1, 1);
+    // silhouette sides
+    ctx.fillStyle = '#120c1c';
+    const left = Math.round(Math.min(...cs.map((c) => c.x))), right = Math.round(Math.max(...cs.map((c) => c.x)));
+    const lc = cs.reduce((a, b) => (b.x < a.x ? b : a)), rc = cs.reduce((a, b) => (b.x > a.x ? b : a));
+    ctx.fillRect(left - 1, Math.round(Y + lc.dy) - h, 1, h + 1);
+    ctx.fillRect(right, Math.round(Y + rc.dy) - h, 1, h + 1);
+
+    // ---- twinkles: 4-point stars popping around the box
+    const n = hi ? 5 : 3;
+    for (let i = 0; i < n; i++) {
+      const ph = (t * 1.3 + i * 0.37) % 1;
+      const seed = Math.floor(t * 1.3 + i * 0.37) * 7 + i * 13;
+      const a = hash(seed, i) * Math.PI * 2;
+      const r = s + 4 + hash(i, seed) * 9;
+      const sx = Math.round(X + Math.cos(a) * r), sy = Math.round(cy + Math.sin(a) * r * 0.8 - ph * 4);
+      const size = ph < 0.5 ? Math.round(ph * 6) : Math.round((1 - ph) * 6);
+      ctx.fillStyle = RAINBOW[(i * 2 + Math.floor(t * 5)) % 7];
+      ctx.fillRect(sx - size, sy, size * 2 + 1, 1);
+      ctx.fillRect(sx, sy - size, 1, size * 2 + 1);
       ctx.fillStyle = '#ffffff';
-      if (i === 0) {
-        ctx.fillRect(sx - 1, sy, 3, 1);
-        ctx.fillRect(sx, sy - 1, 1, 3);
-      }
+      ctx.fillRect(sx, sy, 1, 1);
     }
+    // orbiting sparkle trail
+    for (let i = 0; i < 6; i++) {
+      const a = t * 3 - i * 0.18;
+      const sx = Math.round(X + Math.cos(a) * (s + 8)), sy = Math.round(cy + Math.sin(a) * (s * 0.5 + 4));
+      ctx.globalAlpha = 1 - i / 6;
+      ctx.fillStyle = i === 0 ? '#ffffff' : RAINBOW[(i + Math.floor(t * 6)) % 7];
+      ctx.fillRect(sx, sy, i === 0 ? 2 : 1, i === 0 ? 2 : 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  private halos = new Map<number, HTMLCanvasElement>();
+  /** Soft, dithered glow disc tinted with one of 12 hues (cached). */
+  private haloSprite(i: number) {
+    let c = this.halos.get(i);
+    if (c) return c;
+    const R = 20;
+    c = document.createElement('canvas');
+    c.width = c.height = R * 2 + 1;
+    const g = c.getContext('2d')!;
+    const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+    g.fillStyle = `hsl(${i * 30},100%,62%)`;
+    for (let y = 0; y <= R * 2; y++)
+      for (let x = 0; x <= R * 2; x++) {
+        const d = Math.hypot(x - R, (y - R) * 1.15) / R;
+        if (d >= 1) continue;
+        const v = (1 - d) * (1 - d);
+        if (v * 16 > BAYER[(y & 3) * 4 + (x & 3)]) g.fillRect(x, y, 1, 1);
+      }
+    this.halos.set(i, c);
+    return c;
   }
 
   private qCanvas: HTMLCanvasElement | null = null;
+  private qShadowC: HTMLCanvasElement | null = null;
   private qGlyph() {
     return (this.qCanvas ??= textCanvas('?', { color: '#ffffff', outline: null }));
+  }
+  private qShadow() {
+    return (this.qShadowC ??= textCanvas('?', { color: '#120c1c', outline: null }));
   }
 
   private drawBomb(ctx: CanvasRenderingContext2D, cam: Camera, bm: Bomb, time: number) {

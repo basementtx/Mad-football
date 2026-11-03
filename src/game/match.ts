@@ -1067,6 +1067,11 @@ export class Match {
     for (let i = this.boxes.length - 1; i >= 0; i--) {
       const bx = this.boxes[i];
       bx.age += dt;
+      // rainbow glitter rising off the box
+      if (Math.random() < dt * 9) {
+        const rb = ['#ff3b30', '#ff9a1f', '#ffe14d', '#5ff0a4', '#3bd9ff', '#b04cff', '#ff3fa4'];
+        this.fx.emit('pix', bx.x + rand(-0.5, 0.5), bx.y + rand(-0.3, 0.3), 0.9, { n: 1, speed: 0.4, up: 1.6, life: 0.8, size: 0.18, colors: rb, g: -0.6 });
+      }
       if (bx.age < 0.5) continue;
       for (const p of this.all) {
         if (p.isGK || p.team.item || !(p.canAct || p.state === 'slide')) continue;
