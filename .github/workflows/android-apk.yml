@@ -1,5 +1,12 @@
 # Builds the Android APK (Capacitor) and publishes it as a GitHub Release,
 # so it can be downloaded and installed straight from the phone.
+#
+# Stable download link: https://github.com/basementtx/Mad-football/releases/latest/download/MadFootball.apk
+#
+# Signing: if the repo secret ANDROID_KEYSTORE_BASE64 is set ("<password>:<base64 keystore>",
+# or plain base64 + ANDROID_KEYSTORE_PASSWORD, alias ANDROID_KEY_ALIAS default "madfootball")
+# the APK is re-signed with that key; otherwise it keeps the fixed debug key committed in
+# android/app. Either way every build is signed with the same key, so updates install in place.
 name: Android APK
 
 on:
@@ -12,8 +19,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: apk-${{ github.ref }}
-  cancel-in-progress: true
+  group: android-apk
+  cancel-in-progress: false
 
 jobs:
   apk:
@@ -44,23 +51,47 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
-          mkdir -p ../out
-          cp app/build/outputs/apk/debug/app-debug.apk ../out/MadFootball-${{ github.run_number }}.apk
+
+      - name: Sign APK
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS_SECRET: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS_SECRET: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          mkdir -p out
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          if [ -n "$KS_B64" ]; then
+            case "$KS_B64" in
+              *:*) KS_PASS="${KS_B64%%:*}"; KS_B64="${KS_B64#*:}" ;;
+              *) KS_PASS="$KS_PASS_SECRET" ;;
+            esac
+            KS_ALIAS="${KS_ALIAS_SECRET:-madfootball}"
+            echo "$KS_B64" | tr -d ' \r\n' | base64 -d > ks.jks
+            "$BT/zipalign" -f -p 4 "$APK" aligned.apk
+            "$BT/apksigner" sign --ks ks.jks --ks-pass "pass:$KS_PASS" --ks-key-alias "$KS_ALIAS" --out out/MadFootball.apk aligned.apk
+            rm ks.jks
+            echo "Signed with the repository release key"
+          else
+            cp "$APK" out/MadFootball.apk
+            echo "Signed with the committed debug key"
+          fi
+          "$BT/apksigner" verify out/MadFootball.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MadFootball-apk
-          path: out/*.apk
+          name: MadFootball-build-${{ github.run_number }}
+          path: out/MadFootball.apk
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-${{ github.run_number }}
-          name: Mad Football APK (build ${{ github.run_number }})
+          tag_name: build-${{ github.run_number }}
+          name: Mad Football build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
-          make_latest: true
-          files: out/*.apk
+          make_latest: 'true'
+          files: out/MadFootball.apk
           body: |
             Android build from `${{ github.ref_name }}` @ ${{ github.sha }}.
-            Download the .apk on your phone and open it to install (allow "install unknown apps" for your browser if asked).
-            Every build is signed with the same key, so a new one installs over the old one and keeps your save.
+            Telefonda **MadFootball.apk** dosyasını indirip açarak kurun (tarayıcı için "bilinmeyen uygulamaları yükle" izni istenebilir).
+            Download **MadFootball.apk** on your phone and open it to install.

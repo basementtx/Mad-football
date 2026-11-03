@@ -98,7 +98,7 @@ tools/sheet.html   geliştirme aracı: tüm oyuncu sprite karelerini gösterir (
 
 ## Android APK
 
-Proje Capacitor ile Android'e paketli (`android/` klasörü repoda). Her push'ta GitHub Actions (`.github/workflows/android-apk.yml`) APK'yı derler ve **Releases** sayfasına `MadFootball-<numara>.apk` olarak koyar:
+Proje Capacitor ile Android'e paketli (`android/` klasörü repoda). Her push'ta GitHub Actions (`.github/workflows/android-apk.yml`) APK'yı derler ve **Releases** sayfasına `MadFootball.apk` olarak koyar. Sabit indirme linki: https://github.com/basementtx/Mad-football/releases/latest/download/MadFootball.apk
 
 1. Telefonda repo sayfasında **Releases → en son sürüm** → `.apk` dosyasını indir.
 2. Dosyayı aç ve kur (tarayıcın için "bilinmeyen uygulamaları yükle" iznini vermen istenebilir).
