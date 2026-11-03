@@ -257,5 +257,15 @@ async function boot() {
   input.enabled = false;
   showSplash(handlers);
   requestAnimationFrame(frame);
+  // studio screen: keep it up for a moment, then fade out
+  const bootEl = document.getElementById('boot');
+  if (bootEl) {
+    const shown = performance.now() - bootStart;
+    setTimeout(() => {
+      bootEl.style.opacity = '0';
+      setTimeout(() => bootEl.remove(), 450);
+    }, Math.max(0, 1600 - shown));
+  }
 }
+const bootStart = performance.now();
 void boot();

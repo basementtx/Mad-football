@@ -2,6 +2,11 @@
   "appId": "com.madfootball.game",
   "appName": "Mad Football",
   "webDir": "dist",
-  "android": { "backgroundColor": "#07121c" },
-  "ios": { "backgroundColor": "#07121c", "contentInset": "never" }
+  "android": {
+    "backgroundColor": "#E8322B"
+  },
+  "ios": {
+    "backgroundColor": "#07121c",
+    "contentInset": "never"
+  }
 }
