@@ -9,6 +9,7 @@ import { t } from '../engine/i18n';
 import { runTeamAI, formationSpot } from './ai';
 import type { CardData } from '../meta/cards';
 import { POWER_ID } from '../meta/items';
+import { PitchProps } from './pitchfx';
 
 export type Phase = 'intro' | 'kickoff' | 'play' | 'goal' | 'fulltime' | 'over';
 
@@ -41,6 +42,8 @@ const ROLES: Record<number, Role[]> = {
 
 export class Match {
   pitch: Pitch;
+  /** dynamic turf / woodwork / corner flags */
+  props!: PitchProps;
   teams: [Team, Team];
   all: Player[] = [];
   ball = new Ball();
@@ -75,6 +78,7 @@ export class Match {
 
   constructor(public cfg: MatchConfig, public fx: FX) {
     this.pitch = makePitch(cfg.size);
+    this.props = new PitchProps(this.pitch, fx);
     this.clock = cfg.duration;
     const home = new Team(cfg.home, 0, 1, !cfg.demo, cfg.demo ? DIFF.normal : DIFF.normal);
     const away = new Team(cfg.away, 1, -1, false, DIFF[cfg.difficulty]);
@@ -118,6 +122,7 @@ export class Match {
     const P = this.pitch;
     const b = this.ball;
     b.reset();
+    this.props?.reset();
     this.kickoffTeam = kt;
     for (const team of this.teams) {
       const field = team.players.filter((p) => !p.isGK);
@@ -276,6 +281,7 @@ export class Match {
       this.collidePlayers();
     }
     this.updateBall(dt);
+    if (this.replay === null) this.props.update(dt, this.all, this.ball);
     if (live) {
       this.interactions(dt);
       this.record();
@@ -618,6 +624,12 @@ export class Match {
     p.possT = 0;
     p.face = Math.atan2(vy, vx);
     audio.kick(power);
+    if (power >= 0.7 && p.z < 0.15) {
+      // hard strike tears up the turf under the plant foot
+      const fx0 = p.x + p.faceX * 0.35, fy0 = p.y + p.faceY * 0.35;
+      this.props.mark('divot', fx0, fy0, vx, vy, Math.min(1.2, power));
+      this.fx.clods(fx0, fy0, vx, vy, Math.round(4 + power * 6));
+    }
   }
 
   shootDir(p: Player, dx: number, dy: number, power: number, err: number, over = 0) {
@@ -822,6 +834,7 @@ export class Match {
     p.chargeKind = 'none';
     audio.slide();
     this.fx.dust(p.x, p.y, 8, p.vx, p.vy);
+    this.fx.clods(p.x, p.y, p.vx, p.vy, 5);
   }
 
   shove(p: Player, q: Player) {
@@ -1006,6 +1019,7 @@ export class Match {
         if (m > 0.12) p.face = rotateToward(p.face, Math.atan2(my, mx), (hasBall ? 11 : 16) * dt);
         if (sprint) {
           p.sprinting = true;
+          if (Math.random() < dt * 5) this.props.mark('step', p.x, p.y, p.vx, p.vy, 0.35);
           p.stamina -= dt * 0.26;
           if (p.stamina <= 0) {
             p.stamina = 0;
@@ -1021,6 +1035,11 @@ export class Match {
         p.vx *= k;
         p.vy *= k;
         if (Math.random() < 0.5) this.fx.dust(p.x, p.y, 1, p.vx, p.vy);
+        {
+          const sp = Math.hypot(p.vx, p.vy);
+          if (sp > 2) this.props.mark('skid', p.x, p.y, p.vx, p.vy, Math.min(1, sp / 13));
+          if (sp > 6 && Math.random() < 0.18) this.fx.clods(p.x, p.y, p.vx, p.vy, 1);
+        }
         // hits
         for (const q of this.all) {
           if (q === p || q.team === p.team || p.slideHit.has(q)) continue;
@@ -1047,6 +1066,7 @@ export class Match {
         const k = Math.exp(-4.5 * dt);
         p.vx *= k;
         p.vy *= k;
+        if (p.z < 0.1 && Math.hypot(p.vx, p.vy) > 2.2) this.props.mark('fall', p.x, p.y, p.vx, p.vy, Math.min(1, Math.hypot(p.vx, p.vy) / 9));
         p.stamina = Math.min(1, p.stamina + dt * 0.2);
         if (p.stateT > p.stateDur) p.setState('recover', 0.38);
         break;
@@ -1067,6 +1087,7 @@ export class Match {
           p.z = 0;
           p.setState('recover', 0.55);
           this.fx.dust(p.x, p.y, 6);
+          this.props.mark('fall', p.x, p.y, p.vx || p.faceX, p.vy || p.faceY, 0.8);
         }
         break;
       }
@@ -1211,6 +1232,7 @@ export class Match {
       const s = b.inGoal;
       const back = P.hw + P.goalDepth - R;
       if (b.x * s > back) {
+        if (Math.abs(b.vx) > 1.5) this.props.netHit(s, b.y, b.z, Math.abs(b.vx) / 14);
         b.x = s * back;
         b.vx = -b.vx * 0.15;
         b.vy *= 0.5;
@@ -1250,6 +1272,7 @@ export class Match {
             b.vy -= 1.75 * dot * uy;
             b.x = pxp + ux * (R + 0.11);
             b.y = pyp + uy * (R + 0.11);
+            if (-dot > 2) this.props.hitGoal(sx, Math.min(1.3, -dot / 16));
             if (-dot > 6) {
               audio.post();
               this.fx.text(b.x, b.y, 0, t().post, '#fff', 0.9);
@@ -1266,6 +1289,7 @@ export class Match {
           b.vx = -b.vx * 0.5;
           b.vz = b.z > P.goalHeight ? Math.abs(b.vz) + 2 : -Math.abs(b.vz);
           b.x = sx * (P.hw - R);
+          this.props.hitGoal(sx, Math.min(1.3, Math.abs(b.vx) / 9));
           if (Math.abs(b.vx) > 4) {
             audio.post();
             this.fx.text(b.x, b.y, b.z, t().post, '#fff', 0.9);

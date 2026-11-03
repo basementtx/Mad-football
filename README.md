@@ -16,9 +16,12 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **Yapay zekâ**: pres, alan kapatma, adam markajı, koşular, pas tercihleri. 4 zorluk seviyesi var: Kolay, Normal, Zor, Çılgın.
 - **8 özgün takım**: her birinin kendi forma deseni ve hız, güç, sertlik, teknik değerleri var.
 - **3v3, 4v4 ve 5v5**; 2, 3 ve 5 dakikalık maçlar.
-- **Pixel art grafikler**: oyun ~232 px yükseklikte sanal bir çerçeveye çizilip tam sayı katlarla, keskin piksellerle büyütülüyor.
-  - Oyuncu sprite'ları iskeletten **piksel piksel** üretiliyor: piksel başına ışıklandırma, ton kaydırmalı renk paletleri, iç ve dış hatlar, takım formasına göre desen (çizgili, yatay çizgili, yarım, kuşak, V). Koşu, şut, kayma, yere düşme, kalkma, plonjon, sevinç, itme, kafa ve üzgün kareleri var.
-  - El yapımı **5x7 bitmap font** (Ç, Ğ, İ, Ö, Ş, Ü dahil). Piksel saha dokusu, çim tutamları ve aşınma; atkı ve bayrak sallayan, 3 kare animasyonlu seyirci; kayan LED panolar; piksel kale ağları; dither'lı vinyet.
+- **HD grafikler**: oyun yerleşimi ~232 birimlik sanal yükseklikte kalıyor, ama tuval cihaz çözünürlüğünde çiziliyor ve tüm sprite'lar 3-4 kat süper örneklemeyle üretiliyor.
+  - Oyuncular iskeletten üretiliyor, artık yumuşak ışıklandırma, kenar yumuşatmalı dış hat ve iç kontur çizgileriyle. Top gölgeli, parlamalı bir küre.
+  - Vektör yazı (Lilita One / Rubik), yuvarlak ve parlak HUD panelleri, yumuşak gölgeler, ışık ve vinyet.
+  - **Dinamik saha**: kaymalar, sert şutlar (çim kopması ve toprak parçaları), yere düşmeler ve depar adımları çime kalıcı iz bırakıyor; maç ilerledikçe saha aşınıyor.
+  - **Kale direkleri** top ya da oyuncu çarptığında titriyor; ağ, topun vurduğu yerde esniyor.
+  - **Korner bayrakları** sürtünmede sallanıyor, sert bir kayma ya da şutla kopup havada dönerek uçuyor; yerde kalan parça tekmelenebiliyor. Her başlama vuruşunda yenileniyor.
 - **Yayın kalitesinde sunum**: gol sonrası ağır çekim, konfeti ve **gol tekrarı**, ekran sarsıntısı, piksel partiküller.
 - **Tamamen sentezlenmiş ses** (dosya yok): tribün uğultusu, düdük, korna, vuruş ve çarpışma sesleri.
 - **Mobil öncelikli kontroller**: yüzen joystick ve duruma göre değişen 4 tuş (ŞUT/KAY/İT/KAFA, PAS/DEĞİŞ, DEPAR, ÇALIM/GÜÇ). Sabit veya parmağı takip eden joystick seçeneği, solak modu, titreşim desteği ve çentikli ekranlar için güvenli alan desteği var.

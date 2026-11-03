@@ -3,45 +3,37 @@ import type { Camera } from './camera';
 import { PPM, YS } from './camera';
 import type { Pitch, Player } from './entities';
 import type { TeamDef } from './teams';
-import { playerSheet, FRAMES, CELL_W, CELL_H, ANCHOR_X, ANCHOR_Y, PlayerLook } from '../pixel/player';
+import type { GroundMark, CornerFlag } from './pitchfx';
+import { FLAG_LEN } from './pitchfx';
+import { playerSheet, drawPlayerFrame, FRAMES, ANCHOR_X, ANCHOR_Y, PlayerLook } from '../pixel/player';
 import { ballFrame, shadow, ring, arrow, BALL_SIZE } from '../pixel/props';
-import { ramp, css, RGB } from '../pixel/palette';
+import { ramp, css } from '../pixel/palette';
 import { drawText, measure } from '../pixel/font';
-import { clamp, hexToRgb, TAU, pick } from '../engine/math';
+import { clamp, pick } from '../engine/math';
 import { settings } from '../engine/storage';
+import { hiCanvas, HiCanvas, bgRes, pitchRes, vw, vh, hash2 as hash, roundRect } from '../engine/gfx';
 
 const SPONSORS = ['MADFOOT', 'BONK COLA', 'NO RULES', 'TURBO BOOTS', 'GG ENERGY', 'KICK HARD', 'RAGE FM', 'SLIDE CO.'];
-const GRASS: RGB[] = ['#174a24', '#1f5e2c', '#277035', '#2f803c', '#389045', '#45a050', '#57b05c'].map((h) => hexToRgb(h) as RGB);
-const DIRT: RGB[] = ['#4f5a2c', '#5d6532', '#6c703c', '#7a7a46'].map((h) => hexToRgb(h) as RGB);
-const LINE: RGB = [236, 242, 230];
-const LINE_W: RGB = [205, 220, 200];
 const SKINS = ['#f1cfb0', '#d9a882', '#b47b55', '#7c5135', '#5a3722'];
 const HAIRS = ['#1a1310', '#3b2416', '#6b3e1f', '#c98a3a', '#2a2a2a', '#7a1a10'];
+const TAU = Math.PI * 2;
 
-function hash(x: number, y: number) {
-  let h = (x * 374761393 + y * 668265263) | 0;
-  h = (h ^ (h >>> 13)) * 1274126177;
-  h ^= h >>> 16;
-  return (h >>> 0) / 4294967296;
-}
-
-interface Sprite {
-  c: HTMLCanvasElement;
-  x: number; // position in stadium pixel space
-  y: number;
-}
+/** soil colours for wear stamps */
+const SOIL = ['86,74,46', '98,84,54', '72,62,40', '110,96,64'];
 
 export class Renderer {
   private P: Pitch;
   private OX = 0;
   private OY = 0;
-  private variants: HTMLCanvasElement[] = [];
-  private goalFront: Sprite[] = [];
-  private frontBoard!: Sprite;
-  private led!: HTMLCanvasElement;
+  private SW = 0;
+  private SH = 0;
+  private variants: HiCanvas[] = [];
+  private pitchC!: HiCanvas;
+  private pg!: CanvasRenderingContext2D;
+  private pr = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  private frontBoard!: { c: HiCanvas; x: number; y: number };
+  private led!: HiCanvas;
   private ledRect = { x0: 0, x1: 0, y: 0, h: 12 };
-  private vignette: HTMLCanvasElement | null = null;
-  private vigKey = '';
   private standRects: [number, number, number, number][] = [];
   private looks = new Map<Player, PlayerLook>();
 
@@ -57,13 +49,10 @@ export class Renderer {
 
   // ---------------------------------------------------------------- mapping (stadium px)
   private WX(x: number) {
-    return Math.round(x * PPM) + this.OX;
+    return x * PPM + this.OX;
   }
   private WY(y: number, z = 0) {
-    return Math.round(y * PPM * YS - z * PPM) + this.OY;
-  }
-  private P3(x: number, y: number, z: number): [number, number] {
-    return [this.WX(x) + Math.round(z * PPM * 0.3 * Math.sign(x)), this.WY(y, z)];
+    return y * PPM * YS - z * PPM + this.OY;
   }
 
   // ---------------------------------------------------------------- build
@@ -75,67 +64,53 @@ export class Renderer {
     this.OY = Math.round(extTop * PPM * YS);
     const W = this.OX * 2;
     const H = this.OY + Math.round(extBot * PPM * YS);
-    const base = document.createElement('canvas');
-    base.width = W;
-    base.height = H;
-    const g = base.getContext('2d')!;
-    g.imageSmoothingEnabled = false;
-    g.fillStyle = '#0a101c';
+    this.SW = W;
+    this.SH = H;
+    const [base, g] = hiCanvas(W, H, bgRes());
+    g.fillStyle = '#080c16';
     g.fillRect(0, 0, W, H);
 
     const [h, a] = [this.m.teams[0].def, this.m.teams[1].def];
     const px0 = this.WX(-ex), px1 = this.WX(ex), py0 = this.WY(-ey), py1 = this.WY(ey);
+    this.pr = { x0: px0, y0: py0, x1: px1, y1: py1 };
     const boardH = 13;
+    const topY1 = py0 - boardH - 2;
+    const botY0 = py1 + 12;
 
-    // ---- stands structure
-    const tier = (x0: number, y0: number, x1: number, y1: number, vertical: boolean, dark = 0) => {
-      g.fillStyle = dark ? '#151b2b' : '#1c2337';
+    // ---- stands: concrete tiers with seat rows
+    const tier = (x0: number, y0: number, x1: number, y1: number, vertical: boolean, near = false) => {
+      const gr = vertical ? g.createLinearGradient(x0 < W / 2 ? x0 : x1, 0, x0 < W / 2 ? x1 : x0, 0) : g.createLinearGradient(0, near ? y1 : y0, 0, near ? y0 : y1);
+      gr.addColorStop(0, '#0e1322');
+      gr.addColorStop(1, '#25304a');
+      g.fillStyle = gr;
       g.fillRect(x0, y0, x1 - x0, y1 - y0);
       if (!vertical) {
         for (let y = y1 - 1; y >= y0; y -= 7) {
-          g.fillStyle = dark ? '#222a3e' : '#2b3550';
-          g.fillRect(x0, y - 6, x1 - x0, 1);
-          g.fillStyle = '#10141f';
-          g.fillRect(x0, y, x1 - x0, 1);
+          g.fillStyle = 'rgba(120,140,190,0.16)';
+          g.fillRect(x0, y - 6, x1 - x0, 0.8);
+          g.fillStyle = 'rgba(0,0,0,0.45)';
+          g.fillRect(x0, y - 0.6, x1 - x0, 1.2);
         }
       } else {
         for (let x = x0; x < x1; x += 7) {
-          g.fillStyle = '#2b3550';
-          g.fillRect(x, y0, 1, y1 - y0);
-          g.fillStyle = '#10141f';
-          g.fillRect(x + 6, y0, 1, y1 - y0);
+          g.fillStyle = 'rgba(120,140,190,0.16)';
+          g.fillRect(x, y0, 0.8, y1 - y0);
+          g.fillStyle = 'rgba(0,0,0,0.45)';
+          g.fillRect(x + 6, y0, 1.2, y1 - y0);
         }
       }
     };
-    const topY1 = py0 - boardH - 2;
     tier(0, 18, W, topY1, false);
-    // aisles
     for (let x = 60; x < W; x += 170) {
-      g.fillStyle = '#323c56';
+      g.fillStyle = '#2c3650';
       g.fillRect(x, 18, 5, topY1 - 18);
-      g.fillStyle = '#242c42';
-      for (let y = 20; y < topY1; y += 4) g.fillRect(x, y, 5, 1);
+      g.fillStyle = 'rgba(0,0,0,0.35)';
+      for (let y = 20; y < topY1; y += 3.5) g.fillRect(x, y, 5, 0.8);
     }
-    // roof + floodlights
-    g.fillStyle = '#060a12';
-    g.fillRect(0, 0, W, 18);
-    g.fillStyle = '#1a2133';
-    g.fillRect(0, 16, W, 2);
-    for (let x = 16; x < W; x += 36) {
-      g.fillStyle = 'rgba(255,240,180,0.10)';
-      g.fillRect(x - 6, 6, 15, 10);
-      g.fillStyle = '#fff4c4';
-      g.fillRect(x, 9, 3, 3);
-      g.fillStyle = '#fffbe8';
-      g.fillRect(x + 1, 10, 1, 1);
-    }
-    // sides
     tier(0, py0 - boardH, px0 - 6, py1 + 2, true);
     tier(px1 + 6, py0 - boardH, W, py1 + 2, true);
-    // bottom stand
-    const botY0 = py1 + 12;
-    tier(0, botY0, W, H, false, 1);
-    g.fillStyle = '#0d121e';
+    tier(0, botY0, W, H, false, true);
+    g.fillStyle = '#0b101b';
     g.fillRect(0, py1 + 1, W, 11);
     this.standRects = [
       [0, 18, W, topY1],
@@ -144,85 +119,210 @@ export class Renderer {
       [0, botY0, W, H],
     ];
 
-    // ---- pitch pixels
-    const pw = px1 - px0, ph = py1 - py0;
-    const img = g.createImageData(pw, ph);
-    const d = img.data;
-    const set = (x: number, y: number, c: RGB) => {
-      const lx = x - px0, ly = y - py0;
-      if (lx < 0 || ly < 0 || lx >= pw || ly >= ph) return;
-      const o = (ly * pw + lx) * 4;
-      d[o] = c[0];
-      d[o + 1] = c[1];
-      d[o + 2] = c[2];
-      d[o + 3] = 255;
+    // ---- boards around the pitch
+    const bg = g.createLinearGradient(0, py0 - boardH - 2, 0, py0);
+    bg.addColorStop(0, '#3a4766');
+    bg.addColorStop(0.1, '#06080f');
+    g.fillStyle = bg;
+    g.fillRect(px0 - 2, py0 - boardH - 2, px1 - px0 + 4, boardH + 2);
+    this.ledRect = { x0: px0, x1: px1, y: py0 - boardH, h: boardH - 2 };
+    for (const s of [-1, 1]) {
+      const bx = s > 0 ? px1 + 1 : px0 - 6;
+      const sg = g.createLinearGradient(bx, 0, bx + 5, 0);
+      sg.addColorStop(0, s > 0 ? '#1d2840' : '#0c1220');
+      sg.addColorStop(1, s > 0 ? '#0c1220' : '#1d2840');
+      g.fillStyle = sg;
+      g.fillRect(bx, py0 - boardH, 5, py1 - py0 + boardH);
+      g.fillStyle = s < 0 ? h.primary : a.primary;
+      g.globalAlpha = 0.85;
+      g.fillRect(bx + 2, py0 - boardH + 2, 1.2, py1 - py0 + boardH - 4);
+      g.globalAlpha = 1;
+    }
+
+    // ---- pitch (separate high-res canvas, receives dynamic wear)
+    this.buildPitch();
+
+    // ---- near (bottom) board, drawn over players
+    const fw = px1 - px0 + 4;
+    const [fb, fg] = hiCanvas(fw, 12, 3);
+    const fgr = fg.createLinearGradient(0, 0, 0, 12);
+    fgr.addColorStop(0, '#3a4766');
+    fgr.addColorStop(0.08, '#1a2236');
+    fgr.addColorStop(1, '#090d17');
+    fg.fillStyle = fgr;
+    fg.fillRect(0, 0, fw, 12);
+    let fx = 10;
+    let i = 0;
+    while (fx < fw - 20) {
+      const t = SPONSORS[i % SPONSORS.length];
+      const w = measure(t, 0.8);
+      fg.globalAlpha = 0.5;
+      drawText(fg, t, fx, 3, { color: i % 2 ? '#8fa2c8' : '#c8d4ee', scale: 0.8, outline: null });
+      fg.globalAlpha = 1;
+      fx += w + 34;
+      i++;
+    }
+    this.frontBoard = { c: fb, x: px0 - 2, y: py1 - 10 };
+
+    this.led = this.buildLed(h, a);
+
+    // roof + floodlight gantry (drawn after the crowd so glows sit on top)
+    const roof = (cg: CanvasRenderingContext2D) => {
+      const rg = cg.createLinearGradient(0, 0, 0, 20);
+      rg.addColorStop(0, '#03050a');
+      rg.addColorStop(1, '#141b2c');
+      cg.fillStyle = rg;
+      cg.fillRect(0, 0, W, 18);
+      cg.fillStyle = '#2a3550';
+      cg.fillRect(0, 17, W, 1);
+      for (let x = 16; x < W; x += 36) {
+        const glow = cg.createRadialGradient(x + 1.5, 10, 0, x + 1.5, 10, 14);
+        glow.addColorStop(0, 'rgba(255,246,210,0.55)');
+        glow.addColorStop(0.3, 'rgba(255,240,190,0.16)');
+        glow.addColorStop(1, 'rgba(255,240,190,0)');
+        cg.fillStyle = glow;
+        cg.fillRect(x - 13, 0, 30, 26);
+        cg.fillStyle = '#fffbe8';
+        roundRect(cg, x - 1, 8, 5, 4, 1);
+        cg.fill();
+      }
     };
-    const tuftNext = new Uint8Array(pw);
-    for (let y = py0; y < py1; y++) {
-      for (let x = px0; x < px1; x++) {
-        const wx = (x - this.OX) / PPM, wy = (y - this.OY) / (PPM * YS);
-        const inField = Math.abs(wx) <= P.hw && Math.abs(wy) <= P.hh;
-        const stripe = Math.floor((wx + 400) / 4) % 2;
-        const band = Math.floor((wy + 400) / 4) % 2;
-        let t = 3 + stripe;
-        if (!inField) t -= 1;
-        const r = hash(x, y);
-        if (r < 0.1) t -= 1;
-        else if (r > 0.93) t += 1;
-        if (band && ((x + y) & 1) === 0 && r < 0.4) t += 1;
-        if (tuftNext[x - px0]) {
-          t -= 1;
-          tuftNext[x - px0] = 0;
-        }
-        if (r > 0.988) {
-          t += 2;
-          tuftNext[x - px0] = 1;
-        }
-        let c = GRASS[clamp(t, 0, GRASS.length - 1)];
-        // wear patches (goal mouths and centre)
-        for (const [cx, cy, rad, pr] of [[-P.hw + 1.4, 0, 3.4, 0.9], [P.hw - 1.4, 0, 3.4, 0.9], [0, 0, 1.8, 0.5]] as const) {
-          const dd = Math.hypot(wx - cx, (wy - cy) * 1.3) / rad;
-          // clumpy wear: low-frequency mask (2x2 cells) so it reads as patches, not noise
-          if (dd < 1 && hash(x >> 1, y >> 1) < (1 - dd) * (1 - dd) * pr) c = DIRT[clamp(Math.floor((1 - dd) * 3 + hash(x, y * 5)), 0, DIRT.length - 1)];
-        }
-        set(x, y, c);
+
+    // ---- crowd variants
+    const nVar = settings.quality === 'high' ? 3 : 1;
+    for (let v = 0; v < nVar; v++) {
+      const [c, cg] = hiCanvas(W, H, bgRes());
+      cg.drawImage(base, 0, 0);
+      this.drawCrowd(cg, v, h, a, { px0, px1, py0, py1, topY1, botY0, W, H, boardH });
+      roof(cg);
+      // atmosphere: darken far stands slightly
+      const at = cg.createLinearGradient(0, 0, 0, topY1);
+      at.addColorStop(0, 'rgba(4,6,14,0.45)');
+      at.addColorStop(1, 'rgba(4,6,14,0)');
+      cg.fillStyle = at;
+      cg.fillRect(0, 18, W, topY1 - 18);
+      this.variants.push(c);
+    }
+  }
+
+  private buildPitch() {
+    const P = this.P;
+    const { x0, y0, x1, y1 } = this.pr;
+    const pw = x1 - x0, ph = y1 - y0;
+    const res = pitchRes();
+    const [c, g] = hiCanvas(pw, ph, res);
+    g.translate(-x0, -y0);
+    this.pitchC = c;
+    this.pg = g;
+
+    // mowing stripes (along x) + checker banding (along y)
+    const field = (wx: number) => Math.abs(wx) <= P.hw;
+    for (let i = -20; i < 20; i++) {
+      const wxa = i * 4, wxb = wxa + 4;
+      const xa = Math.max(x0, this.WX(wxa)), xb = Math.min(x1, this.WX(wxb));
+      if (xb <= xa) continue;
+      const light = ((i % 2) + 2) % 2 === 0;
+      g.fillStyle = light ? '#3b9a47' : '#2f873b';
+      g.fillRect(xa, y0, xb - xa, ph);
+    }
+    g.fillStyle = 'rgba(255,255,255,0.035)';
+    for (let j = -20; j < 20; j += 2) {
+      const ya = this.WY(j * 4), yb = this.WY(j * 4 + 4);
+      g.fillRect(x0, ya, pw, yb - ya);
+    }
+    // run-off area is a bit darker
+    g.fillStyle = 'rgba(10,30,15,0.22)';
+    g.fillRect(x0, y0, pw, this.WY(-P.hh) - y0);
+    g.fillRect(x0, this.WY(P.hh), pw, y1 - this.WY(P.hh));
+    g.fillRect(x0, this.WY(-P.hh), this.WX(-P.hw) - x0, this.WY(P.hh) - this.WY(-P.hh));
+    g.fillRect(this.WX(P.hw), this.WY(-P.hh), x1 - this.WX(P.hw), this.WY(P.hh) - this.WY(-P.hh));
+    void field;
+
+    // fine grass grain: per-device-pixel noise pattern
+    const T = 128;
+    const tile = document.createElement('canvas');
+    tile.width = tile.height = T;
+    const tg = tile.getContext('2d')!;
+    const img = tg.createImageData(T, T);
+    for (let y = 0; y < T; y++)
+      for (let x = 0; x < T; x++) {
+        const r = hash(x, y * 3 + 7);
+        const r2 = hash(x >> 2, (y >> 1) + 99);
+        const o = (y * T + x) * 4;
+        const lightPix = r > 0.55;
+        const v = lightPix ? 255 : 0;
+        img.data[o] = v * 0.85;
+        img.data[o + 1] = v;
+        img.data[o + 2] = v * 0.7;
+        img.data[o + 3] = Math.round((lightPix ? (r - 0.55) * 70 : (0.55 - r) * 60) + r2 * 10);
+      }
+    tg.putImageData(img, 0, 0);
+    const pat = g.createPattern(tile, 'repeat')!;
+    pat.setTransform(new DOMMatrix().scale(1 / res, 1 / res));
+    g.fillStyle = pat;
+    g.fillRect(x0, y0, pw, ph);
+    // blades
+    const n = Math.round(pw * ph * (settings.quality === 'high' ? 0.11 : 0.04));
+    for (let i = 0; i < n; i++) {
+      const x = x0 + hash(i, 1) * pw, y = y0 + hash(i, 2) * ph;
+      const r = hash(i, 3);
+      g.fillStyle = r < 0.5 ? 'rgba(14,52,22,0.32)' : r < 0.85 ? 'rgba(120,200,110,0.22)' : 'rgba(190,235,160,0.25)';
+      g.fillRect(x, y, 0.35, 0.9 + r * 0.8);
+    }
+    // large-scale colour variation (patchy turf)
+    for (let i = 0; i < 70; i++) {
+      const x = x0 + hash(i, 11) * pw, y = y0 + hash(i, 12) * ph, r = 20 + hash(i, 13) * 50;
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      const dark = hash(i, 14) < 0.5;
+      gr.addColorStop(0, dark ? 'rgba(20,60,20,0.12)' : 'rgba(170,210,90,0.08)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr;
+      g.save();
+      g.translate(x, y);
+      g.scale(1, YS);
+      g.translate(-x, -y);
+      g.fillRect(x - r, y - r, r * 2, r * 2);
+      g.restore();
+    }
+
+    // pre-existing wear in the goal mouths and centre spot
+    for (const [cx, cy, rad, pr] of [[-P.hw + 1.3, 0, 3.0, 1], [P.hw - 1.3, 0, 3.0, 1], [0, 0, 1.6, 0.5]] as const) {
+      const cnt = Math.round(110 * pr * rad);
+      for (let i = 0; i < cnt; i++) {
+        const a = hash(i, cx * 10 + 3) * TAU, d = Math.pow(hash(i, cy + 17 + cx), 0.8) * rad;
+        const wx = cx + Math.cos(a) * d, wy = cy + Math.sin(a) * d * 1.2;
+        const k = 1 - d / rad;
+        const dry = hash(i, 9) < 0.45;
+        this.blob(wx, wy, 0.06 + hash(i, 5) * 0.16, dry ? `rgba(150,160,80,${((0.05 + k * 0.12) * pr).toFixed(3)})` : `rgba(${SOIL[i % 4]},${((0.06 + k * 0.3) * pr).toFixed(3)})`, 1.3, hash(i, 6) * 3);
       }
     }
+
     // ---- lines
-    const lcol = (x: number, y: number) => (hash(x * 3, y * 11) < 0.12 ? LINE_W : LINE);
-    const hline = (x0: number, x1: number, y: number) => {
-      const Y = this.WY(y);
-      for (let x = this.WX(x0) - 1; x <= this.WX(x1); x++) for (const yy of [Y - 1, Y]) set(x, yy, lcol(x, yy));
+    g.strokeStyle = 'rgba(243,248,238,0.92)';
+    g.lineWidth = 1.9;
+    g.lineCap = 'butt';
+    const L = (pts: [number, number][]) => {
+      g.beginPath();
+      pts.forEach(([x, y], i) => (i ? g.lineTo(this.WX(x), this.WY(y)) : g.moveTo(this.WX(x), this.WY(y))));
+      g.stroke();
     };
-    const vline = (x: number, y0: number, y1: number) => {
-      const X = this.WX(x);
-      for (let y = this.WY(y0) - 1; y <= this.WY(y1); y++) for (const xx of [X - 1, X]) set(xx, y, lcol(xx, y));
+    const rect = (ax: number, ay: number, bx: number, by: number) => {
+      g.strokeRect(this.WX(ax), this.WY(ay), this.WX(bx) - this.WX(ax), this.WY(by) - this.WY(ay));
     };
-    const rect = (x0: number, y0: number, x1: number, y1: number) => {
-      hline(x0, x1, y0);
-      hline(x0, x1, y1);
-      vline(x0, y0, y1);
-      vline(x1, y0, y1);
-    };
-    const ellipse = (cx: number, cy: number, r: number, keep: (wx: number, wy: number) => boolean) => {
-      const rx = r * PPM, ry = r * PPM * YS;
-      const X = this.WX(cx), Y = this.WY(cy);
-      for (let y = Math.floor(Y - ry - 2); y <= Y + ry + 2; y++)
-        for (let x = Math.floor(X - rx - 2); x <= X + rx + 2; x++) {
-          const dx = x + 0.5 - X, dy = y + 0.5 - Y;
-          const f = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) - 1;
-          const gr = 2 * Math.sqrt((dx / (rx * rx)) ** 2 + (dy / (ry * ry)) ** 2) || 1;
-          const sd = f / gr;
-          if (sd > -1.25 && sd < 0.45 && keep((x - this.OX) / PPM, (y - this.OY) / (PPM * YS))) set(x, y, lcol(x, y));
-        }
+    const ell = (cx: number, cy: number, r: number, a0 = 0, a1 = TAU) => {
+      g.beginPath();
+      g.ellipse(this.WX(cx), this.WY(cy), r * PPM, r * PPM * YS, 0, a0, a1);
+      g.stroke();
     };
     const spot = (x: number, y: number) => {
-      const X = this.WX(x), Y = this.WY(y);
-      for (const [dx, dy] of [[-1, -1], [0, -1], [-1, 0], [0, 0]]) set(X + dx, Y + dy, LINE);
+      g.fillStyle = 'rgba(243,248,238,0.95)';
+      g.beginPath();
+      g.ellipse(this.WX(x), this.WY(y), 1.4, 1.05, 0, 0, TAU);
+      g.fill();
     };
     rect(-P.hw, -P.hh, P.hw, P.hh);
-    vline(0, -P.hh, P.hh);
-    ellipse(0, 0, P.centerR, () => true);
+    L([[0, -P.hh], [0, P.hh]]);
+    ell(0, 0, P.centerR);
     spot(0, 0);
     for (const s of [-1, 1]) {
       const gx = s * P.hw;
@@ -230,69 +330,138 @@ export class Renderer {
       rect(Math.min(gx, gx - s * P.smallDepth), -P.smallHalf, Math.max(gx, gx - s * P.smallDepth), P.smallHalf);
       const sp = gx - s * P.boxDepth * 0.72;
       spot(sp, 0);
-      const edge = gx - s * P.boxDepth;
-      ellipse(sp, 0, P.centerR * 0.85, (wx) => (s > 0 ? wx < edge - 0.05 : wx > edge + 0.05));
-      for (const sy of [-1, 1]) ellipse(gx, sy * P.hh, 1, (wx, wy) => Math.abs(wx) <= P.hw + 0.05 && Math.abs(wy) <= P.hh + 0.05);
+      // penalty arc (outside the box only)
+      const edge = this.WX(gx - s * P.boxDepth);
+      g.save();
+      g.beginPath();
+      if (s > 0) g.rect(x0, y0, edge - x0 - 0.9, y1 - y0);
+      else g.rect(edge + 0.9, y0, x1 - edge, y1 - y0);
+      g.clip();
+      ell(sp, 0, P.centerR * 0.85);
+      g.restore();
+      // corner arcs
+      for (const sy of [-1, 1]) {
+        const a0 = s > 0 ? (sy > 0 ? Math.PI : Math.PI / 2) : sy > 0 ? Math.PI * 1.5 : 0;
+        ell(gx, sy * P.hh, 1, a0, a0 + Math.PI / 2);
+      }
     }
-    g.putImageData(img, px0, py0);
+    // paint texture on the lines: re-apply some grain
+    g.globalAlpha = 0.35;
+    g.fillStyle = pat;
+    g.fillRect(x0, y0, pw, ph);
+    g.globalAlpha = 1;
 
-    // subtle floodlight pools on the grass (dithered)
-    g.fillStyle = 'rgba(255,250,210,0.035)';
-    for (let y = py0; y < py1; y += 2) {
-      const wy = (y - this.OY) / (PPM * YS) / P.hh;
-      const w = Math.round(pw * (0.5 - Math.abs(wy) * 0.2));
-      g.fillRect(px0 + (pw - w) / 2, y, w, 1);
+    // floodlight pools + stand shadow along the top
+    for (const [fx, fy] of [[-P.hw * 0.6, -P.hh * 0.2], [P.hw * 0.6, -P.hh * 0.2], [0, P.hh * 0.5]]) {
+      const X = this.WX(fx), Y = this.WY(fy), r = P.hw * PPM * 0.75;
+      const gr = g.createRadialGradient(X, Y, 0, X, Y, r);
+      gr.addColorStop(0, 'rgba(255,250,215,0.07)');
+      gr.addColorStop(1, 'rgba(255,250,215,0)');
+      g.fillStyle = gr;
+      g.fillRect(x0, y0, pw, ph);
     }
+    const sh = g.createLinearGradient(0, y0, 0, y0 + 26);
+    sh.addColorStop(0, 'rgba(0,10,5,0.4)');
+    sh.addColorStop(1, 'rgba(0,10,5,0)');
+    g.fillStyle = sh;
+    g.fillRect(x0, y0, pw, 26);
+    const eg = g.createLinearGradient(0, y1 - 14, 0, y1);
+    eg.addColorStop(0, 'rgba(0,10,5,0)');
+    eg.addColorStop(1, 'rgba(0,10,5,0.3)');
+    g.fillStyle = eg;
+    g.fillRect(x0, y1 - 14, pw, 14);
 
-    // ---- boards
-    g.fillStyle = '#05070d';
-    g.fillRect(px0 - 2, py0 - boardH - 1, pw + 4, boardH + 1);
-    g.fillStyle = '#3a4766';
-    g.fillRect(px0 - 2, py0 - boardH - 2, pw + 4, 1);
-    this.ledRect = { x0: px0, x1: px1, y: py0 - boardH, h: boardH - 2 };
+    // goal shadows on the grass
     for (const s of [-1, 1]) {
-      const bx = s > 0 ? px1 + 1 : px0 - 6;
-      g.fillStyle = '#121a2c';
-      g.fillRect(bx, py0 - boardH, 5, py1 - py0 + boardH);
-      g.fillStyle = '#3a4766';
-      g.fillRect(bx, py0 - boardH, 5, 1);
-      g.fillStyle = s < 0 ? h.primary : a.primary;
-      g.fillRect(bx + 2, py0 - boardH + 2, 1, py1 - py0 + boardH - 4);
+      const gx = this.WX(s * P.hw), bx = this.WX(s * (P.hw + P.goalDepth));
+      g.fillStyle = 'rgba(0,15,5,0.22)';
+      g.fillRect(Math.min(gx, bx), this.WY(-P.goalHalf), Math.abs(bx - gx) + 2, this.WY(P.goalHalf) - this.WY(-P.goalHalf) + 3);
     }
+  }
 
-    // ---- goals (back parts) + front sprites
-    for (const s of [-1, 1]) this.drawGoalBack(g, s);
-    this.goalFront = [-1, 1].map((s) => this.buildGoalFront(s));
+  /** soft soil blob on the pitch canvas (world coords) */
+  private blob(wx: number, wy: number, r: number, color: string, stretch = 1, ang = 0) {
+    const g = this.pg;
+    const X = this.WX(wx), Y = this.WY(wy);
+    g.save();
+    g.translate(X, Y);
+    g.rotate(ang);
+    g.scale(stretch, 1);
+    const R = r * PPM;
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
+    gr.addColorStop(0, color);
+    gr.addColorStop(0.65, color);
+    gr.addColorStop(1, color.replace(/,[\d.]+\)$/, ',0)'));
+    g.fillStyle = gr;
+    g.beginPath();
+    g.ellipse(0, 0, R, R * YS, 0, 0, TAU);
+    g.fill();
+    g.restore();
+  }
 
-    // ---- near (bottom) board, drawn over players
-    const fb = document.createElement('canvas');
-    fb.width = pw + 4;
-    fb.height = 12;
-    const fg = fb.getContext('2d')!;
-    fg.fillStyle = '#141b2c';
-    fg.fillRect(0, 0, fb.width, 12);
-    fg.fillStyle = '#3a4766';
-    fg.fillRect(0, 0, fb.width, 1);
-    fg.fillStyle = '#0a0e18';
-    fg.fillRect(0, 11, fb.width, 1);
-    for (let x = 6; x < fb.width; x += 48) {
-      fg.fillStyle = '#26304a';
-      fg.fillRect(x, 3, 1, 7);
+  /** Permanently stamp a wear event into the turf. */
+  private stamp(mk: GroundMark) {
+    const g = this.pg;
+    const l = Math.hypot(mk.dx, mk.dy) || 1;
+    const ux = mk.dx / l, uy = mk.dy / l;
+    const ang = Math.atan2(uy * YS, ux);
+    const s = mk.s;
+    const rnd = Math.random;
+    switch (mk.kind) {
+      case 'skid': {
+        // two churned grooves (legs) + torn grass at the edges
+        const px = -uy, py = ux;
+        for (const side of [-1, 1]) {
+          const wx = mk.x + px * side * 0.13, wy = mk.y + py * side * 0.13;
+          this.blob(wx + (rnd() - 0.5) * 0.06, wy + (rnd() - 0.5) * 0.06, 0.15, `rgba(${pick(SOIL)},${(0.13 * s).toFixed(3)})`, 2.6, ang);
+        }
+        this.blob(mk.x - ux * 0.1, mk.y - uy * 0.1, 0.3, `rgba(70,95,40,${(0.05 * s).toFixed(3)})`, 1.8, ang);
+        // churned soil specks
+        for (let i = 0; i < 3; i++) {
+          if (rnd() > 0.7 * s) continue;
+          this.blob(mk.x + (rnd() - 0.5) * 0.5, mk.y + (rnd() - 0.5) * 0.4, 0.03 + rnd() * 0.05, `rgba(${pick(SOIL)},0.6)`, 1.2, ang);
+        }
+        if (rnd() < 0.35 * s) {
+          const side = rnd() < 0.5 ? -1 : 1;
+          this.blob(mk.x + px * side * 0.35, mk.y + py * side * 0.35, 0.07, 'rgba(160,215,120,0.35)', 1.5, ang + rnd() - 0.5);
+        }
+        break;
+      }
+      case 'divot': {
+        const back = 0.15;
+        const cx = mk.x - ux * back, cy = mk.y - uy * back;
+        const n = 5 + Math.round(s * 5);
+        for (let i = 0; i < n; i++) {
+          const ox = (rnd() - 0.5) * 0.45 + ux * (rnd() - 0.3) * 0.5, oy = (rnd() - 0.5) * 0.35 + uy * (rnd() - 0.3) * 0.5;
+          this.blob(cx + ox, cy + oy, 0.08 + rnd() * 0.14 * s, `rgba(${pick(SOIL)},${(0.35 + rnd() * 0.3).toFixed(2)})`, 1.4, ang);
+        }
+        // dark hole + lifted turf flap ahead
+        this.blob(cx, cy, 0.14 * s + 0.06, 'rgba(48,34,20,0.55)', 1.6, ang);
+        this.blob(mk.x + ux * 0.35, mk.y + uy * 0.35, 0.12, 'rgba(70,140,60,0.6)', 1.5, ang + 0.4);
+        g.globalAlpha = 1;
+        break;
+      }
+      case 'fall':
+        this.blob(mk.x, mk.y, 0.42, `rgba(${pick(SOIL)},${(0.045 * s).toFixed(3)})`, 2, ang);
+        this.blob(mk.x, mk.y, 0.3, `rgba(150,190,110,${(0.035 * s).toFixed(3)})`, 2.2, ang);
+        break;
+      case 'step': {
+        const px = -uy * 0.1, py = ux * 0.1;
+        this.blob(mk.x + px, mk.y + py, 0.06, `rgba(${pick(SOIL)},${(0.22 * s).toFixed(3)})`, 1.4, ang);
+        this.blob(mk.x - px + ux * 0.3, mk.y - py + uy * 0.3, 0.06, `rgba(${pick(SOIL)},${(0.22 * s).toFixed(3)})`, 1.4, ang);
+        break;
+      }
+      case 'scorch':
+        this.blob(mk.x, mk.y, 0.6 * s, 'rgba(30,22,16,0.35)', 1.3, ang);
+        break;
     }
-    this.frontBoard = { c: fb, x: px0 - 2, y: py1 - 10 };
+  }
 
-    this.led = this.buildLed(h, a);
-
-    // ---- crowd variants
-    const nVar = settings.quality === 'high' ? 3 : 1;
-    for (let v = 0; v < nVar; v++) {
-      const c = document.createElement('canvas');
-      c.width = W;
-      c.height = H;
-      const cg = c.getContext('2d')!;
-      cg.drawImage(base, 0, 0);
-      this.drawCrowd(cg, v, h, a, { px0, px1, py0, py1, topY1, botY0, W, H, boardH });
-      this.variants.push(c);
+  private consumeMarks() {
+    const ms = this.m.props.marks;
+    if (ms.length) {
+      for (const mk of ms) this.stamp(mk);
+      ms.length = 0;
     }
   }
 
@@ -304,83 +473,107 @@ export class Renderer {
       const t = r < (homeSide ? 0.82 : 0.3) ? h : a;
       return hash(k, 7) < 0.7 ? t.primary : t.secondary;
     };
-    const fan = (x: number, y: number, k: number, back: boolean) => {
+    const fan = (x: number, y: number, k: number, back: boolean, depth: number) => {
       const jumping = v > 0 && Math.floor(hash(k, 3) * 3) === v - 1;
-      const up = jumping ? 2 : 0;
+      const up = jumping ? 1.6 : 0;
       const col = shirt(x, k);
       const rp = ramp(col);
       const skin = SKINS[Math.floor(hash(k, 11) * SKINS.length)];
       const hair = HAIRS[Math.floor(hash(k, 13) * HAIRS.length)];
       const yy = y - up;
-      g.fillStyle = css(rp[2]);
-      g.fillRect(x - 1, yy - 3, 3, 3);
-      g.fillStyle = css(rp[1]);
-      g.fillRect(x + 1, yy - 3, 1, 3);
-      g.fillStyle = back ? hair : skin;
-      g.fillRect(x - 1, yy - 5, 2, 2);
-      if (!back) {
-        g.fillStyle = hair;
-        g.fillRect(x - 1, yy - 5, 2, 1);
-      }
+      // body
+      const bgr = g.createLinearGradient(x - 1.6, 0, x + 1.6, 0);
+      bgr.addColorStop(0, css(rp[3]));
+      bgr.addColorStop(0.5, css(rp[2]));
+      bgr.addColorStop(1, css(rp[1]));
+      g.fillStyle = bgr;
+      roundRect(g, x - 1.6, yy - 3.3, 3.2, 3.6, 1.2);
+      g.fill();
       if (jumping) {
-        g.fillStyle = skin;
-        g.fillRect(x - 2, yy - 6, 1, 3);
-        g.fillRect(x + 2, yy - 6, 1, 3);
+        g.strokeStyle = skin;
+        g.lineWidth = 0.8;
+        g.lineCap = 'round';
+        g.beginPath();
+        g.moveTo(x - 1.4, yy - 2.8);
+        g.lineTo(x - 2.2, yy - 6);
+        g.moveTo(x + 1.4, yy - 2.8);
+        g.lineTo(x + 2.2, yy - 6);
+        g.stroke();
         if (hash(k, 17) < 0.15) {
-          // scarf above the head
           const tdef = col === h.primary || col === h.secondary ? h : a;
-          for (let i = 0; i < 7; i++) {
+          for (let i = 0; i < 6; i++) {
             g.fillStyle = i % 2 ? tdef.secondary : tdef.primary;
-            g.fillRect(x - 3 + i, yy - 8, 1, 2);
+            g.fillRect(x - 3 + i, yy - 7.6 + Math.sin(i + v) * 0.3, 1, 1.6);
           }
         }
       }
+      // head
+      g.fillStyle = back ? hair : skin;
+      g.beginPath();
+      g.arc(x, yy - 4.5, 1.25, 0, TAU);
+      g.fill();
+      if (!back) {
+        g.fillStyle = hair;
+        g.beginPath();
+        g.arc(x, yy - 4.9, 1.2, Math.PI, TAU);
+        g.fill();
+      }
+      if (depth > 0) {
+        g.fillStyle = `rgba(6,8,18,${depth.toFixed(2)})`;
+        g.fillRect(x - 2.4, yy - 8, 4.8, 8.4);
+      }
     };
     let k = 0;
-    // top stand rows
+    const rows = Math.floor((L.topY1 - 26) / 7);
+    let row = 0;
     for (let y = L.topY1 - 2; y > 24; y -= 7) {
+      const depth = (row / Math.max(1, rows)) * 0.35;
+      row++;
       for (let x = 3; x < L.W - 3; x += 5) {
         k++;
         if (hash(k, 1) < 0.07) continue;
-        if (((x - 60) % 170 + 170) % 170 < 7) continue; // aisles
-        fan(x + (hash(k, 2) < 0.5 ? 0 : 1), y, k, false);
+        if (((x - 60) % 170 + 170) % 170 < 7) continue;
+        fan(x + (hash(k, 2) < 0.5 ? 0 : 1), y, k, false, depth);
       }
     }
-    // side stands
     for (const side of [-1, 1]) {
       const x0 = side < 0 ? 4 : L.px1 + 10, x1 = side < 0 ? L.px0 - 9 : L.W - 4;
       for (let x = x0; x < x1; x += 7) {
+        const dist = side < 0 ? (x1 - x) / (x1 - x0) : (x - x0) / (x1 - x0);
         for (let y = L.py0 - L.boardH + 6; y < L.py1; y += 6) {
           k++;
           if (hash(k, 1) < 0.08) continue;
-          fan(x + 3, y, k, false);
+          fan(x + 3, y, k, false, dist * 0.3);
         }
       }
     }
-    // bottom stand (backs of heads)
     for (let y = L.botY0 + 6; y < L.H + 6; y += 7) {
       for (let x = 3; x < L.W - 3; x += 5) {
         k++;
         if (hash(k, 1) < 0.07) continue;
-        fan(x, y, k, true);
+        fan(x, y, k, true, 0.15);
       }
     }
     // tifo banners hanging on the top stand
     const banner = (cx: number, t: TeamDef) => {
-      const w = 34, hh = 13, y = L.topY1 - hh - 4;
-      const wave = v === 2 ? 1 : 0;
-      for (let i = 0; i < w; i++) {
-        const off = Math.round(Math.sin(i * 0.35 + v) * 0.8) + wave * (i % 2);
-        for (let j = 0; j < hh; j++) {
-          const band = Math.floor((j / hh) * 3);
-          g.fillStyle = band === 1 ? t.secondary : t.primary;
-          g.fillRect(cx + i, y + j + off, 1, 1);
-        }
-      }
-      g.fillStyle = '#120c1c';
-      g.fillRect(cx - 1, y - 1, w + 2, 1);
-      g.fillRect(cx - 1, y + hh + 1, w + 2, 1);
-      drawText(g, t.short, cx + w / 2, y + 3, { color: '#fff', align: 'center', outline: '#120c1c' });
+      const w = 36, hh = 13, y = L.topY1 - hh - 4;
+      const ph = v * 1.3;
+      g.save();
+      g.beginPath();
+      for (let i = 0; i <= w; i++) g.lineTo(cx + i, y + Math.sin(i * 0.3 + ph) * 0.9);
+      for (let i = w; i >= 0; i--) g.lineTo(cx + i, y + hh + Math.sin(i * 0.3 + ph) * 0.9);
+      g.closePath();
+      g.fillStyle = t.primary;
+      g.fill();
+      g.clip();
+      g.fillStyle = t.secondary;
+      g.fillRect(cx, y + hh / 3, w, hh / 3);
+      const sh = g.createLinearGradient(cx, 0, cx + w, 0);
+      for (let i = 0; i <= 6; i++) sh.addColorStop(i / 6, `rgba(0,0,0,${(0.12 + Math.sin(i * 1.7 + ph) * 0.1).toFixed(2)})`);
+      g.fillStyle = sh;
+      g.fillRect(cx, y - 2, w, hh + 4);
+      g.restore();
+      drawText(g, t.short, cx + w / 2, y + 3.2, { color: '#fff', align: 'center', outline: 'rgba(18,12,28,0.8)', thick: 0.8 });
     };
     banner(L.W * 0.22, h);
     banner(L.W * 0.36, h);
@@ -391,117 +584,249 @@ export class Renderer {
   private buildLed(h: TeamDef, a: TeamDef) {
     const items = [...SPONSORS, h.name, a.name];
     const H = this.ledRect.h;
-    const widths = items.map((t) => measure(t) + 22);
+    const widths = items.map((t) => measure(t) + 24);
     const W = widths.reduce((x, y) => x + y, 0);
-    const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
-    const g = c.getContext('2d')!;
+    const [c, g] = hiCanvas(W, H, 3);
     const bgs = ['#101629', '#c8261f', '#0d0d12', '#e8b400', '#1d4ed8', '#14a050', '#8a1aa0', '#e06010'];
     let x = 0;
     items.forEach((t, i) => {
       const bg = i === SPONSORS.length ? h.primary : i === SPONSORS.length + 1 ? a.primary : bgs[i % bgs.length];
       const rp = ramp(bg);
-      g.fillStyle = css(rp[2]);
+      const gr = g.createLinearGradient(0, 0, 0, H);
+      gr.addColorStop(0, css(rp[3]));
+      gr.addColorStop(0.3, css(rp[2]));
+      gr.addColorStop(1, css(rp[1]));
+      g.fillStyle = gr;
       g.fillRect(x, 0, widths[i], H);
-      g.fillStyle = css(rp[3]);
-      g.fillRect(x, 0, widths[i], 1);
-      g.fillStyle = css(rp[1]);
-      g.fillRect(x, H - 1, widths[i], 1);
-      const [r, gg, b] = hexToRgb(bg);
+      const [r, gg, b] = rp[2];
       const light = r * 0.3 + gg * 0.59 + b * 0.11 > 150;
-      drawText(g, t, x + widths[i] / 2, Math.floor((H - 7) / 2), { color: light ? '#111' : '#fff', align: 'center', outline: null });
+      drawText(g, t, x + widths[i] / 2, (H - 7) / 2, { color: light ? '#111' : '#fff', align: 'center', outline: null });
       g.fillStyle = '#05070d';
-      g.fillRect(x + widths[i] - 1, 0, 1, H);
+      g.fillRect(x + widths[i] - 0.6, 0, 0.6, H);
       x += widths[i];
     });
-    // LED rows
-    g.fillStyle = 'rgba(0,0,0,0.22)';
-    for (let y = 1; y < H; y += 2) g.fillRect(0, y, W, 1);
+    g.fillStyle = 'rgba(0,0,0,0.16)';
+    for (let y = 0.5; y < H; y += 1) g.fillRect(0, y, W, 0.35);
     return c;
   }
 
-  // ---------------------------------------------------------------- goals
-  private bline(g: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, size: number, color: string, ox = 0, oy = 0) {
-    g.fillStyle = color;
-    let dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
-    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
-    let err = dx + dy;
-    let x = x0, y = y0;
-    const off = Math.floor(size / 2);
-    for (let i = 0; i < 2000; i++) {
-      g.fillRect(x - off - ox, y - off - oy, size, size);
-      if (x === x1 && y === y1) break;
-      const e2 = 2 * err;
-      if (e2 >= dy) {
-        err += dy;
-        x += sx;
-      }
-      if (e2 <= dx) {
-        err += dx;
-        y += sy;
-      }
+  // ---------------------------------------------------------------- goals (dynamic)
+  private goalProj(cam: Camera, s: number, x: number, y: number, z: number, t: number): [number, number] {
+    const P = this.P;
+    const i = s < 0 ? 0 : 1;
+    const A = this.m.props.goalShake[i];
+    const ph = this.m.props.goalT[i];
+    // frame vibrates around its base: offset grows with height
+    const k = clamp(z / P.goalHeight, 0, 1.1);
+    let ox = A * 2.6 * Math.sin(ph * 44) * k;
+    let oy = A * 1.4 * Math.sin(ph * 44 + 1.3) * k;
+    // net bulge on the back net
+    const net = this.m.props.net[i];
+    const depth = (x * s - P.hw) / P.goalDepth; // 0 at goal line, 1 at back
+    if (net.amp > 0.01 && depth > 0.05) {
+      const f = Math.exp(-((y - net.y) ** 2) / 1.1 - ((z - net.z) ** 2) / 0.7) * depth * depth;
+      const b = net.amp * f * (0.85 + 0.15 * Math.sin(t * 30));
+      x += s * b * 0.75;
+      z += b * 0.1;
     }
+    // the net hangs slightly and sways with the frame
+    if (depth > 0.05) {
+      ox *= 0.6;
+      oy *= 0.6;
+    }
+    return [cam.sx(x) + z * PPM * 0.3 * Math.sign(s) + ox, cam.sy(y, z) + oy];
   }
 
-  private net(g: CanvasRenderingContext2D, q: [number, number, number][], nu: number, nv: number, ox = 0, oy = 0) {
-    const L = (a: [number, number, number], b: [number, number, number], t: number): [number, number, number] => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-    const col = 'rgba(214,224,236,0.55)';
+  private netMesh(ctx: CanvasRenderingContext2D, cam: Camera, s: number, q: [number, number, number][], nu: number, nv: number, t: number) {
+    const L = (a: [number, number, number], b: [number, number, number], u: number): [number, number, number] => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+    const at = (u: number, v: number) => {
+      const p = L(L(q[0], q[1], u), L(q[3], q[2], u), v);
+      return this.goalProj(cam, s, p[0], p[1], p[2], t);
+    };
+    ctx.beginPath();
+    const SEG = 6;
     for (let i = 0; i <= nu; i++) {
-      const t = i / nu;
-      const A = this.P3(...L(q[0], q[1], t)), B = this.P3(...L(q[3], q[2], t));
-      this.bline(g, A[0], A[1], B[0], B[1], 1, col, ox, oy);
+      const u = i / nu;
+      for (let j = 0; j <= SEG; j++) {
+        const [x, y] = at(u, j / SEG);
+        if (j) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+      }
     }
     for (let j = 0; j <= nv; j++) {
-      const t = j / nv;
-      const A = this.P3(...L(q[0], q[3], t)), B = this.P3(...L(q[1], q[2], t));
-      this.bline(g, A[0], A[1], B[0], B[1], 1, col, ox, oy);
+      const v = j / nv;
+      for (let i = 0; i <= SEG; i++) {
+        const [x, y] = at(i / SEG, v);
+        if (i) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  private postLine(ctx: CanvasRenderingContext2D, a: [number, number], b: [number, number]) {
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#151020';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.stroke();
+    ctx.strokeStyle = '#e9edf4';
+    ctx.lineWidth = 2.1;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(a[0] - 0.45, a[1] - 0.3);
+    ctx.lineTo(b[0] - 0.45, b[1] - 0.3);
+    ctx.stroke();
+  }
+
+  private drawGoal(ctx: CanvasRenderingContext2D, cam: Camera, s: number, part: 'back' | 'front', t: number) {
+    const P = this.P;
+    const gx = s * P.hw, bx = s * (P.hw + P.goalDepth), gh = P.goalHalf, h = P.goalHeight, hb = h * 0.75;
+    const G = (x: number, y: number, z: number) => this.goalProj(cam, s, x, y, z, t);
+    ctx.lineWidth = 0.5;
+    ctx.lineCap = 'butt';
+    if (part === 'back') {
+      // inside of the goal is a little darker
+      ctx.fillStyle = 'rgba(0,0,0,0.16)';
+      ctx.beginPath();
+      for (const p of [G(gx, -gh, 0), G(bx, -gh, 0), G(bx, gh, 0), G(gx, gh, 0)]) ctx.lineTo(p[0], p[1]);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(222,230,242,0.5)';
+      this.netMesh(ctx, cam, s, [[bx, -gh, 0], [bx, gh, 0], [bx, gh, hb], [bx, -gh, hb]], 16, 6, t);
+      this.netMesh(ctx, cam, s, [[gx, -gh, 0], [bx, -gh, 0], [bx, -gh, hb], [gx, -gh, h]], 6, 6, t);
+      this.postLine(ctx, G(gx, -gh, 0), G(gx, -gh, h));
+    } else {
+      ctx.strokeStyle = 'rgba(232,238,248,0.55)';
+      this.netMesh(ctx, cam, s, [[gx, -gh, h], [bx, -gh, hb], [bx, gh, hb], [gx, gh, h]], 6, 16, t);
+      this.netMesh(ctx, cam, s, [[gx, gh, 0], [bx, gh, 0], [bx, gh, hb], [gx, gh, h]], 6, 6, t);
+      // support bars
+      ctx.strokeStyle = 'rgba(200,206,220,0.8)';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      for (const yy of [-gh, gh]) {
+        const a = G(gx, yy, h), b = G(bx, yy, hb), c = G(bx, yy, 0);
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+        ctx.lineTo(c[0], c[1]);
+      }
+      ctx.stroke();
+      this.postLine(ctx, G(gx, -gh, h), G(gx, gh, h));
+      this.postLine(ctx, G(gx, gh, 0), G(gx, gh, h));
     }
   }
 
-  private post(g: CanvasRenderingContext2D, a: [number, number], b: [number, number], ox = 0, oy = 0) {
-    this.bline(g, a[0], a[1], b[0], b[1], 4, '#120c1c', ox, oy);
-    this.bline(g, a[0], a[1], b[0], b[1], 2, '#f4f6fa', ox, oy);
-  }
-
-  private goalGeom(s: number) {
-    const P = this.P;
-    return { gx: s * P.hw, bx: s * (P.hw + P.goalDepth), gh: P.goalHalf, h: P.goalHeight, hb: P.goalHeight * 0.75 };
-  }
-
-  private drawGoalBack(g: CanvasRenderingContext2D, s: number) {
-    const { gx, bx, gh, h, hb } = this.goalGeom(s);
-    const x0 = Math.min(this.WX(gx), this.WX(bx)), x1 = Math.max(this.WX(gx), this.WX(bx));
-    g.fillStyle = 'rgba(0,0,0,0.28)';
-    g.fillRect(x0, this.WY(-gh), x1 - x0, this.WY(gh) - this.WY(-gh));
-    this.net(g, [[bx, -gh, 0], [bx, gh, 0], [bx, gh, hb], [bx, -gh, hb]], 14, 5);
-    this.net(g, [[gx, -gh, 0], [bx, -gh, 0], [bx, -gh, hb], [gx, -gh, h]], 5, 5);
-    this.post(g, this.P3(gx, -gh, 0), this.P3(gx, -gh, h));
-  }
-
-  private buildGoalFront(s: number): Sprite {
-    const { gx, bx, gh, h, hb } = this.goalGeom(s);
-    const pts = [this.P3(gx, -gh, h), this.P3(bx, -gh, hb), this.P3(bx, gh, hb), this.P3(gx, gh, h), this.P3(gx, gh, 0), this.P3(bx, gh, 0)];
-    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
-    const ox = Math.min(...xs) - 4, oy = Math.min(...ys) - 4;
-    const c = document.createElement('canvas');
-    c.width = Math.max(...xs) - ox + 8;
-    c.height = Math.max(...ys) - oy + 8;
-    const g = c.getContext('2d')!;
-    this.net(g, [[gx, -gh, h], [bx, -gh, hb], [bx, gh, hb], [gx, gh, h]], 5, 14, ox, oy);
-    this.net(g, [[gx, gh, 0], [bx, gh, 0], [bx, gh, hb], [gx, gh, h]], 5, 5, ox, oy);
-    const a = this.P3(gx, -gh, h), b = this.P3(gx, gh, h);
-    this.post(g, a, b, ox, oy);
-    this.post(g, this.P3(gx, gh, 0), this.P3(gx, gh, h), ox, oy);
-    return { c, x: ox, y: oy };
+  // ---------------------------------------------------------------- corner flags
+  private drawFlag(ctx: CanvasRenderingContext2D, cam: Camera, f: CornerFlag, time: number) {
+    const team = f.hx > 0 ? this.m.teams[1].def : this.m.teams[0].def;
+    const rp = ramp(team.primary);
+    const Lpx = FLAG_LEN * PPM;
+    const pole = (x0: number, y0: number, x1: number, y1: number) => {
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#151020';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+      ctx.strokeStyle = '#f2f2f2';
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+      // painted bands
+      ctx.strokeStyle = css(rp[2]);
+      ctx.lineCap = 'butt';
+      ctx.beginPath();
+      for (let i = 1; i < 6; i += 2) {
+        const a = i / 6, b = (i + 1) / 6;
+        ctx.moveTo(x0 + (x1 - x0) * a, y0 + (y1 - y0) * a);
+        ctx.lineTo(x0 + (x1 - x0) * b, y0 + (y1 - y0) * b);
+      }
+      ctx.stroke();
+    };
+    const cloth = (tx: number, ty: number, dirX: number, dirY: number, wave: number, droop: number) => {
+      // dir = pole direction (base -> tip), flag hangs off the tip on the side
+      const nx = -dirY, ny = dirX; // perpendicular
+      const side = f.hx > 0 ? -1 : 1;
+      const w = 7.5, hgt = 5;
+      const pts: [number, number][] = [];
+      const N = 6;
+      for (let i = 0; i <= N; i++) {
+        const u = i / N;
+        const wv = Math.sin(time * 9 + u * 3.2 + f.hy) * wave * u;
+        pts.push([tx + nx * side * w * u * (1 - droop * 0.4) + dirX * (-wv - droop * u * 3), ty + ny * side * w * u + dirY * (-wv - droop * u * 3) + droop * u * 2]);
+      }
+      const bottom = pts.map(([x, y]) => [x - dirX * hgt, y - dirY * hgt] as [number, number]).reverse();
+      ctx.beginPath();
+      [...pts, ...bottom].forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      const gr = ctx.createLinearGradient(tx, ty, tx + nx * side * w, ty + ny * side * w);
+      gr.addColorStop(0, css(rp[3]));
+      gr.addColorStop(1, css(rp[1]));
+      ctx.fillStyle = gr;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(18,12,28,0.7)';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+    };
+    if (!f.broken) {
+      const X = cam.sx(f.hx), Y = cam.sy(f.hy);
+      const sh = shadow(5, 1.4);
+      ctx.drawImage(sh, X - vw(sh) / 2 + 3, Y - vh(sh) / 2);
+      const dx = Math.sin(f.wob), dy = -Math.cos(f.wob);
+      const tx = X + dx * Lpx, ty = Y + dy * Lpx;
+      pole(X, Y, tx, ty);
+      cloth(tx, ty, -dx, -dy, 1.4 + Math.abs(f.wobV) * 0.15, 0);
+      return;
+    }
+    // stump left in the ground
+    {
+      const X = cam.sx(f.hx), Y = cam.sy(f.hy);
+      ctx.strokeStyle = '#151020';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(X, Y);
+      ctx.lineTo(X, Y - 3.5);
+      ctx.stroke();
+      ctx.strokeStyle = '#e8e8e8';
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+      ctx.fillStyle = '#e8e8e8';
+      ctx.beginPath();
+      ctx.moveTo(X - 0.8, Y - 3.4);
+      ctx.lineTo(X - 0.2, Y - 5.2);
+      ctx.lineTo(X + 0.3, Y - 3.8);
+      ctx.lineTo(X + 0.8, Y - 4.6);
+      ctx.lineTo(X + 0.8, Y - 3.2);
+      ctx.fill();
+    }
+    // flying / lying pole
+    const cx = cam.sx(f.x), cy = cam.sy(f.y, f.z);
+    const gx = cam.sx(f.x), gy = cam.sy(f.y);
+    const dx = Math.sin(f.rot), dy = -Math.cos(f.rot);
+    // shadow on the ground
+    ctx.strokeStyle = 'rgba(5,20,10,0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(gx - dx * Lpx * 0.5, gy);
+    ctx.lineTo(gx + dx * Lpx * 0.5, gy);
+    ctx.stroke();
+    const bx0 = cx - dx * Lpx * 0.5, by0 = cy - dy * Lpx * 0.5;
+    const tx = cx + dx * Lpx * 0.5, ty = cy + dy * Lpx * 0.5;
+    pole(bx0, by0, tx, ty);
+    cloth(tx, ty, -dx, -dy, f.z > 0.8 ? 2.2 : 0.6, f.z < 0.8 ? 1 : 0.3);
   }
 
   // ---------------------------------------------------------------- frame
   draw(ctx: CanvasRenderingContext2D, cam: Camera, time: number) {
     const m = this.m;
-    ctx.imageSmoothingEnabled = false;
+    this.consumeMarks();
+    ctx.imageSmoothingEnabled = true;
     const bx = cam.originX - this.OX, by = cam.originY - this.OY;
-    ctx.fillStyle = '#0a101c';
+    ctx.fillStyle = '#080c16';
     ctx.fillRect(0, 0, cam.W, cam.H);
 
     // crowd animation frame
@@ -512,46 +837,60 @@ export class Renderer {
       const step = Math.floor(time * rate);
       vi = exc > 0.45 ? 1 + (step % 2) : step % 6 === 0 ? 1 : 0;
     }
-    ctx.drawImage(this.variants[vi], bx, by);
+    this.blitVisible(ctx, this.variants[vi], 0, 0, this.SW, this.SH, bx, by, cam);
+    const pr = this.pr;
+    this.blitVisible(ctx, this.pitchC, pr.x0, pr.y0, pr.x1 - pr.x0, pr.y1 - pr.y0, bx, by, cam);
 
     // LED boards (scrolling)
     const L = this.ledRect;
-    const off = Math.floor(time * 18) % this.led.width;
+    const lw = vw(this.led);
+    const off = (time * 18) % lw;
     ctx.save();
     ctx.beginPath();
     ctx.rect(bx + L.x0, by + L.y, L.x1 - L.x0, L.h);
     ctx.clip();
-    for (let x = L.x0 - off; x < L.x1; x += this.led.width) ctx.drawImage(this.led, bx + x, by + L.y);
+    for (let x = L.x0 - off; x < L.x1; x += lw) ctx.drawImage(this.led, bx + x, by + L.y);
+    // LED glow sheen
+    const sg = ctx.createLinearGradient(0, by + L.y, 0, by + L.y + L.h);
+    sg.addColorStop(0, 'rgba(255,255,255,0.18)');
+    sg.addColorStop(0.4, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(bx + L.x0, by + L.y, L.x1 - L.x0, L.h);
     ctx.restore();
 
     // camera flashes in the crowd
     if (m.excitement > 0.6 && settings.quality === 'high') {
       const n = Math.floor((m.excitement - 0.5) * 10);
-      ctx.fillStyle = '#ffffff';
+      ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < n; i++) {
         if (Math.random() > 0.4) continue;
         const r = this.standRects[Math.floor(Math.random() * this.standRects.length)];
-        const x = bx + r[0] + Math.floor(Math.random() * (r[2] - r[0]));
-        const y = by + r[1] + Math.floor(Math.random() * (r[3] - r[1]));
-        ctx.fillRect(x, y, 1, 1);
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.fillRect(x - 1, y, 3, 1);
-        ctx.fillRect(x, y - 1, 1, 3);
-        ctx.fillStyle = '#ffffff';
+        const x = bx + r[0] + Math.random() * (r[2] - r[0]);
+        const y = by + r[1] + Math.random() * (r[3] - r[1]);
+        const gr = ctx.createRadialGradient(x, y, 0, x, y, 4);
+        gr.addColorStop(0, 'rgba(255,255,255,0.95)');
+        gr.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gr;
+        ctx.fillRect(x - 4, y - 4, 8, 8);
       }
+      ctx.globalCompositeOperation = 'source-over';
     }
+
+    // goal backs
+    for (const s of [-1, 1]) this.drawGoal(ctx, cam, s, 'back', time);
 
     // shadows
     for (const p of m.all) {
       const lying = p.state === 'down' || p.state === 'slide' || p.state === 'dive' || p.state === 'recover';
-      const sh = lying ? shadow(11, 2) : shadow(6, 2);
-      ctx.drawImage(sh, cam.sx(p.x) - (sh.width >> 1) + 1, cam.sy(p.y) - (sh.height >> 1));
+      const k = clamp(1 - p.z * 0.4, 0.5, 1);
+      const sh = lying ? shadow(12 * k, 2.6 * k) : shadow(7 * k, 2.2 * k);
+      ctx.drawImage(sh, cam.sx(p.x) - vw(sh) / 2 + 1.5, cam.sy(p.y) - vh(sh) / 2);
     }
     const b = m.ball;
     {
       const k = clamp(1 - b.z / 5, 0.4, 1);
-      const sh = shadow(3 * k + 0.5, 1);
-      ctx.drawImage(sh, cam.sx(b.x) - (sh.width >> 1) + Math.round(b.z * 2), cam.sy(b.y) - (sh.height >> 1));
+      const sh = shadow(3.4 * k + 0.5, 1.4 * k + 0.2);
+      ctx.drawImage(sh, cam.sx(b.x) - vw(sh) / 2 + b.z * 2, cam.sy(b.y) - vh(sh) / 2);
     }
 
     this.drawGroundMarkers(ctx, cam, time);
@@ -561,16 +900,11 @@ export class Renderer {
     for (const p of m.all) ents.push({ y: p.y, draw: () => this.drawPlayer(ctx, cam, p, time) });
     const ballY = b.owner ? b.owner.y + (b.owner.faceY > 0 ? 0.05 : -0.05) : b.y;
     ents.push({ y: ballY, draw: () => this.drawBall(ctx, cam) });
-    for (const sx of [-1, 1]) for (const sy of [-1, 1]) ents.push({ y: sy * this.P.hh, draw: () => this.drawFlag(ctx, cam, sx * this.P.hw, sy * this.P.hh, time) });
+    for (const f of m.props.flags) ents.push({ y: f.broken ? f.y : f.hy, draw: () => this.drawFlag(ctx, cam, f, time) });
     ents.sort((a, c) => a.y - c.y);
     for (const e of ents) e.draw();
 
-    // goal fronts (with a little net shake after a goal)
-    this.goalFront.forEach((gf, i) => {
-      const s = i === 0 ? -1 : 1;
-      const shake = m.ball.inGoal === s && m.goalFlash > 0.3 ? Math.round(Math.sin(time * 60) * 1) : 0;
-      ctx.drawImage(gf.c, bx + gf.x + shake, by + gf.y);
-    });
+    for (const s of [-1, 1]) this.drawGoal(ctx, cam, s, 'front', time);
     ctx.drawImage(this.frontBoard.c, bx + this.frontBoard.x, by + this.frontBoard.y);
 
     this.drawOverheads(ctx, cam, time);
@@ -578,20 +912,12 @@ export class Renderer {
     this.drawPost(ctx, cam);
   }
 
-  private drawFlag(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: number, time: number) {
-    const X = cam.sx(x), Y = cam.sy(y);
-    ctx.fillStyle = '#120c1c';
-    ctx.fillRect(X - 1, Y - 21, 3, 22);
-    ctx.fillStyle = '#e8e8e8';
-    ctx.fillRect(X, Y - 20, 1, 21);
-    const t = x > 0 ? this.m.teams[1].def : this.m.teams[0].def;
-    const rp = ramp(t.primary);
-    const wave = Math.floor(time * 6 + x) % 3;
-    for (let i = 0; i < 7; i++) {
-      const off = Math.round(Math.sin(i * 0.9 + wave * 2.1));
-      ctx.fillStyle = css(rp[i < 2 ? 3 : 2]);
-      ctx.fillRect(X + 1 + i, Y - 20 + off, 1, 5 - Math.floor(i / 3));
-    }
+  /** Draw only the on-screen part of a big layer (stadium coords → screen). */
+  private blitVisible(ctx: CanvasRenderingContext2D, c: HiCanvas, sx: number, sy: number, w: number, h: number, bx: number, by: number, cam: Camera) {
+    const x0 = Math.max(sx, -bx), y0 = Math.max(sy, -by);
+    const x1 = Math.min(sx + w, cam.W - bx), y1 = Math.min(sy + h, cam.H - by);
+    if (x1 <= x0 || y1 <= y0) return;
+    ctx.drawImage(c, x0 - sx, y0 - sy, x1 - x0, y1 - y0, bx + x0, by + y0, x1 - x0, y1 - y0);
   }
 
   private frameFor(p: Player, time: number): string {
@@ -627,71 +953,102 @@ export class Renderer {
     let left = Math.cos(p.face) < 0;
     if (p.state === 'spin') left = Math.floor(p.stateT / 0.06) % 2 === 0 ? !left : left;
     const flash = p.state === 'down' && p.stateT < 0.1;
-    const row = (left ? 1 : 0) + (flash ? 2 : 0);
-    ctx.drawImage(sheet, fi * CELL_W, row * CELL_H, CELL_W, CELL_H, x - ANCHOR_X, y - ANCHOR_Y, CELL_W, CELL_H);
+    drawPlayerFrame(ctx, sheet, fi, x - ANCHOR_X, y - ANCHOR_Y, left, flash);
     if (p.frozen > 0) {
-      // ice block around the frozen player
       const lying = p.state === 'down' || p.state === 'recover';
       const w = lying ? 30 : 16, h = lying ? 12 : 30;
-      const bx = x - (w >> 1), by = y - h + 1;
-      ctx.globalAlpha = 0.55;
-      ctx.fillStyle = '#8ad8ff';
-      ctx.fillRect(bx, by, w, h);
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = '#e8f8ff';
-      ctx.fillRect(bx, by, w, 1);
-      ctx.fillRect(bx, by, 1, h);
-      ctx.fillRect(bx + 2, by + 2, 1, 4);
-      ctx.fillRect(bx + 3, by + 2, 2, 1);
-      ctx.fillStyle = '#2a78b8';
-      ctx.fillRect(bx + w - 1, by, 1, h);
-      ctx.fillRect(bx, by + h - 1, w, 1);
-      ctx.globalAlpha = 1;
+      const bx = x - w / 2, by = y - h + 1;
+      const gr = ctx.createLinearGradient(bx, by, bx + w, by + h);
+      gr.addColorStop(0, 'rgba(220,245,255,0.7)');
+      gr.addColorStop(1, 'rgba(90,180,240,0.55)');
+      ctx.fillStyle = gr;
+      roundRect(ctx, bx, by, w, h, 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(240,252,255,0.9)';
+      ctx.lineWidth = 0.7;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx + 2, by + 6);
+      ctx.lineTo(bx + 5, by + 2);
+      ctx.stroke();
     }
     if (p.star && p !== this.m.human && p.state !== 'down' && !this.m.replaying) {
-      // small star over the user's created player
-      ctx.fillStyle = '#120c1c';
-      ctx.fillRect(x - 2, y - 37, 5, 5);
-      ctx.fillStyle = '#ffe14d';
-      ctx.fillRect(x - 1, y - 36, 3, 3);
-      ctx.fillRect(x, y - 37, 1, 5);
-      ctx.fillRect(x - 2, y - 35, 5, 1);
+      const st = ringStar();
+      ctx.drawImage(st, x - vw(st) / 2, y - 39);
     }
   }
 
   private drawBall(ctx: CanvasRenderingContext2D, cam: Camera) {
     const b = this.m.ball;
     const x = cam.sx(b.x), y = cam.sy(b.y, b.z) - 4;
-    // motion trail
+    const fire = b.fire > 0;
+    // motion trail: tapered ribbon
     if (b.trail.length > 1) {
-      for (let i = 0; i < b.trail.length - 1; i++) {
-        const t = b.trail[i];
+      ctx.lineCap = 'round';
+      if (fire) ctx.globalCompositeOperation = 'lighter';
+      for (let i = 1; i < b.trail.length; i++) {
+        const a = b.trail[i - 1], c = b.trail[i];
         const k = i / b.trail.length;
-        ctx.fillStyle = b.fire > 0 ? (k > 0.5 ? '#ffd25a' : '#ff6a1a') : `rgba(255,255,255,${0.15 + k * 0.35})`;
-        const sz = b.fire > 0 ? 2 + Math.floor(k * 3) : 1 + Math.floor(k * 2);
-        ctx.fillRect(cam.sx(t.x) - (sz >> 1), cam.sy(t.y, t.z) - 4 - (sz >> 1), sz, sz);
+        ctx.strokeStyle = fire ? (k > 0.5 ? `rgba(255,210,90,${k})` : `rgba(255,106,26,${k})`) : `rgba(255,255,255,${(0.08 + k * 0.32).toFixed(3)})`;
+        ctx.lineWidth = fire ? 1.5 + k * 4 : 0.8 + k * 3;
+        ctx.beginPath();
+        ctx.moveTo(cam.sx(a.x), cam.sy(a.y, a.z) - 4);
+        ctx.lineTo(cam.sx(c.x), cam.sy(c.y, c.z) - 4);
+        ctx.stroke();
       }
+      ctx.globalCompositeOperation = 'source-over';
     }
-    const f = ballFrame(Math.floor(b.rot * 1.2), b.fire > 0);
-    ctx.drawImage(f, x - (BALL_SIZE >> 1), y - (BALL_SIZE >> 1));
+    if (fire) {
+      ctx.globalCompositeOperation = 'lighter';
+      const gr = ctx.createRadialGradient(x, y, 0, x, y, 14);
+      gr.addColorStop(0, 'rgba(255,190,80,0.6)');
+      gr.addColorStop(1, 'rgba(255,90,20,0)');
+      ctx.fillStyle = gr;
+      ctx.fillRect(x - 14, y - 14, 28, 28);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    const f = ballFrame(Math.floor(b.rot * 2.4), fire);
+    ctx.drawImage(f, x - BALL_SIZE / 2, y - BALL_SIZE / 2);
   }
 
   private drawGroundMarkers(ctx: CanvasRenderingContext2D, cam: Camera, time: number) {
     const m = this.m;
     const h = m.human;
-    if (m.passHint && h && m.ball.owner === h && Math.floor(time * 4) % 2 === 0) {
+    if (m.passHint && h && m.ball.owner === h) {
+      const a = 0.55 + Math.sin(time * 10) * 0.35;
+      ctx.globalAlpha = a;
       const r = ring(8, 3, '#ffffff');
-      ctx.drawImage(r, cam.sx(m.passHint.x) - (r.width >> 1), cam.sy(m.passHint.y) - (r.height >> 1) + 1);
+      ctx.drawImage(r, cam.sx(m.passHint.x) - vw(r) / 2, cam.sy(m.passHint.y) - vh(r) / 2 + 1);
+      ctx.globalAlpha = 1;
     }
     if (h && m.phase !== 'goal' && !m.replaying) {
-      const pulse = Math.floor(time * 4) % 2;
-      const r = ring(9 + pulse, 3 + pulse, '#ffe14d');
-      ctx.drawImage(r, cam.sx(h.x) - (r.width >> 1), cam.sy(h.y) - (r.height >> 1) + 1);
-      // facing tick
-      const fx = cam.sx(h.x + Math.cos(h.face) * 0.85), fy = cam.sy(h.y + Math.sin(h.face) * 0.85);
+      const pulse = (Math.sin(time * 7) + 1) / 2;
+      const X = cam.sx(h.x), Y = cam.sy(h.y) + 0.5;
+      ctx.save();
+      ctx.translate(X, Y);
+      ctx.scale(1, 0.36);
+      const gr = ctx.createRadialGradient(0, 0, 4, 0, 0, 11 + pulse);
+      gr.addColorStop(0, 'rgba(255,225,77,0)');
+      gr.addColorStop(0.75, 'rgba(255,225,77,0.25)');
+      gr.addColorStop(1, 'rgba(255,225,77,0)');
+      ctx.fillStyle = gr;
+      ctx.beginPath();
+      ctx.arc(0, 0, 12 + pulse, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = '#ffe14d';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 9 + pulse * 0.8, 0, TAU);
+      ctx.stroke();
+      // facing wedge
+      const a = Math.atan2(Math.sin(h.face), Math.cos(h.face));
       ctx.fillStyle = '#ffe14d';
-      ctx.fillRect(fx - 1, fy - 1, 2, 2);
-      // faint, elegant aim line toward where the ball would go
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * 14, Math.sin(a) * 14);
+      ctx.lineTo(Math.cos(a + 0.35) * 10.5, Math.sin(a + 0.35) * 10.5);
+      ctx.lineTo(Math.cos(a - 0.35) * 10.5, Math.sin(a - 0.35) * 10.5);
+      ctx.fill();
+      ctx.restore();
       if (settings.aimLine && m.aim && m.ball.owner === h) this.drawAimLine(ctx, cam, h, time);
     }
   }
@@ -707,13 +1064,12 @@ export class Renderer {
     const charging = h.chargeKind !== 'none';
     const lob = h.chargeKind === 'pass' && h.charge > 0.28;
     const arcH = lob ? 1.2 + h.charge * 1.6 : 0;
-    const base = a.kind === 'free' ? 0.28 : 0.42;
+    const base = a.kind === 'free' ? 0.28 : 0.45;
     const boost = charging ? Math.min(1, h.charge) * 0.35 : 0;
     const col = a.kind === 'shot' ? (charging ? '255,226,120' : '255,246,210') : '255,255,255';
-    // sample in screen space so dots are evenly spaced
     const x0 = cam.sx(h.x + ux * start), y0 = cam.sy(h.y + uy * start);
     const x1 = cam.sx(h.x + ux * end), y1 = cam.sy(h.y + uy * end);
-    const steps = Math.max(2, Math.floor(Math.hypot(x1 - x0, y1 - y0) / 3));
+    const steps = Math.max(2, Math.floor(Math.hypot(x1 - x0, y1 - y0) / 3.2));
     const march = (time * 10) % 1;
     for (let i = 0; i <= steps; i++) {
       const t = Math.min(1, (i + march) / steps);
@@ -721,21 +1077,23 @@ export class Renderer {
       const z = arcH ? 4 * arcH * t * (1 - t) : 0;
       const alpha = (base + boost) * (1 - t * 0.8);
       ctx.fillStyle = `rgba(${col},${alpha.toFixed(3)})`;
-      ctx.fillRect(cam.sx(wx), cam.sy(wy, z), 1, 1);
+      ctx.beginPath();
+      ctx.arc(cam.sx(wx), cam.sy(wy, z), 0.65, 0, TAU);
+      ctx.fill();
     }
-    // end marker
     const ex = cam.sx(h.x + ux * end), ey = cam.sy(h.y + uy * end);
     const ma = (base + boost) * 0.9;
-    ctx.fillStyle = `rgba(${col},${ma.toFixed(3)})`;
-    if (a.kind === 'pass') {
-      ctx.fillRect(ex - 2, ey, 1, 1);
-      ctx.fillRect(ex + 2, ey, 1, 1);
-      ctx.fillRect(ex, ey - 1, 1, 1);
-      ctx.fillRect(ex, ey + 1, 1, 1);
-    } else if (a.kind === 'shot') {
-      ctx.fillRect(ex - 1, ey, 3, 1);
-      ctx.fillRect(ex, ey - 1, 1, 3);
+    ctx.strokeStyle = `rgba(${col},${ma.toFixed(3)})`;
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    if (a.kind === 'pass') ctx.ellipse(ex, ey, 2.4, 1.2, 0, 0, TAU);
+    else if (a.kind === 'shot') {
+      ctx.moveTo(ex - 2, ey);
+      ctx.lineTo(ex + 2, ey);
+      ctx.moveTo(ex, ey - 1.6);
+      ctx.lineTo(ex, ey + 1.6);
     }
+    ctx.stroke();
   }
 
   private drawOverheads(ctx: CanvasRenderingContext2D, cam: Camera, time: number) {
@@ -743,74 +1101,71 @@ export class Renderer {
     const h = m.human;
     if (!h || m.phase === 'goal' || m.phase === 'over' || m.replaying) return;
     const x = cam.sx(h.x);
-    const top = cam.sy(h.y, h.z) - 40 - (Math.floor(time * 3) % 2);
+    const top = cam.sy(h.y, h.z) - 41 - Math.abs(Math.sin(time * 5)) * 1.5;
     if (x < 0 || x > cam.W || top < -10 || cam.sy(h.y) > cam.H + 10) {
-      // offscreen marker
       const cx = clamp(x, 10, cam.W - 10), cy = clamp(cam.sy(h.y, 1), 26, cam.H - 10);
       ctx.fillStyle = '#120c1c';
-      ctx.fillRect(cx - 7, cy - 6, 14, 12);
+      roundRect(ctx, cx - 7.5, cy - 6.5, 15, 13, 3);
+      ctx.fill();
       ctx.fillStyle = '#ffe14d';
-      ctx.fillRect(cx - 6, cy - 5, 12, 10);
-      drawText(ctx, String(h.number), cx, cy - 3, { color: '#120c1c', align: 'center', outline: null });
+      roundRect(ctx, cx - 6.5, cy - 5.5, 13, 11, 2.5);
+      ctx.fill();
+      drawText(ctx, String(h.number), cx, cy - 3.5, { color: '#120c1c', align: 'center', outline: null });
       return;
     }
     const ar = arrow('#ffe14d');
-    ctx.drawImage(ar, x - (ar.width >> 1), top);
-    // stamina
-    let yb = top - 5;
+    ctx.drawImage(ar, x - vw(ar) / 2, top);
+    let yb = top - 4;
+    const bar = (w: number, hh: number, k: number, fill: string | CanvasGradient) => {
+      ctx.fillStyle = 'rgba(18,12,28,0.85)';
+      roundRect(ctx, x - w / 2 - 1, yb - hh - 1, w + 2, hh + 2, (hh + 2) / 2);
+      ctx.fill();
+      if (k > 0) {
+        ctx.fillStyle = fill;
+        roundRect(ctx, x - w / 2, yb - hh, Math.max(hh, w * k), hh, hh / 2);
+        ctx.fill();
+      }
+    };
     if (h.stamina < 0.999) {
-      ctx.fillStyle = '#120c1c';
-      ctx.fillRect(x - 9, yb - 1, 18, 4);
-      ctx.fillStyle = '#2a3046';
-      ctx.fillRect(x - 8, yb, 16, 2);
-      ctx.fillStyle = h.exhausted ? (Math.floor(time * 8) % 2 ? '#ff5a4a' : '#a02a20') : '#5ff0a4';
-      ctx.fillRect(x - 8, yb, Math.round(16 * h.stamina), 2);
+      bar(16, 2, h.stamina, h.exhausted ? (Math.floor(time * 8) % 2 ? '#ff5a4a' : '#a02a20') : '#5ff0a4');
       yb -= 5;
     }
     if (h.chargeKind !== 'none') {
-      const w = 26, hh = 4;
-      ctx.fillStyle = '#120c1c';
-      ctx.fillRect(x - w / 2 - 1, yb - hh, w + 2, hh + 2);
-      ctx.fillStyle = '#2a3046';
-      ctx.fillRect(x - w / 2, yb - hh + 1, w, hh);
+      const w = 26;
       const max = h.chargeKind === 'shot' ? 1.3 : 1;
       const k = clamp(h.charge / max, 0, 1);
-      const n = Math.round(w * k);
-      for (let i = 0; i < n; i++) {
-        const t = i / w;
-        let c = '#7fd3ff';
-        if (h.chargeKind === 'shot') c = t < 0.45 ? '#5ff0a4' : t < 0.65 ? '#ffe14d' : t < 1 / 1.3 ? '#ff9a2e' : '#ff3b30';
-        ctx.fillStyle = c;
-        ctx.fillRect(x - w / 2 + i, yb - hh + 1, 1, hh);
+      let fill: string | CanvasGradient = '#7fd3ff';
+      if (h.chargeKind === 'shot') {
+        const gr = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+        gr.addColorStop(0, '#5ff0a4');
+        gr.addColorStop(0.45, '#5ff0a4');
+        gr.addColorStop(0.55, '#ffe14d');
+        gr.addColorStop(0.7, '#ff9a2e');
+        gr.addColorStop(1 / 1.3, '#ff9a2e');
+        gr.addColorStop(1 / 1.3 + 0.01, '#ff3b30');
+        gr.addColorStop(1, '#ff3b30');
+        fill = gr;
       }
+      bar(w, 3.5, k, fill);
       ctx.fillStyle = '#ffffff';
-      const mark = h.chargeKind === 'shot' ? Math.round(w / 1.3) : Math.round(w * 0.28);
-      ctx.fillRect(x - w / 2 + mark, yb - hh, 1, hh + 2);
+      const mark = h.chargeKind === 'shot' ? w / 1.3 : w * 0.28;
+      ctx.fillRect(x - w / 2 + mark - 0.4, yb - 5, 0.8, 6);
     }
   }
 
   private drawPost(ctx: CanvasRenderingContext2D, cam: Camera) {
     const W = cam.W, H = cam.H;
-    const key = `${W}x${H}`;
-    if (this.vigKey !== key) {
-      // dithered pixel vignette
-      const c = document.createElement('canvas');
-      c.width = W;
-      c.height = H;
-      const g = c.getContext('2d')!;
-      const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-      g.fillStyle = 'rgba(4,6,14,0.45)';
-      for (let y = 0; y < H; y++)
-        for (let x = 0; x < W; x++) {
-          const dx = (x - W / 2) / (W / 2), dy = (y - H / 2) / (H / 2);
-          const v = Math.max(0, Math.hypot(dx * 0.8, dy * 0.9) - 0.88) * 1.6;
-          if (v <= 0) continue;
-          if (v * 16 > BAYER[(y & 3) * 4 + (x & 3)]) g.fillRect(x, y, 1, 1);
-        }
-      this.vignette = c;
-      this.vigKey = key;
-    }
-    ctx.drawImage(this.vignette!, 0, 0);
+    const vg = ctx.createRadialGradient(W / 2, H * 0.55, Math.min(W, H) * 0.45, W / 2, H * 0.55, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(4,6,14,0)');
+    vg.addColorStop(1, 'rgba(4,6,14,0.5)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+    // gentle top haze from the floodlights
+    const hz = ctx.createLinearGradient(0, 0, 0, H * 0.35);
+    hz.addColorStop(0, 'rgba(255,244,214,0.06)');
+    hz.addColorStop(1, 'rgba(255,244,214,0)');
+    ctx.fillStyle = hz;
+    ctx.fillRect(0, 0, W, H * 0.35);
     const fx = this.m.fx;
     if (fx.flash > 0) {
       ctx.globalAlpha = Math.min(0.7, fx.flash * 0.6);
@@ -818,6 +1173,26 @@ export class Renderer {
       ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;
     }
-    void TAU;
   }
+}
+
+let starC: HiCanvas | null = null;
+function ringStar() {
+  if (starC) return starC;
+  const [c, g] = hiCanvas(7, 7);
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 ? 1.4 : 3.2;
+    g.lineTo(3.5 + Math.cos(a) * r, 3.7 + Math.sin(a) * r);
+  }
+  g.closePath();
+  g.lineJoin = 'round';
+  g.lineWidth = 0.9;
+  g.strokeStyle = '#120c1c';
+  g.stroke();
+  g.fillStyle = '#ffe14d';
+  g.fill();
+  starC = c;
+  return c;
 }

@@ -1,11 +1,12 @@
 /**
- * Procedural pixel-art footballer generator.
- * Each frame is a skeleton pose that is rasterized per-pixel with capsule shapes,
+ * Procedural footballer generator.
+ * Each frame is a skeleton pose that is rasterized (supersampled) with capsule shapes,
  * per-pixel lighting (normals vs. a top-left light), hue-shifted ramps,
  * kit patterns in torso-local space, inner contour lines and a selective outline.
  */
 import type { TeamDef } from '../game/teams';
 import { ramp, RGB, OUTLINE, mix } from './palette';
+import { spriteRes, HiCanvas } from '../engine/gfx';
 
 export const CELL_W = 40;
 export const CELL_H = 38;
@@ -135,48 +136,54 @@ function buildPose(p: PoseP, isGK: boolean): Joints {
 }
 
 // ------------------------------------------------------------------ raster
+// Rasterized at S× supersampling (S = spriteRes()). Joint coordinates stay in
+// virtual pixels; the buffer is S times larger.
 
 const R_JER = 0, R_JER2 = 1, R_SHORTS = 2, R_SOCK = 3, R_SKIN = 4, R_HAIR = 5, R_BOOT = 6, R_WHITE = 7, R_EYE = 8, R_MOUTH = 9;
 
+let S = 4;
+let BW = CELL_W * S, BH = CELL_H * S;
+
 class Buf {
-  ramp = new Int8Array(CELL_W * CELL_H).fill(-1);
-  tone = new Uint8Array(CELL_W * CELL_H);
-  layer = new Uint8Array(CELL_W * CELL_H);
+  ramp = new Int8Array(BW * BH).fill(-1);
+  tone = new Float32Array(BW * BH);
+  layer = new Uint8Array(BW * BH);
   set(x: number, y: number, r: number, tone: number, layer: number) {
-    if (x < 0 || y < 0 || x >= CELL_W || y >= CELL_H) return;
-    const i = y * CELL_W + x;
+    if (x < 0 || y < 0 || x >= BW || y >= BH) return;
+    const i = y * BW + x;
     this.ramp[i] = r;
     this.tone[i] = tone;
     this.layer[i] = layer;
   }
   get(x: number, y: number) {
-    if (x < 0 || y < 0 || x >= CELL_W || y >= CELL_H) return -1;
-    return this.ramp[y * CELL_W + x];
+    if (x < 0 || y < 0 || x >= BW || y >= BH) return -1;
+    return this.ramp[y * BW + x];
   }
 }
 
 const LX = -0.6, LY = -0.8; // light from the top-left
 
+/** Smooth shading: 0 = deep … 3 = highlight (fractional). */
 function toneFor(nx: number, ny: number, depth: number) {
-  if (depth < 0.32) return 2;
   const d = nx * LX + ny * LY;
-  if (d > 0.42) return 3;
-  if (d < -0.62 && depth > 0.6) return 1;
-  if (d < -0.25) return 1;
-  return 2;
+  const rim = Math.min(1, Math.max(0, (depth - 0.15) / 0.85));
+  const k = rim * rim * (3 - 2 * rim);
+  let t = 2.05 + (d > 0 ? d * 1.15 : d * 1.25) * k;
+  if (depth > 0.88 && d < 0) t -= 0.25;
+  return t;
 }
 
 /** Rasterize a capsule; colour(u, v) returns ramp index or -1 to skip. */
 function capsule(b: Buf, a: V, c: V, r: number, layer: number, colour: (u: number, v: number) => number, toneShift = 0) {
-  const minX = Math.floor(Math.min(a[0], c[0]) - r - 1), maxX = Math.ceil(Math.max(a[0], c[0]) + r + 1);
-  const minY = Math.floor(Math.min(a[1], c[1]) - r - 1), maxY = Math.ceil(Math.max(a[1], c[1]) + r + 1);
+  const minX = Math.floor((Math.min(a[0], c[0]) - r - 1) * S), maxX = Math.ceil((Math.max(a[0], c[0]) + r + 1) * S);
+  const minY = Math.floor((Math.min(a[1], c[1]) - r - 1) * S), maxY = Math.ceil((Math.max(a[1], c[1]) + r + 1) * S);
   const dx = c[0] - a[0], dy = c[1] - a[1];
   const l2 = dx * dx + dy * dy || 1e-6;
   const len = Math.sqrt(l2);
   const px_ = -dy / len, py_ = dx / len; // perpendicular
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
-      const cx = x + 0.5, cy = y + 0.5;
+      const cx = (x + 0.5) / S, cy = (y + 0.5) / S;
       let t = ((cx - a[0]) * dx + (cy - a[1]) * dy) / l2;
       t = t < 0 ? 0 : t > 1 ? 1 : t;
       const qx = a[0] + dx * t, qy = a[1] + dy * t;
@@ -187,26 +194,30 @@ function capsule(b: Buf, a: V, c: V, r: number, layer: number, colour: (u: numbe
       const col = colour(t, v);
       if (col < 0) continue;
       const nx = d > 0.01 ? ex / d : 0, ny = d > 0.01 ? ey / d : 0;
-      const tone = Math.max(0, Math.min(3, toneFor(nx, ny, d / r) + toneShift));
+      const tone = Math.max(0, Math.min(3, toneFor(nx, ny, d / r) + toneShift * 0.7));
       b.set(x, y, col, tone, layer);
     }
   }
 }
 
 export interface BuiltSheet {
-  canvas: HTMLCanvasElement; // rows: 0 right, 1 left, 2 flash right, 3 flash left
+  /** one row of frames facing right (mirror for left); supersampled (`__s`) */
+  canvas: HiCanvas;
 }
 
 const sheetCache = new Map<string, BuiltSheet>();
 
 export function lookKey(l: PlayerLook) {
-  return `${l.kit.id}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}`;
+  return `${l.kit.id}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}|${spriteRes()}`;
 }
 
 export function playerSheet(look: PlayerLook): BuiltSheet {
   const key = lookKey(look);
   const hit = sheetCache.get(key);
   if (hit) return hit;
+  S = spriteRes();
+  BW = CELL_W * S;
+  BH = CELL_H * S;
   const kit = look.kit;
   const ramps: RGB[][] = [];
   ramps[R_JER] = ramp(look.isGK ? kit.gk : kit.primary);
@@ -220,36 +231,60 @@ export function playerSheet(look: PlayerLook): BuiltSheet {
   ramps[R_EYE] = ramp('#16121e');
   ramps[R_MOUTH] = ramp('#8a2030');
 
-  const c = document.createElement('canvas');
-  c.width = CELL_W * FRAME_COUNT;
-  c.height = CELL_H * 4;
+  const c = document.createElement('canvas') as HiCanvas;
+  c.width = BW * FRAME_COUNT;
+  c.height = BH;
+  c.__s = S;
   const g = c.getContext('2d')!;
-  const img = g.createImageData(CELL_W, CELL_H);
+  const img = g.createImageData(BW, BH);
 
   POSES.forEach(([, pose], fi) => {
     const J = buildPose(pose, look.isGK);
     const b = new Buf();
     drawBody(b, J, look);
     finalize(b, ramps, img);
-    g.putImageData(img, fi * CELL_W, 0);
+    g.putImageData(img, fi * BW, 0);
   });
-  // mirrored row
-  g.save();
-  g.translate(c.width, 0);
-  g.scale(-1, 1);
-  for (let fi = 0; fi < FRAME_COUNT; fi++) {
-    g.drawImage(c, fi * CELL_W, 0, CELL_W, CELL_H, c.width - (fi + 1) * CELL_W, CELL_H, CELL_W, CELL_H);
-  }
-  g.restore();
-  // white flash rows
-  g.drawImage(c, 0, 0, c.width, CELL_H * 2, 0, CELL_H * 2, c.width, CELL_H * 2);
-  g.globalCompositeOperation = 'source-atop';
-  g.fillStyle = '#ffffff';
-  g.fillRect(0, CELL_H * 2, c.width, CELL_H * 2);
-  g.globalCompositeOperation = 'source-over';
   const built = { canvas: c };
+  if (sheetCache.size > 40) sheetCache.clear();
   sheetCache.set(key, built);
   return built;
+}
+
+let flashC: HiCanvas | null = null;
+/**
+ * Draw one frame of a player sheet at virtual position (x, y) = top-left of the cell.
+ * Handles mirroring and the white hit-flash.
+ */
+export function drawPlayerFrame(ctx: CanvasRenderingContext2D, sheet: HiCanvas, frame: number, x: number, y: number, left: boolean, flash = false, scale = 1) {
+  let src: HiCanvas = sheet;
+  let sx = frame * CELL_W;
+  if (flash) {
+    const s = sheet.__s ?? 1;
+    if (!flashC || flashC.__s !== s) {
+      flashC = document.createElement('canvas') as HiCanvas;
+      flashC.width = CELL_W * s;
+      flashC.height = CELL_H * s;
+      flashC.__s = s;
+    }
+    const fg = flashC.getContext('2d')!;
+    fg.globalCompositeOperation = 'source-over';
+    fg.clearRect(0, 0, flashC.width, flashC.height);
+    fg.drawImage(sheet, sx, 0, CELL_W, CELL_H, 0, 0, flashC.width, flashC.height);
+    fg.globalCompositeOperation = 'source-atop';
+    fg.fillStyle = '#ffffff';
+    fg.fillRect(0, 0, flashC.width, flashC.height);
+    src = flashC;
+    sx = 0;
+  }
+  const w = CELL_W * scale, h = CELL_H * scale;
+  if (left) {
+    ctx.save();
+    ctx.translate(x + w, y);
+    ctx.scale(-1, 1);
+    ctx.drawImage(src, sx, 0, CELL_W, CELL_H, 0, 0, w, h);
+    ctx.restore();
+  } else ctx.drawImage(src, sx, 0, CELL_W, CELL_H, x, y, w, h);
 }
 
 function darken(hex: string) {
@@ -332,10 +367,10 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
       default: return false;
     }
   };
-  const minX = Math.floor(hx - 8), maxX = Math.ceil(hx + 8), minY = Math.floor(hy - 8), maxY = Math.ceil(hy + 8);
+  const minX = Math.floor((hx - 8) * S), maxX = Math.ceil((hx + 8) * S), minY = Math.floor((hy - 8) * S), maxY = Math.ceil((hy + 8) * S);
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
-      const dx = x + 0.5 - hx, dy = y + 0.5 - hy;
+      const dx = (x + 0.5) / S - hx, dy = (y + 0.5) / S - hy;
       const lx = dx * ca - dy * sa, ly = dx * sa + dy * ca;
       const d = Math.hypot(dx, dy);
       const inHead = d <= R;
@@ -349,14 +384,14 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
         tone = toneFor(d > 0 ? dx / d : 0, d > 0 ? dy / d : 0, d / R);
         if (look.beard && ly > 1.3 && lx > -1.6 && inHead) {
           col = R_HAIR;
-          tone = 1;
+          tone = 1.3;
         }
         if (st === 6 && ly > -1.9 && ly < -0.8 && inHead) {
           col = R_JER2;
           tone = 2;
         }
         // ear
-        if (Math.abs(lx + 0.7) < 0.75 && Math.abs(ly - 0.4) < 0.9 && col === R_SKIN) tone = 1;
+        if (Math.abs(lx + 0.7) < 0.75 && Math.abs(ly - 0.4) < 0.9 && col === R_SKIN) tone = Math.min(tone, 1.4);
       }
       if (col < 0) continue;
       b.set(x, y, col, tone, 6);
@@ -365,11 +400,16 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
   // face features (in local coords -> pixel)
   const P = (lx: number, ly: number): [number, number] => {
     const c2 = Math.cos(J.headAng), s2 = Math.sin(J.headAng);
-    return [Math.floor(hx + lx * c2 - ly * s2), Math.floor(hy + lx * s2 + ly * c2)];
+    return [hx + lx * c2 - ly * s2, hy + lx * s2 + ly * c2];
   };
+  // a facial feature = a small soft-cornered blob (~1 virtual px) at hi-res
   const dot = (lx: number, ly: number, r: number, tone = 2) => {
     const [x, y] = P(lx, ly);
-    b.set(x, y, r, tone, 6);
+    const cx = (Math.floor(x) + 0.5) * S, cy = (Math.floor(y) + 0.5) * S;
+    const rad = S * 0.62;
+    for (let yy = Math.floor(cy - rad); yy <= Math.ceil(cy + rad); yy++)
+      for (let xx = Math.floor(cx - rad); xx <= Math.ceil(cx + rad); xx++)
+        if (Math.hypot(xx + 0.5 - cx, yy + 0.5 - cy) <= rad) b.set(xx, yy, r, tone, 6);
   };
   // eye white for readability (not when knocked out)
   if (J.face !== 'ko') dot(1.4, -0.3, R_WHITE, 3);
@@ -396,51 +436,91 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
   }
 }
 
+const offCache = new Map<number, Int32Array>();
+/** (dx, dy, dist*1000) offsets within radius r, sorted by distance */
+function offsets(r: number) {
+  let o = offCache.get(r);
+  if (o) return o;
+  const list: [number, number, number][] = [];
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if ((dx || dy) && Math.hypot(dx, dy) <= r + 0.5) list.push([dx, dy, Math.hypot(dx, dy)]);
+  list.sort((p, q) => p[2] - q[2]);
+  o = new Int32Array(list.length * 3);
+  list.forEach(([dx, dy, d], i) => {
+    o![i * 3] = dx;
+    o![i * 3 + 1] = dy;
+    o![i * 3 + 2] = Math.round(d * 1000);
+  });
+  offCache.set(r, o);
+  return o;
+}
+
 function finalize(b: Buf, ramps: RGB[][], img: ImageData) {
-  const W = CELL_W, H = CELL_H;
+  const W = BW, H = BH;
+  const R = b.ramp;
+  // bounding box of the body
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++)
+      if (R[y * W + x] >= 0) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+  const d = img.data;
+  d.fill(0);
+  if (x1 < 0) return;
   // inner contours: front parts darken the edge of what is behind them
   const tone = b.tone.slice();
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
+  const cw = Math.max(1, Math.round(S * 0.45));
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
       const i = y * W + x;
-      if (b.ramp[i] < 0) continue;
+      if (R[i] < 0) continue;
       const L = b.layer[i];
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const nx = x + dx, ny = y + dy;
+      for (let k = 1; k <= cw; k++) {
+        const t = 0.35 + (k - 1) * 0.5;
+        for (let q = 0; q < 4; q++) {
+          const nx = x + (q === 0 ? k : q === 1 ? -k : 0), ny = y + (q === 2 ? k : q === 3 ? -k : 0);
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const j = ny * W + nx;
+          if (R[j] < 0) continue;
+          const L2 = b.layer[j];
+          if (L2 < L && !(L === 4 && L2 === 3) && tone[j] > t) tone[j] = t;
+        }
+      }
+    }
+  }
+  const ow = Math.max(1, Math.round(S * 0.7));
+  const off = offsets(ow);
+  const n = off.length / 3;
+  const ya = Math.max(0, y0 - ow), yb = Math.min(H - 1, y1 + ow), xa = Math.max(0, x0 - ow), xb = Math.min(W - 1, x1 + ow);
+  for (let y = ya; y <= yb; y++)
+    for (let x = xa; x <= xb; x++) {
+      const i = y * W + x;
+      const o = i * 4;
+      const r = R[i];
+      if (r >= 0) {
+        const t = Math.max(0, Math.min(3, tone[i]));
+        const lo = Math.floor(t), hi = Math.min(3, lo + 1), f = t - lo;
+        const A = ramps[r][lo], B = ramps[r][hi];
+        d[o] = A[0] + (B[0] - A[0]) * f;
+        d[o + 1] = A[1] + (B[1] - A[1]) * f;
+        d[o + 2] = A[2] + (B[2] - A[2]) * f;
+        d[o + 3] = 255;
+        continue;
+      }
+      // outline: nearest filled pixel within ow (offsets sorted by distance)
+      for (let k = 0; k < n; k++) {
+        const nx = x + off[k * 3], ny = y + off[k * 3 + 1];
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-        const j = ny * W + nx;
-        if (b.ramp[j] < 0) continue;
-        const L2 = b.layer[j];
-        if (L2 < L && !(L === 4 && L2 === 3)) {
-          tone[j] = 0;
-        }
+        const v = R[ny * W + nx];
+        if (v < 0) continue;
+        const dist = off[k * 3 + 2] / 1000;
+        const c = mix(ramps[v][0], OUTLINE, 0.65);
+        d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2];
+        d[o + 3] = Math.round(255 * Math.min(1, Math.max(0, ow + 0.5 - dist)));
+        break;
       }
     }
-  }
-  const d = img.data;
-  for (let i = 0; i < W * H; i++) {
-    const r = b.ramp[i];
-    const o = i * 4;
-    if (r >= 0) {
-      const c = ramps[r][tone[i]];
-      d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
-    } else {
-      // outline if any 4-neighbour is filled
-      const x = i % W, y = (i / W) | 0;
-      let nb = -1;
-      for (const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1]]) {
-        const v = b.get(x + dx, y + dy);
-        if (v >= 0) {
-          nb = v;
-          break;
-        }
-      }
-      if (nb >= 0) {
-        const c = mix(ramps[nb][0], OUTLINE, 0.6);
-        d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
-      } else {
-        d[o + 3] = 0;
-      }
-    }
-  }
 }

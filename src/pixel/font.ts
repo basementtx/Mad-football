@@ -1,120 +1,36 @@
 /**
- * Hand-made 5x7 bitmap font with Turkish glyphs. Text is rasterized into cached
- * canvases (with optional outline / two-tone fill) and blitted at integer coords,
- * so it stays perfectly crisp on the low-res pixel framebuffer.
+ * Game text rendering (vector). Text is rendered with the "Lilita One" display
+ * face into supersampled cached canvases with an outline, optional two-tone
+ * gradient fill and a drop shadow.
+ *
+ * The API keeps the old bitmap-font metrics: `scale` 1 ≈ 7 virtual px cap height,
+ * `y` is the cap-top of the text.
  */
 import { settings } from '../engine/storage';
+import { hiCanvas, HiCanvas, spriteRes } from '../engine/gfx';
 
-const G: Record<string, string[]> = {
-  A: ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
-  B: ['####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'],
-  C: ['.###.', '#...#', '#....', '#....', '#....', '#...#', '.###.'],
-  D: ['####.', '#...#', '#...#', '#...#', '#...#', '#...#', '####.'],
-  E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
-  F: ['#####', '#....', '#....', '####.', '#....', '#....', '#....'],
-  G: ['.###.', '#...#', '#....', '#.###', '#...#', '#...#', '.####'],
-  H: ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
-  I: ['###', '.#.', '.#.', '.#.', '.#.', '.#.', '###'],
-  J: ['..###', '...#.', '...#.', '...#.', '#..#.', '#..#.', '.##..'],
-  K: ['#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'],
-  L: ['#....', '#....', '#....', '#....', '#....', '#....', '#####'],
-  M: ['#...#', '##.##', '#.#.#', '#.#.#', '#...#', '#...#', '#...#'],
-  N: ['#...#', '#...#', '##..#', '#.#.#', '#..##', '#...#', '#...#'],
-  O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
-  P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
-  Q: ['.###.', '#...#', '#...#', '#...#', '#.#.#', '#..#.', '.##.#'],
-  R: ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'],
-  S: ['.####', '#....', '#....', '.###.', '....#', '....#', '####.'],
-  T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
-  U: ['#...#', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
-  V: ['#...#', '#...#', '#...#', '#...#', '#...#', '.#.#.', '..#..'],
-  W: ['#...#', '#...#', '#...#', '#.#.#', '#.#.#', '#.#.#', '.#.#.'],
-  X: ['#...#', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '#...#'],
-  Y: ['#...#', '#...#', '.#.#.', '..#..', '..#..', '..#..', '..#..'],
-  Z: ['#####', '....#', '...#.', '..#..', '.#...', '#....', '#####'],
-  '0': ['.###.', '#...#', '#..##', '#.#.#', '##..#', '#...#', '.###.'],
-  '1': ['.#.', '##.', '.#.', '.#.', '.#.', '.#.', '###'],
-  '2': ['.###.', '#...#', '....#', '...#.', '..#..', '.#...', '#####'],
-  '3': ['####.', '....#', '....#', '.###.', '....#', '....#', '####.'],
-  '4': ['...#.', '..##.', '.#.#.', '#..#.', '#####', '...#.', '...#.'],
-  '5': ['#####', '#....', '####.', '....#', '....#', '#...#', '.###.'],
-  '6': ['.###.', '#....', '#....', '####.', '#...#', '#...#', '.###.'],
-  '7': ['#####', '....#', '...#.', '..#..', '.#...', '.#...', '.#...'],
-  '8': ['.###.', '#...#', '#...#', '.###.', '#...#', '#...#', '.###.'],
-  '9': ['.###.', '#...#', '#...#', '.####', '....#', '....#', '.###.'],
-  '!': ['#', '#', '#', '#', '#', '.', '#'],
-  '?': ['.###.', '#...#', '....#', '...#.', '..#..', '.....', '..#..'],
-  '.': ['.', '.', '.', '.', '.', '.', '#'],
-  ',': ['..', '..', '..', '..', '..', '.#', '#.'],
-  ':': ['.', '.', '#', '.', '.', '#', '.'],
-  ';': ['..', '..', '.#', '..', '..', '.#', '#.'],
-  '-': ['....', '....', '....', '####', '....', '....', '....'],
-  '+': ['.....', '..#..', '..#..', '#####', '..#..', '..#..', '.....'],
-  '/': ['....#', '...#.', '...#.', '..#..', '.#...', '.#...', '#....'],
-  "'": ['#', '#', '.', '.', '.', '.', '.'],
-  '"': ['#.#', '#.#', '...', '...', '...', '...', '...'],
-  '%': ['##..#', '##..#', '...#.', '..#..', '.#...', '#..##', '#..##'],
-  '#': ['.#.#.', '#####', '.#.#.', '.#.#.', '#####', '.#.#.', '.....'],
-  '×': ['.....', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '.....'],
-  '•': ['..', '..', '..', '##', '##', '..', '..'],
-  '(': ['.#', '#.', '#.', '#.', '#.', '#.', '.#'],
-  ')': ['#.', '.#', '.#', '.#', '.#', '.#', '#.'],
-  '▶': ['#...', '##..', '###.', '####', '###.', '##..', '#...'],
-  '◀': ['...#', '..##', '.###', '####', '.###', '..##', '...#'],
-  '★': ['..#..', '..#..', '#####', '.###.', '.###.', '##.##', '#...#'],
-  '♥': ['.....', '##.##', '#####', '#####', '.###.', '..#..', '.....'],
-  '_': ['.....', '.....', '.....', '.....', '.....', '.....', '#####'],
-  '=': ['....', '....', '####', '....', '####', '....', '....'],
-  ' ': ['...', '...', '...', '...', '...', '...', '...'],
-};
-
-// Accented letters: base glyph + extra pixels (x, y) where y<0 is above, y>6 below.
-const ACC: Record<string, [string, [number, number][]]> = {
-  Ç: ['C', [[2, 7], [1, 8]]],
-  Ş: ['S', [[2, 7], [1, 8]]],
-  Ğ: ['G', [[1, -2], [2, -2], [3, -2]]],
-  İ: ['I', [[1, -2]]],
-  Ö: ['O', [[1, -2], [3, -2]]],
-  Ü: ['U', [[1, -2], [3, -2]]],
-  Â: ['A', [[1, -2], [2, -3], [3, -2]]],
-};
-
-export const FONT_H = 7;
-/** total box height including accents */
-export const LINE_H = 11;
-const TOP = 3; // pixels reserved above cap height
-
-interface Glyph {
-  w: number;
-  px: [number, number][];
-}
-
-const cache = new Map<string, Glyph>();
-
-function glyph(ch: string): Glyph {
-  let g = cache.get(ch);
-  if (g) return g;
-  const acc = ACC[ch];
-  const base = G[acc ? acc[0] : ch] ?? G['?'];
-  const px: [number, number][] = [];
-  base.forEach((row, y) => {
-    for (let x = 0; x < row.length; x++) if (row[x] === '#') px.push([x, y]);
-  });
-  if (acc) for (const p of acc[1]) px.push(p);
-  g = { w: base[0].length, px };
-  cache.set(ch, g);
-  return g;
-}
+const FAMILY = '"Lilita One", "Rubik", system-ui, sans-serif';
+/** cap height per scale unit (virtual px) */
+const CAP = 7;
+/** font px per cap px */
+const EM = 1 / 0.7;
+const TOP = 3;
 
 export function upper(s: string) {
   return s.toLocaleUpperCase(settings.lang === 'tr' ? 'tr-TR' : 'en-US');
 }
 
+let mctx: CanvasRenderingContext2D | null = null;
+function fontFor(scale: number) {
+  return `${(CAP * scale * EM).toFixed(2)}px ${FAMILY}`;
+}
+
 export function measure(text: string, scale = 1) {
+  if (typeof document === 'undefined') return text.length * 6 * scale;
+  if (!mctx) mctx = document.createElement('canvas').getContext('2d')!;
+  mctx.font = fontFor(scale);
   const s = upper(text);
-  let w = 0;
-  for (const ch of s) w += glyph(ch).w + 1;
-  return Math.max(0, w - 1) * scale;
+  return mctx.measureText(s).width + s.length * 0.35 * scale;
 }
 
 export interface TextOpts {
@@ -123,49 +39,75 @@ export interface TextOpts {
   color2?: string;
   scale?: number;
   outline?: string | null;
-  /** outline thickness in output pixels */
+  /** outline thickness in virtual pixels */
   thick?: number;
   shadow?: string | null;
   align?: 'left' | 'center' | 'right';
 }
 
-const textCache = new Map<string, HTMLCanvasElement>();
+const textCache = new Map<string, HiCanvas>();
 
-export function textCanvas(text: string, o: TextOpts = {}): HTMLCanvasElement {
+export function clearTextCache() {
+  textCache.clear();
+}
+
+/** Returns a supersampled canvas; padding = thick + shadow on every side. */
+export function textCanvas(text: string, o: TextOpts = {}): HiCanvas {
   const scale = o.scale ?? 1;
   const color = o.color ?? '#fff';
   const outline = o.outline === undefined ? '#120c1c' : o.outline;
-  const thick = outline ? o.thick ?? Math.max(1, Math.round(scale / 2)) : 0;
+  const thick = outline ? o.thick ?? Math.max(1, scale / 2) : 0;
   const shadow = o.shadow ?? null;
-  const key = `${text}|${color}|${o.color2}|${scale}|${outline}|${thick}|${shadow}|${settings.lang}`;
+  const key = `${text}|${color}|${o.color2}|${scale}|${outline}|${thick}|${shadow}|${settings.lang}|${settings.quality}`;
   const hit = textCache.get(key);
   if (hit) return hit;
   const s = upper(text);
   const w = measure(text, scale);
-  const sh = shadow ? Math.max(1, Math.round(scale / 2)) : 0;
-  const c = document.createElement('canvas');
-  c.width = w + thick * 2 + sh;
-  c.height = LINE_H * scale + thick * 2 + sh;
-  const g = c.getContext('2d')!;
-  const stamp = (ox: number, oy: number, col: string, col2?: string) => {
-    let x = 0;
-    for (const ch of s) {
-      const gl = glyph(ch);
-      for (const [px, py] of gl.px) {
-        g.fillStyle = col2 && py >= 4 ? col2 : col;
-        g.fillRect(ox + (x + px) * scale, oy + (py + TOP) * scale, scale, scale);
-      }
-      x += gl.w + 1;
-    }
-  };
+  const sh = shadow ? Math.max(1, scale * 0.6) : 0;
+  const pad = thick + 1;
+  const capH = CAP * scale;
+  const H = (CAP + TOP + 1) * scale + pad * 2 + sh + 2;
+  const res = Math.max(spriteRes(), scale <= 1 ? 4 : 3);
+  const [c, g] = hiCanvas(w + pad * 2 + sh + 2, H, res);
+  g.font = fontFor(scale);
+  g.textBaseline = 'alphabetic';
+  g.lineJoin = 'round';
+  g.miterLimit = 2;
+  if ('letterSpacing' in g) (g as unknown as { letterSpacing: string }).letterSpacing = `${(0.35 * scale).toFixed(2)}px`;
+  const bx = pad, by = pad + TOP * scale + capH;
   if (shadow) {
-    for (let dy = -thick; dy <= thick; dy++) for (let dx = -thick; dx <= thick; dx++) stamp(thick + dx + sh, thick + dy + sh, shadow);
+    g.fillStyle = shadow;
+    g.strokeStyle = shadow;
+    g.lineWidth = thick * 2;
+    if (thick) g.strokeText(s, bx + sh, by + sh);
+    g.fillText(s, bx + sh, by + sh);
   }
   if (outline) {
-    for (let dy = -thick; dy <= thick; dy++) for (let dx = -thick; dx <= thick; dx++) if (dx || dy) stamp(thick + dx, thick + dy, outline);
+    g.strokeStyle = outline;
+    g.lineWidth = thick * 2;
+    g.strokeText(s, bx, by);
   }
-  stamp(thick, thick, color, o.color2);
-  if (textCache.size > 400) textCache.clear();
+  if (o.color2) {
+    const gr = g.createLinearGradient(0, by - capH, 0, by);
+    gr.addColorStop(0, color);
+    gr.addColorStop(0.5, color);
+    gr.addColorStop(0.62, o.color2);
+    gr.addColorStop(1, o.color2);
+    g.fillStyle = gr;
+  } else g.fillStyle = color;
+  g.fillText(s, bx, by);
+  if (scale >= 2) {
+    // glossy highlight on big text
+    g.save();
+    g.globalCompositeOperation = 'source-atop';
+    const hl = g.createLinearGradient(0, by - capH, 0, by - capH * 0.45);
+    hl.addColorStop(0, 'rgba(255,255,255,0.35)');
+    hl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = hl;
+    g.fillRect(0, by - capH - 2, w + pad * 2, capH * 0.55 + 2);
+    g.restore();
+  }
+  if (textCache.size > 500) textCache.clear();
   textCache.set(key, c);
   return c;
 }
@@ -174,10 +116,13 @@ export function textCanvas(text: string, o: TextOpts = {}): HTMLCanvasElement {
 export function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, o: TextOpts = {}) {
   const c = textCanvas(text, o);
   const scale = o.scale ?? 1;
-  const thick = o.outline === null ? 0 : o.thick ?? Math.max(1, Math.round(scale / 2));
-  let dx = Math.round(x) - thick;
-  if (o.align === 'center') dx = Math.round(x - (c.width - thick * 2) / 2) - thick;
-  else if (o.align === 'right') dx = Math.round(x - (c.width - thick * 2)) - thick;
-  ctx.drawImage(c, dx, Math.round(y) - TOP * scale - thick);
-  return c.width;
+  const outline = o.outline === undefined ? '#120c1c' : o.outline;
+  const thick = outline ? o.thick ?? Math.max(1, scale / 2) : 0;
+  const pad = thick + 1;
+  const w = measure(text, scale);
+  let dx = x - pad;
+  if (o.align === 'center') dx = x - w / 2 - pad;
+  else if (o.align === 'right') dx = x - w - pad;
+  ctx.drawImage(c, dx, y - TOP * scale - pad);
+  return w;
 }

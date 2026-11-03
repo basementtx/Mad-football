@@ -6,6 +6,7 @@ import { t } from '../engine/i18n';
 import { drawText, measure } from '../pixel/font';
 import { disc, ringDisc } from '../pixel/props';
 import { ramp, css } from '../pixel/palette';
+import { vw, vh, roundRect } from '../engine/gfx';
 
 export interface BtnLabel {
   text: string;
@@ -15,17 +16,23 @@ export interface BtnLabel {
 
 const INK = '#120c1c';
 
-/** Bevelled pixel panel. */
+/** Rounded glossy panel. */
 export function panel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill = '#1b2236', light = '#2e3a58', dark = '#0b0f1a') {
-  ctx.fillStyle = INK;
-  ctx.fillRect(x - 1, y, w + 2, h);
-  ctx.fillRect(x, y - 1, w, h + 2);
-  ctx.fillStyle = fill;
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = light;
-  ctx.fillRect(x, y, w, 1);
-  ctx.fillStyle = dark;
-  ctx.fillRect(x, y + h - 1, w, 1);
+  const r = Math.min(4, h / 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  roundRect(ctx, x - 0.5, y + 0.8, w + 1, h + 1, r + 0.5);
+  ctx.fill();
+  const gr = ctx.createLinearGradient(0, y, 0, y + h);
+  gr.addColorStop(0, light);
+  gr.addColorStop(0.45, fill);
+  gr.addColorStop(1, dark);
+  ctx.fillStyle = gr;
+  roundRect(ctx, x, y, w, h, r);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+  ctx.lineWidth = 0.6;
+  roundRect(ctx, x + 0.3, y + 0.3, w - 0.6, h - 0.6, r);
+  ctx.stroke();
 }
 
 export function drawHUD(ctx: CanvasRenderingContext2D, m: Match, input: Input, W: number, H: number, time: number, labels: Record<BtnId, BtnLabel> | null) {
@@ -53,12 +60,17 @@ function drawScoreboard(ctx: CanvasRenderingContext2D, m: Match, W: number, top:
   panel(ctx, x, y, w, hh);
   for (const [tx, team, inner] of [[x, h, x + 4], [x + w - 4, a, x + w - 5]] as const) {
     const rp = ramp(team.def.primary);
-    ctx.fillStyle = css(rp[2]);
+    ctx.save();
+    roundRect(ctx, x, y, w, hh, 4);
+    ctx.clip();
+    const tg = ctx.createLinearGradient(0, y, 0, y + hh);
+    tg.addColorStop(0, css(rp[3]));
+    tg.addColorStop(1, css(rp[1]));
+    ctx.fillStyle = tg;
     ctx.fillRect(tx, y, 4, hh);
-    ctx.fillStyle = css(rp[3]);
-    ctx.fillRect(tx, y, 4, 1);
     ctx.fillStyle = team.def.secondary;
     ctx.fillRect(inner, y, 1, hh);
+    ctx.restore();
   }
   drawText(ctx, h.def.short, x + 9, y + 4, { color: '#fff', outline: null });
   drawText(ctx, a.def.short, x + w - 8, y + 4, { color: '#fff', outline: null, align: 'right' });
@@ -123,13 +135,15 @@ function drawRage(ctx: CanvasRenderingContext2D, m: Match, W: number, H: number,
     const k = clamp(n - i, 0, 1);
     const col = full ? (Math.floor(time * 8 + i) % 2 ? '#ffe14d' : '#ff8a1f') : i < 4 ? '#ff3b1f' : i < 7 ? '#ff6a1f' : '#ffa21f';
     ctx.fillStyle = '#2a1a1a';
-    ctx.fillRect(x + i * (sw + gap), y, sw, 4);
+    roundRect(ctx, x + i * (sw + gap), y, sw, 4, 1.2);
+    ctx.fill();
     if (k > 0) {
-      const ww = Math.max(1, Math.round(sw * k));
+      const ww = Math.max(1, sw * k);
       ctx.fillStyle = col;
-      ctx.fillRect(x + i * (sw + gap), y, ww, 4);
-      ctx.fillStyle = 'rgba(255,255,255,0.45)';
-      ctx.fillRect(x + i * (sw + gap), y, ww, 1);
+      roundRect(ctx, x + i * (sw + gap), y, ww, 4, 1.2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(x + i * (sw + gap) + 0.5, y + 0.4, Math.max(0, ww - 1), 1);
     }
   }
   const label = full ? t().rageReady : t().rage;
@@ -140,8 +154,10 @@ function drawPauseBtn(ctx: CanvasRenderingContext2D, input: Input) {
   const r = input.pauseRect;
   panel(ctx, r.x, r.y, r.w, r.h);
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(r.x + 5, r.y + 4, 2, r.h - 8);
-  ctx.fillRect(r.x + r.w - 7, r.y + 4, 2, r.h - 8);
+  roundRect(ctx, r.x + 5, r.y + 4, 2, r.h - 8, 0.8);
+  ctx.fill();
+  roundRect(ctx, r.x + r.w - 7, r.y + 4, 2, r.h - 8, 0.8);
+  ctx.fill();
 }
 
 function drawTouch(ctx: CanvasRenderingContext2D, input: Input, labels: Record<BtnId, BtnLabel>, time: number) {
@@ -151,11 +167,15 @@ function drawTouch(ctx: CanvasRenderingContext2D, input: Input, labels: Record<B
   const R = input.joyR;
   ctx.globalAlpha = input.joyActive ? 0.95 : 0.55;
   const base = ringDisc(R, '#9aa6bd', 110);
-  ctx.drawImage(base, ox - (base.width >> 1), oy - (base.height >> 1));
+  ctx.drawImage(base, ox - vw(base) / 2, oy - vh(base) / 2);
   ctx.fillStyle = '#9aa6bd';
-  for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) ctx.fillRect(ox + dx * (R - 5) - 1, oy + dy * (R - 5) - 1, 2, 2);
+  for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+    ctx.beginPath();
+    ctx.arc(ox + dx * (R - 5), oy + dy * (R - 5), 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
   const knob = disc(10, '#c8d0e0', false);
-  ctx.drawImage(knob, Math.round(ox + input.mx * R * 0.65) - (knob.width >> 1), Math.round(oy + input.my * R * 0.65) - (knob.width >> 1));
+  ctx.drawImage(knob, ox + input.mx * R * 0.65 - vw(knob) / 2, oy + input.my * R * 0.65 - vw(knob) / 2);
   ctx.globalAlpha = 1;
 
   for (const b of input.layout) {
@@ -163,13 +183,13 @@ function drawTouch(ctx: CanvasRenderingContext2D, input: Input, labels: Record<B
     const L = labels[b.id];
     if (L.glow && Math.floor(time * 6) % 2 === 0) {
       const g = ringDisc(b.r + 3, '#ffe14d', 0);
-      ctx.drawImage(g, Math.round(b.x) - (g.width >> 1), Math.round(b.y) - (g.height >> 1));
+      ctx.drawImage(g, b.x - vw(g) / 2, b.y - vh(g) / 2);
     }
     const d = disc(b.r, L.color, st.down);
     ctx.globalAlpha = 0.93;
-    ctx.drawImage(d, Math.round(b.x) - (d.width >> 1), Math.round(b.y) - (d.width >> 1));
+    ctx.drawImage(d, b.x - vw(d) / 2, b.y - vw(d) / 2);
     ctx.globalAlpha = 1;
-    drawText(ctx, L.text, Math.round(b.x) + 1, Math.round(b.y) - 4 + (st.down ? 2 : 0), { color: '#ffffff', align: 'center', outline: css(ramp(L.color)[0]) });
+    drawText(ctx, L.text, b.x, b.y - 3.6 + (st.down ? 2 : 0), { color: '#ffffff', align: 'center', outline: css(ramp(L.color)[0]) });
   }
 }
 
@@ -197,11 +217,27 @@ function drawBanners(ctx: CanvasRenderingContext2D, m: Match, W: number, H: numb
       const by = cy - 7;
       const bw = Math.min(W, tw + 60);
       const bx = Math.round(W / 2 - bw / 2) + Math.round(dx * 0.6);
-      ctx.fillStyle = 'rgba(8,6,16,0.8)';
-      for (let i = 0; i < bh; i++) ctx.fillRect(bx + Math.floor((bh - i) / 2) - 6, by + i, bw, 1);
-      ctx.fillStyle = css(rp[2]);
-      ctx.fillRect(bx + Math.floor(bh / 2) - 6, by, bw - 4, 2);
-      ctx.fillRect(bx - 6, by + bh - 2, bw - 4, 2);
+      const sk = bh / 2;
+      const bgr = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+      bgr.addColorStop(0, 'rgba(8,6,16,0)');
+      bgr.addColorStop(0.15, 'rgba(8,6,16,0.82)');
+      bgr.addColorStop(0.85, 'rgba(8,6,16,0.82)');
+      bgr.addColorStop(1, 'rgba(8,6,16,0)');
+      ctx.fillStyle = bgr;
+      ctx.beginPath();
+      ctx.moveTo(bx + sk - 6, by);
+      ctx.lineTo(bx + bw + sk - 6, by);
+      ctx.lineTo(bx + bw - 6, by + bh);
+      ctx.lineTo(bx - 6, by + bh);
+      ctx.fill();
+      const lg = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+      lg.addColorStop(0, css(rp[2], 0));
+      lg.addColorStop(0.2, css(rp[2]));
+      lg.addColorStop(0.8, css(rp[2]));
+      lg.addColorStop(1, css(rp[2], 0));
+      ctx.fillStyle = lg;
+      ctx.fillRect(bx + sk - 6, by, bw - 4, 1.5);
+      ctx.fillRect(bx - 6, by + bh - 1.5, bw - 4, 1.5);
     }
     const light = css(rp[3]);
     const flashy = b.big && !short && Math.floor(time * 10) % 2 === 0 && age < 0.6;
@@ -223,12 +259,14 @@ function drawReplay(ctx: CanvasRenderingContext2D, m: Match, W: number, H: numbe
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, bar);
   ctx.fillRect(0, H - bar, W, bar);
-  ctx.fillStyle = 'rgba(20,30,60,0.16)';
-  for (let y = bar; y < H - bar; y += 2) ctx.fillRect(0, y, W, 1);
+  ctx.fillStyle = 'rgba(20,30,60,0.12)';
+  ctx.fillRect(0, bar, W, H - bar * 2);
   const ty = Math.round(bar / 2 - 4);
   if (Math.floor(time * 2) % 2 === 0) {
     ctx.fillStyle = '#ff3b30';
-    ctx.fillRect(10, ty + 1, 5, 5);
+    ctx.beginPath();
+    ctx.arc(12.5, ty + 3.5, 2.6, 0, Math.PI * 2);
+    ctx.fill();
   }
   drawText(ctx, t().replay, 19, ty, { color: '#ffffff', outline: null });
   const [h, a] = m.teams;

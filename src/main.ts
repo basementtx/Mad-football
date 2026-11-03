@@ -1,7 +1,10 @@
-import '@fontsource/press-start-2p';
-import '@fontsource/pixelify-sans/400.css';
-import '@fontsource/pixelify-sans/700.css';
+import '@fontsource/lilita-one';
+import '@fontsource/rubik/400.css';
+import '@fontsource/rubik/600.css';
+import '@fontsource/rubik/800.css';
 import './ui/style.css';
+import './engine/gfx';
+import { clearTextCache } from './pixel/font';
 
 import { Input, Insets } from './engine/input';
 import { audio } from './engine/audio';
@@ -40,23 +43,29 @@ function readInsets(): Insets {
 }
 
 /**
- * Pixel-perfect display: the game renders into a low-res virtual framebuffer
- * (~232 px tall) that is scaled up by an integer factor with nearest-neighbour.
+ * HD display: layout still uses ~232 "virtual pixels" of height, but the canvas
+ * renders at device resolution (capped for performance) with a scale transform,
+ * and all sprites are supersampled, so everything stays sharp and smooth.
  */
+let Q = 1;
 function resize() {
   const cssW = window.innerWidth, cssH = window.innerHeight;
-  const dpr = window.devicePixelRatio || 1;
-  const devW = Math.round(cssW * dpr), devH = Math.round(cssH * dpr);
-  const px = Math.max(1, Math.round(devH / (232 / settings.zoom)));
-  W = Math.ceil(devW / px);
-  H = Math.ceil(devH / px);
-  canvas.width = W;
-  canvas.height = H;
-  canvas.style.width = (W * px) / dpr + 'px';
-  canvas.style.height = (H * px) / dpr + 'px';
+  const dpr = Math.min(window.devicePixelRatio || 1, settings.quality === 'high' ? 2 : 1.25);
+  let devW = Math.round(cssW * dpr), devH = Math.round(cssH * dpr);
+  const cap = settings.quality === 'high' ? 1300 : 760;
+  if (devH > cap) {
+    devW = Math.round((devW * cap) / devH);
+    devH = cap;
+  }
+  Q = devH / (232 / settings.zoom);
+  W = devW / Q;
+  H = devH / Q;
+  canvas.width = devW;
+  canvas.height = devH;
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
   ctx = canvas.getContext('2d', { alpha: false })!;
-  ctx.imageSmoothingEnabled = false;
-  const k = px / dpr; // css px per virtual px
+  const k = cssH / H; // css px per virtual px
   input.k = k;
   const ins = readInsets();
   input.resize(W, H, { top: ins.top / k, right: ins.right / k, bottom: ins.bottom / k, left: ins.left / k });
@@ -214,7 +223,9 @@ let last = performance.now();
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  ctx.imageSmoothingEnabled = false;
+  ctx.setTransform(Q, 0, 0, Q, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   if (mode === 'play' || mode === 'paused' || (mode === 'results' && game)) {
     game!.update(mode === 'play' || mode === 'results' ? dt : 0);
     game!.draw(ctx, W, H, mode === 'play');
@@ -227,17 +238,22 @@ function frame(now: number) {
 }
 
 if (import.meta.env.DEV) {
-  (window as unknown as { __mf: unknown }).__mf = { get game() { return game; }, get demo() { return demo; } };
+  (window as unknown as { __mf: unknown }).__mf = { get game() { return game; }, get demo() { return demo; }, quick: () => handlers.startMatch() };
 }
 
 async function boot() {
   resize();
   applyLang();
   try {
-    await Promise.race([document.fonts.load('16px "Press Start 2P"'), new Promise((r) => setTimeout(r, 1500))]);
+    await Promise.race([
+      Promise.all([document.fonts.load('20px "Lilita One"'), document.fonts.load('600 16px "Rubik"'), document.fonts.load('800 16px "Rubik"')]),
+      new Promise((r) => setTimeout(r, 1500)),
+    ]);
   } catch {
     /* ignore */
   }
+  clearTextCache();
+  document.fonts?.addEventListener?.('loadingdone', () => clearTextCache());
   newDemo();
   input.enabled = false;
   showSplash(handlers);

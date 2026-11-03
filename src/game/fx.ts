@@ -2,9 +2,10 @@ import { rand, pick, TAU } from '../engine/math';
 import { settings } from '../engine/storage';
 import type { Camera } from './camera';
 import { drawText } from '../pixel/font';
-import { ring, star } from '../pixel/props';
+import { star } from '../pixel/props';
+import { vw, vh } from '../engine/gfx';
 
-type PType = 'dust' | 'grass' | 'spark' | 'confetti' | 'fire' | 'smoke' | 'star' | 'ring' | 'pix' | 'rocket' | 'bolt' | 'coin' | 'vortex' | 'snow';
+type PType = 'dust' | 'grass' | 'spark' | 'confetti' | 'fire' | 'smoke' | 'star' | 'ring' | 'pix' | 'rocket' | 'bolt' | 'coin' | 'vortex' | 'snow' | 'clod' | 'splinter';
 
 interface Particle {
   type: PType;
@@ -116,6 +117,20 @@ export class FX {
   dust(x: number, y: number, n = 6, vx = 0, vy = 0) {
     this.emit('dust', x, y, 0.05, { n, speed: 1.6, up: 0.8, life: 0.7, size: 0.35, color: 'rgba(215,200,160,0.55)', vx: vx * 0.3, vy: vy * 0.3 });
     this.emit('grass', x, y, 0.05, { n: Math.ceil(n * 0.8), speed: 2.5, up: 3.5, life: 0.6, size: 0.1, colors: ['#3ea84a', '#2f8b3a', '#5bc764'], vx: vx * 0.3, vy: vy * 0.3 });
+  }
+
+  /** Chunks of soil and torn grass thrown up by a hard kick or slide. */
+  clods(x: number, y: number, dx: number, dy: number, n = 6) {
+    const l = Math.hypot(dx, dy) || 1;
+    const ux = dx / l, uy = dy / l;
+    this.emit('clod', x, y, 0.05, { n, speed: 2.2, up: 4.5, life: 1.1, size: 0.13, colors: ['#5b4327', '#6e5232', '#4a3620', '#7d6040'], vx: ux * 4, vy: uy * 4, g: 18 });
+    this.emit('grass', x, y, 0.05, { n: Math.ceil(n * 1.2), speed: 2.6, up: 4, life: 0.8, size: 0.1, colors: ['#3ea84a', '#2f8b3a', '#5bc764', '#2a7a33'], vx: ux * 3, vy: uy * 3 });
+  }
+
+  /** Corner flag snapping: white/red splinters. */
+  splinters(x: number, y: number, z: number, vx: number, vy: number) {
+    this.emit('splinter', x, y, z + 0.4, { n: 9, speed: 3.5, up: 4, life: 1.0, size: 0.18, colors: ['#ffffff', '#e8e8e8', '#ff4a2a', '#ffd23f'], vx: vx * 0.35, vy: vy * 0.35, g: 16 });
+    this.dust(x, y, 6, vx, vy);
   }
 
   impact(x: number, y: number, z: number) {
@@ -314,16 +329,17 @@ export class FX {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.z += p.vz * dt;
-      const drag = p.type === 'confetti' ? 2.2 : p.type === 'dust' || p.type === 'smoke' ? 3 : 1.2;
+      const drag = p.type === 'confetti' ? 2.2 : p.type === 'dust' || p.type === 'smoke' ? 3 : p.type === 'clod' ? 0.6 : 1.2;
       p.vx *= Math.exp(-drag * dt);
       p.vy *= Math.exp(-drag * dt);
       if (p.type === 'confetti') p.vz = Math.max(p.vz, -1.6);
       p.rot += p.vr * dt;
       if (p.z < 0) {
         p.z = 0;
-        p.vz *= -0.3;
-        p.vx *= 0.6;
-        p.vy *= 0.6;
+        p.vz *= p.type === 'clod' ? -0.25 : -0.3;
+        p.vx *= p.type === 'clod' ? 0.35 : 0.6;
+        p.vy *= p.type === 'clod' ? 0.35 : 0.6;
+        if (p.type === 'clod' || p.type === 'splinter') p.vr *= 0.3;
       }
     }
     for (let i = this.timers.length - 1; i >= 0; i--) {
@@ -347,54 +363,126 @@ export class FX {
   }
 
   draw(ctx: CanvasRenderingContext2D, cam: Camera) {
+    const TAU_ = Math.PI * 2;
     for (const p of this.particles) {
       const sx = cam.sx(p.x), sy = cam.sy(p.y, p.z);
       const k = p.life / p.max;
       switch (p.type) {
         case 'dust':
         case 'smoke': {
-          const sz = Math.max(1, Math.round(p.size * 8 * (0.5 + (1 - k) * 0.8)));
-          ctx.fillStyle = p.type === 'dust' ? (k > 0.5 ? '#d8c9a0' : '#b7a57c') : k > 0.5 ? '#5a5260' : '#3c3644';
-          ctx.globalAlpha = k > 0.35 ? 1 : 0.6;
-          ctx.fillRect(sx - (sz >> 1), sy - (sz >> 1), sz, sz);
+          const r = Math.max(0.8, p.size * 5 * (0.5 + (1 - k) * 1.1));
+          ctx.globalAlpha = (p.type === 'dust' ? 0.42 : 0.5) * Math.min(1, k * 1.6);
+          ctx.fillStyle = p.type === 'dust' ? '#d9caa2' : '#4a4450';
+          ctx.beginPath();
+          ctx.arc(sx, sy, r, 0, TAU_);
+          ctx.fill();
           break;
         }
-        case 'grass':
-          ctx.fillStyle = p.color;
-          ctx.fillRect(sx, sy, 1, 2);
+        case 'grass': {
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = 0.7;
+          ctx.lineCap = 'round';
+          const a = p.rot;
+          ctx.beginPath();
+          ctx.moveTo(sx - Math.cos(a) * 1.1, sy - Math.sin(a) * 1.1);
+          ctx.lineTo(sx + Math.cos(a) * 1.1, sy + Math.sin(a) * 1.1);
+          ctx.stroke();
           break;
-        case 'spark': {
+        }
+        case 'clod': {
+          // shadow on the grass + tumbling chunk
+          const r = p.size * 9;
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = '#0b1a10';
+          ctx.beginPath();
+          ctx.ellipse(cam.sx(p.x), cam.sy(p.y), r, r * 0.45, 0, 0, TAU_);
+          ctx.fill();
+          ctx.globalAlpha = k < 0.2 ? k / 0.2 : 1;
           ctx.fillStyle = p.color;
-          const len = Math.max(1, Math.round(k * 3));
-          const dx = Math.sign(p.vx), dy = Math.sign(p.vy * cam.ys - p.vz);
-          for (let i = 0; i < len; i++) ctx.fillRect(sx - dx * i, sy - dy * i, 1, 1);
+          ctx.save();
+          ctx.translate(sx, sy - r * 0.5);
+          ctx.rotate(p.rot);
+          ctx.beginPath();
+          ctx.moveTo(-r, -r * 0.4);
+          ctx.lineTo(-r * 0.2, -r);
+          ctx.lineTo(r, -r * 0.3);
+          ctx.lineTo(r * 0.6, r * 0.8);
+          ctx.lineTo(-r * 0.7, r * 0.6);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#3ea84a';
+          ctx.fillRect(-r * 0.3, -r * 1.1, r * 0.25, r * 0.6);
+          ctx.restore();
+          break;
+        }
+        case 'splinter': {
+          ctx.globalAlpha = k < 0.25 ? k / 0.25 : 1;
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = 0.9;
+          ctx.lineCap = 'round';
+          const a = p.rot, l = p.size * 10;
+          ctx.beginPath();
+          ctx.moveTo(sx - Math.cos(a) * l, sy - Math.sin(a) * l);
+          ctx.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l);
+          ctx.stroke();
+          break;
+        }
+        case 'spark': {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = p.color;
+          ctx.lineCap = 'round';
+          ctx.lineWidth = 0.6 + k * 0.9;
+          const tl = 0.035;
+          const ex = cam.sx(p.x - p.vx * tl), ey = cam.sy(p.y - p.vy * tl, p.z - p.vz * tl);
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+          ctx.globalCompositeOperation = 'source-over';
           break;
         }
         case 'ring': {
-          const r = Math.round(2 + (1 - k) * 10 * p.size);
-          const img = ringSprite(r);
-          ctx.globalAlpha = k > 0.5 ? 1 : 0.6;
-          ctx.drawImage(img, sx - (img.width >> 1), sy - (img.height >> 1));
+          const r = 2 + (1 - k) * 10 * p.size;
+          ctx.globalAlpha = Math.min(1, k * 1.5);
+          ctx.strokeStyle = p.color.startsWith('#') || p.color.startsWith('rgba') ? p.color : '#fff';
+          ctx.lineWidth = 0.6 + k * 1.6;
+          ctx.beginPath();
+          ctx.ellipse(sx, sy, r, r * 0.6, 0, 0, TAU_);
+          ctx.stroke();
           break;
         }
         case 'fire': {
-          const sz = k > 0.66 ? 3 : k > 0.33 ? 2 : 1;
-          ctx.fillStyle = k > 0.7 ? '#fff3a0' : k > 0.45 ? '#ffb02e' : k > 0.2 ? '#ff5a1f' : '#9a2010';
-          ctx.fillRect(sx - (sz >> 1), sy - (sz >> 1), sz, sz);
+          const r = p.size * 3.2 * (0.35 + k * 0.75);
+          ctx.globalCompositeOperation = 'lighter';
+          const col = k > 0.7 ? '255,240,170' : k > 0.45 ? '255,176,46' : k > 0.2 ? '255,90,31' : '154,32,16';
+          const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+          gr.addColorStop(0, `rgba(${col},0.95)`);
+          gr.addColorStop(1, `rgba(${col},0)`);
+          ctx.fillStyle = gr;
+          ctx.beginPath();
+          ctx.arc(sx, sy, r, 0, TAU_);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
           break;
         }
         case 'confetti': {
           ctx.fillStyle = p.color;
-          const flip = Math.floor(p.rot * 2) % 2 === 0;
-          ctx.fillRect(sx, sy, flip ? 2 : 1, flip ? 1 : 2);
+          ctx.save();
+          ctx.translate(sx, sy);
+          ctx.rotate(p.rot * 0.5);
+          ctx.scale(1, Math.cos(p.rot * 2));
+          ctx.fillRect(-1.1, -0.6, 2.2, 1.2);
+          ctx.restore();
           break;
         }
         case 'pix':
         case 'snow': {
-          const sz = Math.max(1, Math.round(p.size * 8 * (p.type === 'pix' ? 0.4 + k * 0.6 : 1)));
-          ctx.globalAlpha = k > 0.3 ? 1 : 0.55;
+          const r = Math.max(0.5, p.size * 4 * (p.type === 'pix' ? 0.4 + k * 0.6 : 1));
+          ctx.globalAlpha = k > 0.3 ? 1 : k / 0.3;
           ctx.fillStyle = p.color;
-          ctx.fillRect(sx - (sz >> 1), sy - (sz >> 1), sz, sz);
+          ctx.beginPath();
+          ctx.arc(sx, sy, r, 0, TAU_);
+          ctx.fill();
           break;
         }
         case 'rocket': {
@@ -402,50 +490,58 @@ export class FX {
           ctx.fillRect(sx - 1, sy - 1, 2, 3);
           ctx.fillStyle = p.color;
           ctx.fillRect(sx - 1, sy + 2, 2, 2);
-          ctx.fillStyle = '#ffb02e';
-          ctx.fillRect(sx, sy + 4, 1, 2 + (Math.random() * 3) | 0);
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = 'rgba(255,176,46,0.85)';
+          ctx.beginPath();
+          ctx.ellipse(sx, sy + 5, 0.9, 2 + Math.random() * 2, 0, 0, TAU_);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
           break;
         }
         case 'coin': {
-          const w = Math.abs(Math.cos(p.rot)) > 0.5 ? 3 : 1;
+          const w = Math.abs(Math.cos(p.rot)) * 2.4 + 0.4;
           ctx.fillStyle = '#7a4a00';
-          ctx.fillRect(sx - (w >> 1) - 1, sy - 2, w + 2, 5);
+          ctx.beginPath();
+          ctx.ellipse(sx, sy, w + 0.6, 3, 0, 0, TAU_);
+          ctx.fill();
           ctx.fillStyle = '#ffcc2a';
-          ctx.fillRect(sx - (w >> 1), sy - 1, w, 3);
+          ctx.beginPath();
+          ctx.ellipse(sx, sy, w, 2.4, 0, 0, TAU_);
+          ctx.fill();
           ctx.fillStyle = '#fff2a8';
-          ctx.fillRect(sx - (w >> 1), sy - 1, 1, 1);
+          ctx.fillRect(sx - w * 0.5, sy - 1.4, Math.max(0.4, w * 0.4), 1);
           break;
         }
         case 'vortex': {
           ctx.fillStyle = p.color;
-          ctx.fillRect(sx, sy, 2, 2);
+          ctx.beginPath();
+          ctx.arc(sx, sy, 1.1, 0, TAU_);
+          ctx.fill();
           break;
         }
         case 'bolt': {
           // jagged lightning from the sky to the ground point
-          let x = sx + 10, y = sy - 90;
           const seed = Math.floor(p.rot * 1000);
+          const pts: [number, number][] = [[sx + 10, sy - 90]];
+          for (let i = 1; i <= 13; i++) pts.push([sx + (((seed * (i + 3) * 7919) % 13) - 6) * (1 - i / 14) * 0.9, sy - 90 + i * 7]);
+          pts.push([sx, sy]);
           ctx.globalAlpha = k > 0.5 ? 1 : 0.6;
-          for (let i = 0; y < sy; i++) {
-            const nx = sx + (((seed * (i + 3) * 7919) % 13) - 6) * (1 - i / 14) * 0.9;
-            const ny = Math.min(sy, y + 7);
-            const steps = Math.max(1, Math.abs(ny - y));
-            for (let j = 0; j < steps; j++) {
-              const px = Math.round(x + ((nx - x) * j) / steps), py = Math.round(y + j);
-              ctx.fillStyle = '#3bd9ff';
-              ctx.fillRect(px - 1, py, 3, 1);
-              ctx.fillStyle = '#ffffff';
-              ctx.fillRect(px, py, 1, 1);
-            }
-            x = nx;
-            y = ny;
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.lineJoin = 'round';
+          for (const [w, c] of [[5, 'rgba(59,217,255,0.35)'], [2.4, '#3bd9ff'], [1, '#ffffff']] as const) {
+            ctx.strokeStyle = c;
+            ctx.lineWidth = w;
+            ctx.beginPath();
+            pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+            ctx.stroke();
           }
+          ctx.globalCompositeOperation = 'source-over';
           break;
         }
         case 'star': {
           const st = star();
-          ctx.globalAlpha = k > 0.3 ? 1 : 0.5;
-          ctx.drawImage(st, sx - 3, sy - 3);
+          ctx.globalAlpha = k > 0.3 ? 1 : k / 0.3;
+          ctx.drawImage(st, sx - vw(st) / 2, sy - vh(st) / 2);
           break;
         }
       }
@@ -455,21 +551,16 @@ export class FX {
     // floating texts
     for (const t of this.texts) {
       const age = t.max - t.life;
-      const bounce = age < 0.12 ? -3 : age < 0.2 ? 1 : 0;
-      const sx = cam.sx(t.x), sy = cam.sy(t.y, t.z + 2.6) + bounce;
-      if (t.life < 0.25 && Math.floor(t.life * 20) % 2) continue; // blink out
-      drawText(ctx, t.text, sx, sy, { color: t.color, scale: t.size >= 1.1 ? 2 : 1, align: 'center', outline: '#120c1c', thick: 1, shadow: null });
+      const pop = age < 0.12 ? 1 + (0.12 - age) * 4 : 1;
+      const sx = cam.sx(t.x), sy = cam.sy(t.y, t.z + 2.6) - (age < 0.12 ? 3 : 0);
+      ctx.globalAlpha = Math.min(1, t.life / 0.3);
+      const sc = t.size >= 1.1 ? 1.6 : 1.05;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.scale(pop, pop);
+      drawText(ctx, t.text, 0, 0, { color: t.color, scale: sc, align: 'center', outline: '#120c1c', thick: 1.1, shadow: 'rgba(0,0,0,0.35)' });
+      ctx.restore();
+      ctx.globalAlpha = 1;
     }
   }
 }
-
-const ringCache = new Map<number, HTMLCanvasElement>();
-function ringSprite(r: number) {
-  let c = ringCache.get(r);
-  if (!c) {
-    c = ring(r, Math.max(1, Math.round(r * 0.6)), '#ffffff');
-    ringCache.set(r, c);
-  }
-  return c;
-}
-

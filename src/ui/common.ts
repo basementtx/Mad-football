@@ -1,7 +1,8 @@
 /** Shared DOM helpers for the menu screens. */
 import { audio } from '../engine/audio';
 import { flagCanvas } from '../pixel/flags';
-import { playerSheet, FRAMES, CELL_W, CELL_H, PlayerLook } from '../pixel/player';
+import { playerSheet, drawPlayerFrame, FRAMES, CELL_W, CELL_H, PlayerLook } from '../pixel/player';
+import { hiCanvas } from '../engine/gfx';
 import { textCanvas } from '../pixel/font';
 import { crestCanvas } from '../pixel/crest';
 import { crateCanvases } from '../pixel/crate';
@@ -47,11 +48,14 @@ export function paintAll(root: ParentNode = ui()) {
   root.querySelectorAll<HTMLCanvasElement>('canvas[data-paint]').forEach((c) => {
     const fn = registry.get(c.dataset.paint!);
     if (!fn) return;
-    const src = fn();
+    const src = fn() as HTMLCanvasElement & { __s?: number };
+    // supersampled sources render smooth; small pixel-art icons stay crisp
+    c.style.imageRendering = src.__s ? 'auto' : 'pixelated';
     c.width = src.width;
     c.height = src.height;
-    const g = c.getContext('2d')!;
-    g.imageSmoothingEnabled = false;
+    const g = c.getContext('2d')! as CanvasRenderingContext2D & { __raw?: boolean };
+    g.__raw = true;
+    g.imageSmoothingEnabled = true;
     g.drawImage(src, 0, 0);
     registry.delete(c.dataset.paint!);
     c.removeAttribute('data-paint');
@@ -69,17 +73,22 @@ export function crestTag(def: { crest: CrestCfg; primary: string; secondary: str
 export function spriteSource(look: PlayerLook, frame: string, left = false, glow = true) {
   return () => {
     const sheet = playerSheet(look).canvas;
-    const c = document.createElement('canvas');
-    c.width = CELL_W;
-    c.height = CELL_H;
-    const g = c.getContext('2d')!;
+    const [c, g] = hiCanvas(CELL_W, CELL_H);
     if (glow) {
       const rp = ramp(look.kit.primary);
-      g.fillStyle = css(rp[1], 0.6);
-      g.fillRect(9, 34, 22, 2);
-      g.fillRect(12, 33, 16, 4);
+      g.save();
+      g.translate(20, 35);
+      g.scale(1, 0.25);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, 12);
+      gr.addColorStop(0, css(rp[2], 0.75));
+      gr.addColorStop(1, css(rp[1], 0));
+      g.fillStyle = gr;
+      g.beginPath();
+      g.arc(0, 0, 12, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
     }
-    g.drawImage(sheet, FRAMES[frame] * CELL_W, (left ? 1 : 0) * CELL_H, CELL_W, CELL_H, 0, 0, CELL_W, CELL_H);
+    drawPlayerFrame(g, sheet, FRAMES[frame], 0, 0, left);
     return c;
   };
 }
@@ -88,10 +97,8 @@ export function spriteSource(look: PlayerLook, frame: string, left = false, glow
 export function portraitSource(look: PlayerLook) {
   return () => {
     const sheet = playerSheet(look).canvas;
-    const c = document.createElement('canvas');
-    c.width = 26;
-    c.height = 24;
-    c.getContext('2d')!.drawImage(sheet, FRAMES.idle0 * CELL_W + 8, 2, 26, 24, 0, 0, 26, 24);
+    const [c, g] = hiCanvas(26, 24);
+    g.drawImage(sheet, FRAMES.idle0 * CELL_W + 8, 2, 26, 24, 0, 0, 26, 24);
     return c;
   };
 }

@@ -7,8 +7,8 @@ export const PPM = 16;
 export const YS = 0.75;
 
 /**
- * Pixel-perfect tilted top-down camera. All outputs are integer pixel coordinates
- * on the virtual framebuffer so sprites never shimmer.
+ * Tilted top-down broadcast camera. Outputs are (sub-pixel) virtual coordinates;
+ * the canvas transform maps them to device pixels.
  */
 export class Camera {
   x = 0;
@@ -29,8 +29,8 @@ export class Camera {
   }
 
   private snap() {
-    this.bx = Math.round(this.W / 2 - this.x * this.s);
-    this.by = Math.round(this.H / 2 - this.y * this.s * this.ys);
+    this.bx = this.W / 2 - this.x * this.s;
+    this.by = this.H / 2 - this.y * this.s * this.ys;
   }
 
   /** Integer offset of world origin on screen (useful for blitting prerendered layers). */
@@ -42,14 +42,14 @@ export class Camera {
   }
 
   sx(x: number) {
-    return Math.round(x * this.s) + this.bx + this.ox;
+    return x * this.s + this.bx + this.ox;
   }
   sy(y: number, z = 0) {
-    return Math.round(y * this.s * this.ys - z * this.s) + this.by + this.oy;
+    return y * this.s * this.ys - z * this.s + this.by + this.oy;
   }
   /** Tall objects at the ends (goals) lean outward a little for depth. */
   sxz(x: number, z: number) {
-    return this.sx(x) + Math.round(z * this.s * 0.3 * sign(x));
+    return this.sx(x) + z * this.s * 0.3 * sign(x);
   }
 
   follow(tx: number, ty: number, dt: number, P: Pitch, speed = 4.5) {
@@ -67,7 +67,7 @@ export class Camera {
 
   applyShake(amount: number, t: number) {
     const a = amount * amount * 7;
-    this.ox = Math.round(Math.sin(t * 71) * a + Math.sin(t * 37) * a * 0.5);
-    this.oy = Math.round(Math.cos(t * 63) * a + Math.sin(t * 29) * a * 0.5);
+    this.ox = Math.sin(t * 71) * a + Math.sin(t * 37) * a * 0.5;
+    this.oy = Math.cos(t * 63) * a + Math.sin(t * 29) * a * 0.5;
   }
 }
