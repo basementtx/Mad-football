@@ -176,6 +176,8 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
           ${toggle('autoSwitch', L.autoSwitch)}
           ${toggle('leftHanded', L.leftHanded)}
           ${seg(L.joystick, 'joy', [['float', L.joyFloat], ['fixed', L.joyFixed]], settings.joyFixed ? 'fixed' : 'float')}
+          ${toggle('passAssist', L.passAssist)}
+          ${toggle('aimLine', L.aimLine)}
         </div>
         <div>
           ${toggle('minimap', L.minimap)}
@@ -189,7 +191,7 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
   const again = () => showSettings(h, back, inGame);
   bind('[data-act=back]', () => { audio.click(); back(); });
   bind('[data-toggle]', (el) => {
-    const k = el.dataset.toggle as 'sound' | 'vibration' | 'autoSwitch' | 'leftHanded' | 'minimap';
+    const k = el.dataset.toggle as 'sound' | 'vibration' | 'autoSwitch' | 'leftHanded' | 'minimap' | 'passAssist' | 'aimLine';
     settings[k] = !settings[k];
     saveSettings();
     audio.applyVolume();
@@ -286,7 +288,7 @@ export function mvpOf(m: Match): Player {
   return best;
 }
 
-export function showResults(h: MenuHandlers, m: Match, coins: number) {
+export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode = false) {
   const L = t();
   const [a, b] = m.teams;
   const res = a.score > b.score ? 'win' : a.score < b.score ? 'loss' : 'draw';
@@ -331,11 +333,12 @@ export function showResults(h: MenuHandlers, m: Match, coins: number) {
       </div>
       <div class="row">
         <button class="btn btn-ghost" data-act="quit">${L.menu}</button>
-        <button class="btn btn-primary" data-act="restart">${L.rematch} ▶</button>
+        ${leagueMode ? `<button class="btn btn-primary" data-act="league">${L.continueBtn} ▶</button>` : `<button class="btn btn-primary" data-act="restart">${L.rematch} ▶</button>`}
       </div>
     </div>`;
   paintAll();
   bind('[data-act=quit]', () => h.quit());
   bind('[data-act=restart]', () => h.restart());
+  bind('[data-act=league]', () => h.showLeague());
   void record;
 }

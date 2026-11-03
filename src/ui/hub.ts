@@ -12,6 +12,8 @@ import { showCreator } from './creator';
 import { showShop } from './shop';
 import { showCollection } from './collection';
 import { TEAMS } from '../game/teams';
+import { league, positionOf, ROUNDS } from '../meta/league';
+import { showLeague } from './league';
 
 export function showSplash(h: MenuHandlers) {
   const L = t();
@@ -52,14 +54,15 @@ export function showHub(h: MenuHandlers) {
         <div class="hub-top-r">
           ${coinsPill()}
           <button class="icon-btn" data-act="lang">${flagTag(lang.flag)}</button>
+          <button class="icon-btn" data-act="howto" aria-label="${L.howTo}">?</button>
           <button class="icon-btn gear" data-act="settings" aria-label="${L.settings}">⚙</button>
         </div>
       </div>
       <div class="hub-grid">
         <button class="tile tile-play" data-act="play">
           <div class="tile-art">${paintTag(spriteSource(lookFor(club, me?.look ?? { skin: '#e5b48f', hair: '#3b2416', hairStyle: 0, beard: false }), 'kick1'), 'tile-sprite')}${paintTag(spriteSource(lookFor(TEAMS[(club.name.length + 3) % TEAMS.length], { skin: '#7a4d30', hair: '#1a1310', hairStyle: 2, beard: true }), 'down0', true, false), 'tile-sprite2')}</div>
-          <div class="tile-label big">${L.play} ▶</div>
-          <small>${L.quickMatch}</small>
+          <div class="tile-label big">${L.league} ▶</div>
+          <small><span class="div-badge d${league.div}">${league.div}</span> ${esc(L.divNames[league.div])} • ${league.round > 0 ? positionOf() + '.' : '—'} • ${L.matchday} ${Math.min(league.round + 1, ROUNDS)}/${ROUNDS}</small>
         </button>
         <button class="tile" data-act="squad">
           <div class="tile-art">${crestTag(club, 'crest-lg')}</div>
@@ -80,11 +83,12 @@ export function showHub(h: MenuHandlers) {
           <div class="tile-label">${L.collection}</div>
           <small>${fx ? esc(itemName(fx)) : ''} • ${pw ? esc(itemName(pw)) : ''}</small>
         </button>
-        <button class="tile tile-sm" data-act="howto"><div class="tile-label">${L.howTo}</div></button>
+        <button class="tile tile-sm" data-act="quick"><div class="tile-label">⚡ ${L.quickMatch}</div></button>
       </div>
     </div>`,
   );
-  bind('[data-act=play]', () => { audio.select(); showSetup(h); });
+  bind('[data-act=play]', () => { audio.select(); showLeague(h); });
+  bind('[data-act=quick]', () => { audio.select(); showSetup(h); });
   bind('[data-act=squad]', () => { audio.click(); showSquad(h); });
   bind('[data-act=club]', () => { audio.click(); showSquad(h); });
   bind('[data-act=player]', () => { audio.click(); showCreator(h, false); });

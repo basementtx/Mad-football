@@ -8,7 +8,9 @@ import { audio } from './engine/audio';
 import { settings, record, saveRecord, lastSetup } from './engine/storage';
 import { Game } from './game/game';
 import { Renderer } from './game/renderer';
-import { TEAMS } from './game/teams';
+import { TEAMS, TeamDef } from './game/teams';
+import { nextFixture, teamById, leagueDifficulty, recordUserResult } from './meta/league';
+import { showLeague } from './ui/league';
 import type { Difficulty } from './game/entities';
 import { DIFF_REWARD } from './game/entities';
 import { showPause, showResults, hideUI, MenuHandlers, homeDef } from './ui/menus';
@@ -93,29 +95,46 @@ function requestFullscreen() {
   }
 }
 
+/** 'quick' = friendly from the setup screen, 'league' = current league fixture */
+let matchMode: 'quick' | 'league' = 'quick';
+
+function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: boolean) {
+  requestFullscreen();
+  audio.unlock();
+  const homeCards = useClub ? lineupCards().filter((c): c is CardData => !!c) : undefined;
+  game = new Game(
+    {
+      home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty, demo: false,
+      homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
+      starId: useClub ? profile.myPlayer : null,
+      loadout: profile.equipped,
+    },
+    input,
+  );
+  game.match.onEnd = () => endMatch();
+  game.resize(W, H);
+  input.reset();
+  input.enabled = true;
+  mode = 'play';
+  hideUI();
+}
+
 const handlers: MenuHandlers = {
   startMatch() {
-    requestFullscreen();
-    audio.unlock();
-    const home = homeDef(lastSetup.home);
-    const away = TEAMS[lastSetup.away];
-    const isClub = lastSetup.home < 0;
-    const homeCards = isClub ? lineupCards().filter((c): c is CardData => !!c) : undefined;
-    game = new Game(
-      {
-        home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty: lastSetup.difficulty as Difficulty, demo: false,
-        homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
-        starId: isClub ? profile.myPlayer : null,
-        loadout: profile.equipped,
-      },
-      input,
-    );
-    game.match.onEnd = () => endMatch();
-    game.resize(W, H);
-    input.reset();
-    input.enabled = true;
-    mode = 'play';
-    hideUI();
+    matchMode = 'quick';
+    launch(homeDef(lastSetup.home), TEAMS[lastSetup.away], lastSetup.difficulty as Difficulty, lastSetup.home < 0);
+  },
+  startLeagueMatch() {
+    const fx = nextFixture();
+    if (!fx) return;
+    matchMode = 'league';
+    launch(teamById('club'), teamById(fx.opp), leagueDifficulty(), true);
+  },
+  showLeague() {
+    game = null;
+    mode = 'menu';
+    input.enabled = false;
+    showLeague(handlers);
   },
   resume() {
     if (!game) return;
@@ -126,7 +145,8 @@ const handlers: MenuHandlers = {
     hideUI();
   },
   restart() {
-    handlers.startMatch();
+    if (matchMode === 'league') handlers.startLeagueMatch();
+    else handlers.startMatch();
   },
   quit() {
     game = null;
@@ -179,9 +199,10 @@ function endMatch() {
   const coins = Math.round(((res === 'w' ? 100 : res === 'd' ? 40 : 15) + a.score * 10 + a.stats.knockdowns * 2) * diffMul);
   record.coins += coins;
   saveRecord();
+  if (matchMode === 'league') recordUserResult(a.score, b.score);
   mode = 'results';
   input.enabled = false;
-  showResults(handlers, m, coins);
+  showResults(handlers, m, coins, matchMode === 'league');
 }
 
 // unlock audio on first interaction anywhere

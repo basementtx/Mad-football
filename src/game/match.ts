@@ -60,6 +60,8 @@ export class Match {
   /** human aim direction (for the aim arrow) */
   aimX = 1;
   aimY = 0;
+  /** where the human's ball would go (for the aim line) */
+  aim: { x: number; y: number; kind: 'shot' | 'pass' | 'free' } | null = null;
   goalFlash = 0;
 
   // ---- action replay
@@ -447,8 +449,16 @@ export class Match {
     this.aimX = ndx;
     this.aimY = ndy;
 
-    // pass hint
-    this.passHint = hasBall ? this.bestPassTarget(hp, ndx, ndy, true) : null;
+    // pass hint (light assist) and aim line target
+    this.passHint = hasBall ? this.assistTarget(hp, ndx, ndy) : null;
+    this.aim = null;
+    if (hasBall) {
+      const gt = this.aimAtGoal(hp, ndx, ndy);
+      const dGoal = gt ? dist(hp.x, hp.y, gt[0], gt[1]) : 99;
+      if (gt && (hp.chargeKind === 'shot' || dGoal < 24)) this.aim = { x: gt[0], y: gt[1], kind: 'shot' };
+      else if (this.passHint) this.aim = { x: this.passHint.x + this.passHint.vx * 0.3, y: this.passHint.y + this.passHint.vy * 0.3, kind: 'pass' };
+      else this.aim = { x: hp.x + ndx * 7, y: hp.y + ndy * 7, kind: 'free' };
+    }
 
     // A: shoot / tackle / volley
     if (inp.btn.a.pressed && hp.canAct) {
@@ -489,13 +499,14 @@ export class Match {
       else if (inp.btn.b.down) hp.charge = Math.min(1, hp.charge + dt / 0.7);
       else {
         const lob = hp.charge > 0.28;
-        const q = this.bestPassTarget(hp, ndx, ndy, stick);
+        const q = this.assistTarget(hp, ndx, ndy);
         if (q) {
           this.passTo(hp, q, lob);
           if (!q.isGK) this.setHuman(q);
         } else {
-          const sp = lob ? 14 : 15;
-          this.kick(hp, ndx * sp, ndy * sp, lob ? 6 : 0.3, 0.4);
+          // no assist: the ball goes exactly where you point
+          const sp = lob ? 11 + hp.charge * 9 : 15;
+          this.kick(hp, ndx * sp, ndy * sp, lob ? 5 + hp.charge * 4 : 0.3, 0.4);
         }
         hp.chargeKind = 'none';
         hp.charge = 0;
@@ -730,6 +741,27 @@ export class Match {
     this.excitement = 1;
   }
 
+  /** Very light pass assist: only snaps to a teammate within ~20° of where you aim. */
+  assistTarget(p: Player, dx: number, dy: number): Player | null {
+    if (!settings.passAssist) return null;
+    let best: Player | null = null;
+    let bs = -Infinity;
+    for (const q of p.team.players) {
+      if (q === p || q.state === 'down') continue;
+      const ox = q.x - p.x, oy = q.y - p.y;
+      const d = Math.hypot(ox, oy);
+      if (d < 3 || d > 32) continue;
+      const cos = (ox * dx + oy * dy) / d;
+      if (cos < 0.94) continue;
+      const sc = cos * 4 - d * 0.01 - (q.isGK ? 0.5 : 0);
+      if (sc > bs) {
+        bs = sc;
+        best = q;
+      }
+    }
+    return best;
+  }
+
   bestPassTarget(p: Player, dx: number, dy: number, directional: boolean): Player | null {
     let best: Player | null = null;
     let bs = -Infinity;
@@ -827,7 +859,8 @@ export class Match {
 
   knockdown(v: Player, a: Player | null, ix: number, iy: number, dur = PHYS.downTime): boolean {
     if (v.state === 'down' || v.state === 'recover' || this.phase !== 'play') return false;
-    if (v.invuln > 0) {
+    if (v.invuln > 0 || (v.isGK && this.ball.owner === v)) {
+      // keepers holding the ball are protected (no cheap goals)
       this.fx.text(v.x, v.y, 0, t().denied, '#7fe8ff', 0.9);
       return false;
     }
@@ -1290,7 +1323,8 @@ export class Match {
       for (const q of o.team.opp.players) {
         if (!q.canAct || q.kickCd > 0 || q.isGK) continue;
         if (dist(q.x, q.y, b.x, b.y) > 0.78) continue;
-        const mul = q.team.human ? 1 : q.team.diff.stealMul;
+        // the human wins the ball more easily; AI robs the human less often
+        const mul = q === this.human ? 1.6 : q.team.human ? 1 : q.team.diff.stealMul * (o === this.human ? 0.7 : 1);
         const rate = (0.7 + q.tackle * 1.7) * mul - o.skill * 0.6;
         if (Math.random() < Math.max(0.15, rate) * dt) {
           this.steal(q, o);
@@ -1341,7 +1375,13 @@ export class Match {
         this.airTouch(p);
         return;
       }
-      if (b.z <= 0.85 && d < PHYS.pickupR && d < bd) {
+      // soft ball magnet for the controlled player
+      if (p === this.human && p.canAct && b.z < 0.7 && d < 1.8 && d > 0.3 && b.speed < 11) {
+        b.vx += ((p.x - b.x) / d) * 7 * dt;
+        b.vy += ((p.y - b.y) / d) * 7 * dt;
+      }
+      const reach = p === this.human ? 1.0 : PHYS.pickupR;
+      if (b.z <= (p === this.human ? 1.0 : 0.85) && d < reach && d < bd) {
         bd = d;
         best = p;
       }
@@ -1349,7 +1389,7 @@ export class Match {
     if (!best) return;
     const p = best;
     const rel = Math.hypot(b.vx - p.vx, b.vy - p.vy);
-    const limit = 15 + p.skill * 7 + (b.passTarget === p ? 9 : 0);
+    const limit = 15 + p.skill * 7 + (b.passTarget === p ? 9 : 0) + (p === this.human ? 8 : 0);
     if (rel > 25 && b.z > 0.25 && b.lastTouch && b.lastTouch.team !== p.team) {
       this.fx.text(p.x, p.y, 0.4, t().bonk, '#fff', 1);
       this.knockdown(p, b.lastTouch, b.vx * 0.25, b.vy * 0.25, 1.2);

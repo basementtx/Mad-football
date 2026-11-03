@@ -19,9 +19,10 @@ function randomClub(): Club {
   const primary = pick(SWATCHES);
   let secondary = pick(SWATCHES);
   while (secondary === primary) secondary = pick(SWATCHES);
+  const first = pick(['Pixel', 'Chaos', 'Brawl', 'Rocket', 'Storm', 'Wild', 'Iron', 'Night']);
   return {
-    name: pick(['Pixel', 'Chaos', 'Brawl', 'Rocket', 'Storm', 'Wild', 'Iron', 'Night']) + ' ' + pick(['FC', 'United', 'City', 'Rovers', 'Athletic']),
-    short: 'MAD',
+    name: first + ' ' + pick(['FC', 'United', 'City', 'Rovers', 'Athletic']),
+    short: first.slice(0, 3).toUpperCase(),
     primary, secondary, shorts: secondary, socks: primary,
     gk: '#ffcc2a',
     pattern: pick(PATTERNS),

@@ -157,6 +157,8 @@ export function lookFor(kit: TeamDef, l: { skin: string; hair: string; hairStyle
 
 export interface MenuHandlers {
   startMatch: () => void;
+  startLeagueMatch: () => void;
+  showLeague: () => void;
   resume: () => void;
   restart: () => void;
   quit: () => void;

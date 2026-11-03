@@ -29,6 +29,10 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **Kasalar**: Temel (250), Premium (700) ve Efsane (1800 altın). Her 4 saatte bir bedava temel kasa, başlangıçta bir bedava Premium. İçinden oyuncu kartı, gol patlaması, top izi ve özel güç çıkar; kopyalar altına çevrilir.
 - **Özel güçler** (öfke dolunca): Ateş Topu, Buz Şutu (dondurur), Falso Şutu (kıvrılır), Şimşek Şutu (zincirleme çarpar), Şok Dalgası (çevredeki herkesi devirir), Turbo Öfke (4 sn durdurulamaz hız).
 - **Gol patlamaları** (Rocket League tarzı, kale önündekileri savurur): Konfeti, Havai Fişek, Piksel Yağmuru, Derin Dondurucu, Yıldırım, Süpernova, Ejder Ateşi, Kara Delik, Altına Hücum. **Top izleri**: Alev, Pırıltı, Duman, Gökkuşağı, Elektrik, Galaksi, Midas.
+- **Lig modu**: 5 lig (Bronz → Gümüş → Altın → Elit → Mad Süper Lig), her ligde 8 kulüp, 7 haftalık sezon ve puan tablosu (O/G/B/M/AV/P). Diğer maçlar simüle edilir. Sezon sonunda ilk 2 üst lige çıkar, son 2 küme düşer; sıralamaya göre altın ödülü verilir. Zorluk lige göre artar.
+- **Taktiksel yapay zekâ**: bir oyuncu bekleyerek pres yapar, biri arkayı kapatıp pas yolunu keser, diğerleri adam veya bölge tutar; hücumda roller (forvet koşusu, orta saha destek, savunma çizgisi), boş adama ve ileri pas, sıkışınca topu geri dolaştırma.
+- Kaleci topu tutarken korunur; rakipler ceza sahasından çekilir, kaleci boş arkadaşa atar ya da adamların üstünden aşırtır.
+- **Hafif pas nişan yardımı** (yalnızca ~20° içindeki arkadaşa yönelir) ve **zarif nişan çizgisi**; ikisi de ayarlardan kapatılabilir.
 - **5 zorluk seviyesi** (Kolay → Efsane); ödül çarpanı ×0.6'dan ×3'e çıkar.
 - Kariyer kaydı (G/B/M), altın, maçın yıldızı ve maç istatistikleri.
 - İngilizce (varsayılan) ve Türkçe arayüz; dil, ayarlardan ya da ana menüdeki piksel bayrak düğmesinden değiştirilebilir.

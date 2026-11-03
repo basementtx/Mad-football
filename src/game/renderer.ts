@@ -691,26 +691,50 @@ export class Renderer {
       const fx = cam.sx(h.x + Math.cos(h.face) * 0.85), fy = cam.sy(h.y + Math.sin(h.face) * 0.85);
       ctx.fillStyle = '#ffe14d';
       ctx.fillRect(fx - 1, fy - 1, 2, 2);
-      // aim dots while charging
-      if (h.chargeKind === 'shot' && m.ball.owner === h) {
-        const tgt = m.aimAtGoal(h, m.aimX, m.aimY);
-        let ax = m.aimX, ay = m.aimY, len = 5;
-        if (tgt) {
-          const dx = tgt[0] - h.x, dy = tgt[1] - h.y;
-          const d = Math.hypot(dx, dy);
-          ax = dx / d;
-          ay = dy / d;
-          len = Math.min(d, 9);
-        }
-        const march = (time * 6) % 0.6;
-        for (let t = 1 + march; t < len; t += 0.6) {
-          const X = cam.sx(h.x + ax * t), Y = cam.sy(h.y + ay * t);
-          ctx.fillStyle = '#120c1c';
-          ctx.fillRect(X - 1, Y, 3, 2);
-          ctx.fillStyle = t > len - 0.7 ? '#ff5a3a' : '#ffe14d';
-          ctx.fillRect(X - 1, Y - 1, 2, 2);
-        }
-      }
+      // faint, elegant aim line toward where the ball would go
+      if (settings.aimLine && m.aim && m.ball.owner === h) this.drawAimLine(ctx, cam, h, time);
+    }
+  }
+
+  private drawAimLine(ctx: CanvasRenderingContext2D, cam: Camera, h: Player, time: number) {
+    const a = this.m.aim!;
+    const dx = a.x - h.x, dy = a.y - h.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1.2) return;
+    const ux = dx / len, uy = dy / len;
+    const start = 0.9;
+    const end = a.kind === 'free' ? Math.min(len, 6) : len;
+    const charging = h.chargeKind !== 'none';
+    const lob = h.chargeKind === 'pass' && h.charge > 0.28;
+    const arcH = lob ? 1.2 + h.charge * 1.6 : 0;
+    const base = a.kind === 'free' ? 0.28 : 0.42;
+    const boost = charging ? Math.min(1, h.charge) * 0.35 : 0;
+    const col = a.kind === 'shot' ? (charging ? '255,226,120' : '255,246,210') : '255,255,255';
+    // sample in screen space so dots are evenly spaced
+    const x0 = cam.sx(h.x + ux * start), y0 = cam.sy(h.y + uy * start);
+    const x1 = cam.sx(h.x + ux * end), y1 = cam.sy(h.y + uy * end);
+    const steps = Math.max(2, Math.floor(Math.hypot(x1 - x0, y1 - y0) / 3));
+    const march = (time * 10) % 1;
+    for (let i = 0; i <= steps; i++) {
+      const t = Math.min(1, (i + march) / steps);
+      const wx = h.x + ux * (start + (end - start) * t), wy = h.y + uy * (start + (end - start) * t);
+      const z = arcH ? 4 * arcH * t * (1 - t) : 0;
+      const alpha = (base + boost) * (1 - t * 0.8);
+      ctx.fillStyle = `rgba(${col},${alpha.toFixed(3)})`;
+      ctx.fillRect(cam.sx(wx), cam.sy(wy, z), 1, 1);
+    }
+    // end marker
+    const ex = cam.sx(h.x + ux * end), ey = cam.sy(h.y + uy * end);
+    const ma = (base + boost) * 0.9;
+    ctx.fillStyle = `rgba(${col},${ma.toFixed(3)})`;
+    if (a.kind === 'pass') {
+      ctx.fillRect(ex - 2, ey, 1, 1);
+      ctx.fillRect(ex + 2, ey, 1, 1);
+      ctx.fillRect(ex, ey - 1, 1, 1);
+      ctx.fillRect(ex, ey + 1, 1, 1);
+    } else if (a.kind === 'shot') {
+      ctx.fillRect(ex - 1, ey, 3, 1);
+      ctx.fillRect(ex, ey - 1, 1, 3);
     }
   }
 

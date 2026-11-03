@@ -84,6 +84,14 @@ const tr = {
   homeSide: 'EV SAHİBİ', myClubOpt: 'Kulübüm', you: 'SEN', newCards: 'Yeni oyuncular kadroya eklendi',
   welcome: 'Hoş geldin! Önce kulübünü kur.', starterGift: 'Hoş geldin hediyesi: Premium Kasa!',
   powerReady: 'HAZIR!',
+
+  league: 'LİG', season: 'Sezon', matchday: 'Hafta', table: 'PUAN TABLOSU', nextMatch: 'SIRADAKİ MAÇ', lastResults: 'SON HAFTA',
+  colP: 'O', colW: 'G', colD: 'B', colL: 'M', colGD: 'AV', colPts: 'P',
+  divNames: { 5: 'Bronz Ligi', 4: 'Gümüş Ligi', 3: 'Altın Ligi', 2: 'Elit Lig', 1: 'Mad Süper Lig' } as Record<number, string>,
+  promoZone: 'Üst lige çıkış', releZone: 'Küme düşme', playMatchday: 'MAÇA ÇIK',
+  outcomes: { promoted: 'ÜST LİGE ÇIKTIN!', relegated: 'KÜME DÜŞTÜN', stayed: 'LİGDE KALDIN', champions: 'ŞAMPİYON!' } as Record<string, string>,
+  seasonEnd: 'SEZON SONU', finished: 'Bitirdiğin sıra', nextSeason: 'YENİ SEZON', continueBtn: 'DEVAM', vsHome: 'İç saha', vsAway: 'Deplasman',
+  passAssist: 'Pas Nişan Yardımı', aimLine: 'Nişan Çizgisi', leagueSub: 'Haftalık maçlar, puan tablosu',
 };
 
 type Dict = typeof tr;
@@ -172,6 +180,14 @@ const en: Dict = {
   homeSide: 'HOME', myClubOpt: 'My club', you: 'YOU', newCards: 'New players joined your squad',
   welcome: 'Welcome! First, found your club.', starterGift: 'Welcome gift: a Premium Crate!',
   powerReady: 'READY!',
+
+  league: 'LEAGUE', season: 'Season', matchday: 'Matchday', table: 'TABLE', nextMatch: 'NEXT MATCH', lastResults: 'LAST ROUND',
+  colP: 'P', colW: 'W', colD: 'D', colL: 'L', colGD: 'GD', colPts: 'PTS',
+  divNames: { 5: 'Bronze League', 4: 'Silver League', 3: 'Gold League', 2: 'Elite League', 1: 'Mad Premier' } as Record<number, string>,
+  promoZone: 'Promotion', releZone: 'Relegation', playMatchday: 'PLAY MATCH',
+  outcomes: { promoted: 'PROMOTED!', relegated: 'RELEGATED', stayed: 'SURVIVED', champions: 'CHAMPIONS!' } as Record<string, string>,
+  seasonEnd: 'SEASON OVER', finished: 'Finished', nextSeason: 'NEXT SEASON', continueBtn: 'CONTINUE', vsHome: 'Home', vsAway: 'Away',
+  passAssist: 'Pass Aim Assist', aimLine: 'Aim Line', leagueSub: 'Weekly fixtures, league table',
 };
 
 const DICTS: Record<Lang, Dict> = { en, tr };

@@ -10,6 +10,10 @@ export interface Settings {
   lang: Lang;
   /** joystick stays in place instead of following the finger */
   joyFixed: boolean;
+  /** light auto-aim for passes */
+  passAssist: boolean;
+  /** faint aim line while on the ball */
+  aimLine: boolean;
   /** settings schema version */
   v: number;
 }
@@ -36,6 +40,8 @@ const DEFAULT_SETTINGS: Settings = {
   quality: 'high',
   lang: 'en',
   joyFixed: false,
+  passAssist: true,
+  aimLine: true,
   v: 2,
 };
 
