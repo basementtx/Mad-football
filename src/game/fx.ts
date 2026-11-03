@@ -3,7 +3,7 @@ import { settings } from '../engine/storage';
 import type { Camera } from './camera';
 import { drawText } from '../pixel/font';
 import { star } from '../pixel/props';
-import { vw, vh } from '../engine/gfx';
+import { vw, vh, pxDisc, pxLine, pxRing, snap, U } from '../engine/gfx';
 
 type PType = 'dust' | 'grass' | 'spark' | 'confetti' | 'fire' | 'smoke' | 'star' | 'ring' | 'pix' | 'rocket' | 'bolt' | 'coin' | 'vortex' | 'snow' | 'clod' | 'splinter';
 
@@ -363,185 +363,127 @@ export class FX {
   }
 
   draw(ctx: CanvasRenderingContext2D, cam: Camera) {
-    const TAU_ = Math.PI * 2;
+    const sq = (x: number, y: number, sz: number) => {
+      const h = Math.max(U, Math.round(sz * 2) / 2);
+      ctx.fillRect(snap(x - h / 2), snap(y - h / 2), h, h);
+    };
     for (const p of this.particles) {
       const sx = cam.sx(p.x), sy = cam.sy(p.y, p.z);
       const k = p.life / p.max;
       switch (p.type) {
         case 'dust':
         case 'smoke': {
-          const r = Math.max(0.8, p.size * 5 * (0.5 + (1 - k) * 1.1));
-          ctx.globalAlpha = (p.type === 'dust' ? 0.42 : 0.5) * Math.min(1, k * 1.6);
-          ctx.fillStyle = p.type === 'dust' ? '#d9caa2' : '#4a4450';
+          const r = Math.max(0.5, p.size * 4.5 * (0.5 + (1 - k) * 1.1));
+          ctx.globalAlpha = k > 0.4 ? (p.type === 'dust' ? 0.55 : 0.65) : 0.3;
+          ctx.fillStyle = p.type === 'dust' ? (k > 0.5 ? '#ddd0a8' : '#bba980') : k > 0.5 ? '#5a5260' : '#3c3644';
           ctx.beginPath();
-          ctx.arc(sx, sy, r, 0, TAU_);
+          pxDisc(ctx, sx, sy, r);
           ctx.fill();
           break;
         }
-        case 'grass': {
-          ctx.strokeStyle = p.color;
-          ctx.lineWidth = 0.7;
-          ctx.lineCap = 'round';
-          const a = p.rot;
+        case 'grass':
+        case 'splinter': {
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = k < 0.2 ? 0.6 : 1;
+          const l = p.type === 'grass' ? 1 : p.size * 9;
           ctx.beginPath();
-          ctx.moveTo(sx - Math.cos(a) * 1.1, sy - Math.sin(a) * 1.1);
-          ctx.lineTo(sx + Math.cos(a) * 1.1, sy + Math.sin(a) * 1.1);
-          ctx.stroke();
+          pxLine(ctx, sx - Math.cos(p.rot) * l, sy - Math.sin(p.rot) * l, sx + Math.cos(p.rot) * l, sy + Math.sin(p.rot) * l);
+          ctx.fill();
           break;
         }
         case 'clod': {
-          // shadow on the grass + tumbling chunk
-          const r = p.size * 9;
-          ctx.globalAlpha = 0.25;
-          ctx.fillStyle = '#0b1a10';
+          const r = p.size * 8;
+          ctx.fillStyle = 'rgba(8,26,14,0.3)';
           ctx.beginPath();
-          ctx.ellipse(cam.sx(p.x), cam.sy(p.y), r, r * 0.45, 0, 0, TAU_);
+          pxDisc(ctx, cam.sx(p.x), cam.sy(p.y), r, r * 0.45);
           ctx.fill();
-          ctx.globalAlpha = k < 0.2 ? k / 0.2 : 1;
+          ctx.globalAlpha = k < 0.2 ? 0.6 : 1;
           ctx.fillStyle = p.color;
-          ctx.save();
-          ctx.translate(sx, sy - r * 0.5);
-          ctx.rotate(p.rot);
-          ctx.beginPath();
-          ctx.moveTo(-r, -r * 0.4);
-          ctx.lineTo(-r * 0.2, -r);
-          ctx.lineTo(r, -r * 0.3);
-          ctx.lineTo(r * 0.6, r * 0.8);
-          ctx.lineTo(-r * 0.7, r * 0.6);
-          ctx.closePath();
-          ctx.fill();
+          const c = Math.round(p.rot) & 1;
+          ctx.fillRect(snap(sx - r), snap(sy - r * 1.4), snap(r * 2), snap(r * (c ? 1.5 : 2)));
           ctx.fillStyle = '#3ea84a';
-          ctx.fillRect(-r * 0.3, -r * 1.1, r * 0.25, r * 0.6);
-          ctx.restore();
-          break;
-        }
-        case 'splinter': {
-          ctx.globalAlpha = k < 0.25 ? k / 0.25 : 1;
-          ctx.strokeStyle = p.color;
-          ctx.lineWidth = 0.9;
-          ctx.lineCap = 'round';
-          const a = p.rot, l = p.size * 10;
-          ctx.beginPath();
-          ctx.moveTo(sx - Math.cos(a) * l, sy - Math.sin(a) * l);
-          ctx.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l);
-          ctx.stroke();
+          ctx.fillRect(snap(sx - r + (c ? r : 0)), snap(sy - r * 1.4) - U, U * 2, U);
           break;
         }
         case 'spark': {
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.strokeStyle = p.color;
-          ctx.lineCap = 'round';
-          ctx.lineWidth = 0.6 + k * 0.9;
-          const tl = 0.035;
-          const ex = cam.sx(p.x - p.vx * tl), ey = cam.sy(p.y - p.vy * tl, p.z - p.vz * tl);
+          ctx.fillStyle = p.color;
+          const tl = 0.03;
           ctx.beginPath();
-          ctx.moveTo(sx, sy);
-          ctx.lineTo(ex, ey);
-          ctx.stroke();
-          ctx.globalCompositeOperation = 'source-over';
+          pxLine(ctx, sx, sy, cam.sx(p.x - p.vx * tl), cam.sy(p.y - p.vy * tl, p.z - p.vz * tl), k > 0.5 ? 2 : 1);
+          ctx.fill();
           break;
         }
         case 'ring': {
           const r = 2 + (1 - k) * 10 * p.size;
-          ctx.globalAlpha = Math.min(1, k * 1.5);
-          ctx.strokeStyle = p.color.startsWith('#') || p.color.startsWith('rgba') ? p.color : '#fff';
-          ctx.lineWidth = 0.6 + k * 1.6;
+          ctx.globalAlpha = k > 0.5 ? 1 : 0.6;
+          ctx.fillStyle = p.color;
           ctx.beginPath();
-          ctx.ellipse(sx, sy, r, r * 0.6, 0, 0, TAU_);
-          ctx.stroke();
+          pxRing(ctx, sx, sy, r, r * 0.6, k > 0.5 ? 2 : 1);
+          ctx.fill();
           break;
         }
         case 'fire': {
-          const r = p.size * 3.2 * (0.35 + k * 0.75);
-          ctx.globalCompositeOperation = 'lighter';
-          const col = k > 0.7 ? '255,240,170' : k > 0.45 ? '255,176,46' : k > 0.2 ? '255,90,31' : '154,32,16';
-          const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
-          gr.addColorStop(0, `rgba(${col},0.95)`);
-          gr.addColorStop(1, `rgba(${col},0)`);
-          ctx.fillStyle = gr;
+          ctx.fillStyle = k > 0.7 ? '#fff3a0' : k > 0.45 ? '#ffb02e' : k > 0.2 ? '#ff5a1f' : '#9a2010';
           ctx.beginPath();
-          ctx.arc(sx, sy, r, 0, TAU_);
+          pxDisc(ctx, sx, sy, p.size * 2.6 * (0.35 + k * 0.75));
           ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
           break;
         }
         case 'confetti': {
           ctx.fillStyle = p.color;
-          ctx.save();
-          ctx.translate(sx, sy);
-          ctx.rotate(p.rot * 0.5);
-          ctx.scale(1, Math.cos(p.rot * 2));
-          ctx.fillRect(-1.1, -0.6, 2.2, 1.2);
-          ctx.restore();
+          const flip = Math.floor(p.rot * 2) % 2 === 0;
+          ctx.fillRect(snap(sx), snap(sy), flip ? 1.5 : U, flip ? U : 1.5);
           break;
         }
         case 'pix':
         case 'snow': {
-          const r = Math.max(0.5, p.size * 4 * (p.type === 'pix' ? 0.4 + k * 0.6 : 1));
-          ctx.globalAlpha = k > 0.3 ? 1 : k / 0.3;
+          ctx.globalAlpha = k > 0.3 ? 1 : 0.55;
           ctx.fillStyle = p.color;
-          ctx.beginPath();
-          ctx.arc(sx, sy, r, 0, TAU_);
-          ctx.fill();
+          sq(sx, sy, p.size * 7 * (p.type === 'pix' ? 0.4 + k * 0.6 : 0.8));
           break;
         }
         case 'rocket': {
           ctx.fillStyle = '#ffffff';
-          ctx.fillRect(sx - 1, sy - 1, 2, 3);
+          ctx.fillRect(snap(sx) - 1, snap(sy) - 1, 2, 3);
           ctx.fillStyle = p.color;
-          ctx.fillRect(sx - 1, sy + 2, 2, 2);
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.fillStyle = 'rgba(255,176,46,0.85)';
-          ctx.beginPath();
-          ctx.ellipse(sx, sy + 5, 0.9, 2 + Math.random() * 2, 0, 0, TAU_);
-          ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
+          ctx.fillRect(snap(sx) - 1, snap(sy) + 2, 2, 1.5);
+          ctx.fillStyle = Math.random() < 0.5 ? '#ffb02e' : '#ffef8a';
+          ctx.fillRect(snap(sx) - 0.5, snap(sy) + 3.5, 1, 1.5 + Math.floor(Math.random() * 3) * U);
           break;
         }
         case 'coin': {
-          const w = Math.abs(Math.cos(p.rot)) * 2.4 + 0.4;
+          const w = Math.max(U, Math.round(Math.abs(Math.cos(p.rot)) * 5) / 2);
           ctx.fillStyle = '#7a4a00';
-          ctx.beginPath();
-          ctx.ellipse(sx, sy, w + 0.6, 3, 0, 0, TAU_);
-          ctx.fill();
+          ctx.fillRect(snap(sx - w / 2) - U, snap(sy) - 2, w + 1, 4.5);
           ctx.fillStyle = '#ffcc2a';
-          ctx.beginPath();
-          ctx.ellipse(sx, sy, w, 2.4, 0, 0, TAU_);
-          ctx.fill();
+          ctx.fillRect(snap(sx - w / 2), snap(sy) - 1.5, w, 3.5);
           ctx.fillStyle = '#fff2a8';
-          ctx.fillRect(sx - w * 0.5, sy - 1.4, Math.max(0.4, w * 0.4), 1);
+          ctx.fillRect(snap(sx - w / 2), snap(sy) - 1.5, U, U * 2);
           break;
         }
         case 'vortex': {
           ctx.fillStyle = p.color;
-          ctx.beginPath();
-          ctx.arc(sx, sy, 1.1, 0, TAU_);
-          ctx.fill();
+          sq(sx, sy, 1.5);
           break;
         }
         case 'bolt': {
-          // jagged lightning from the sky to the ground point
           const seed = Math.floor(p.rot * 1000);
           const pts: [number, number][] = [[sx + 10, sy - 90]];
           for (let i = 1; i <= 13; i++) pts.push([sx + (((seed * (i + 3) * 7919) % 13) - 6) * (1 - i / 14) * 0.9, sy - 90 + i * 7]);
           pts.push([sx, sy]);
           ctx.globalAlpha = k > 0.5 ? 1 : 0.6;
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.lineJoin = 'round';
-          for (const [w, c] of [[5, 'rgba(59,217,255,0.35)'], [2.4, '#3bd9ff'], [1, '#ffffff']] as const) {
-            ctx.strokeStyle = c;
-            ctx.lineWidth = w;
+          for (const [w, c] of [[5, '#3bd9ff'], [2, '#ffffff']] as const) {
+            ctx.fillStyle = c;
             ctx.beginPath();
-            pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-            ctx.stroke();
+            for (let i = 1; i < pts.length; i++) pxLine(ctx, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1], w);
+            ctx.fill();
           }
-          ctx.globalCompositeOperation = 'source-over';
           break;
         }
         case 'star': {
           const st = star();
-          ctx.globalAlpha = k > 0.3 ? 1 : k / 0.3;
-          ctx.drawImage(st, sx - vw(st) / 2, sy - vh(st) / 2);
+          ctx.globalAlpha = k > 0.3 ? 1 : 0.5;
+          ctx.drawImage(st, snap(sx - vw(st) / 2), snap(sy - vh(st) / 2));
           break;
         }
       }
@@ -551,16 +493,10 @@ export class FX {
     // floating texts
     for (const t of this.texts) {
       const age = t.max - t.life;
-      const pop = age < 0.12 ? 1 + (0.12 - age) * 4 : 1;
-      const sx = cam.sx(t.x), sy = cam.sy(t.y, t.z + 2.6) - (age < 0.12 ? 3 : 0);
-      ctx.globalAlpha = Math.min(1, t.life / 0.3);
-      const sc = t.size >= 1.1 ? 1.6 : 1.05;
-      ctx.save();
-      ctx.translate(sx, sy);
-      ctx.scale(pop, pop);
-      drawText(ctx, t.text, 0, 0, { color: t.color, scale: sc, align: 'center', outline: '#120c1c', thick: 1.1, shadow: 'rgba(0,0,0,0.35)' });
-      ctx.restore();
-      ctx.globalAlpha = 1;
+      const bounce = age < 0.12 ? -3 : age < 0.2 ? 1 : 0;
+      const sx = cam.sx(t.x), sy = cam.sy(t.y, t.z + 2.6) + bounce;
+      if (t.life < 0.25 && Math.floor(t.life * 20) % 2) continue; // blink out
+      drawText(ctx, t.text, sx, sy, { color: t.color, scale: t.size >= 1.1 ? 1.5 : 1, align: 'center', outline: '#120c1c', thick: 1, shadow: null });
     }
   }
 }

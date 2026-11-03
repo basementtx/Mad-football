@@ -1,6 +1,6 @@
 /**
- * Procedural footballer generator.
- * Each frame is a skeleton pose that is rasterized (supersampled) with capsule shapes,
+ * Procedural HD pixel-art footballer generator.
+ * Each frame is a skeleton pose that is rasterized at 2 px per virtual px with capsule shapes,
  * per-pixel lighting (normals vs. a top-left light), hue-shifted ramps,
  * kit patterns in torso-local space, inner contour lines and a selective outline.
  */
@@ -406,7 +406,7 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
   const dot = (lx: number, ly: number, r: number, tone = 2) => {
     const [x, y] = P(lx, ly);
     const cx = (Math.floor(x) + 0.5) * S, cy = (Math.floor(y) + 0.5) * S;
-    const rad = S * 0.62;
+    const rad = S * 0.72;
     for (let yy = Math.floor(cy - rad); yy <= Math.ceil(cy + rad); yy++)
       for (let xx = Math.floor(cx - rad); xx <= Math.ceil(cx + rad); xx++)
         if (Math.hypot(xx + 0.5 - cx, yy + 0.5 - cy) <= rad) b.set(xx, yy, r, tone, 6);
@@ -491,7 +491,7 @@ function finalize(b: Buf, ramps: RGB[][], img: ImageData) {
       }
     }
   }
-  const ow = Math.max(1, Math.round(S * 0.7));
+  const ow = Math.max(1, Math.round(S * 0.5));
   const off = offsets(ow);
   const n = off.length / 3;
   const ya = Math.max(0, y0 - ow), yb = Math.min(H - 1, y1 + ow), xa = Math.max(0, x0 - ow), xb = Math.min(W - 1, x1 + ow);
@@ -501,7 +501,8 @@ function finalize(b: Buf, ramps: RGB[][], img: ImageData) {
       const o = i * 4;
       const r = R[i];
       if (r >= 0) {
-        const t = Math.max(0, Math.min(3, tone[i]));
+        // stepped ramp shading (pixel art): whole tones plus one in-between step
+        const t = Math.round(Math.max(0, Math.min(3, tone[i])) * 2) / 2;
         const lo = Math.floor(t), hi = Math.min(3, lo + 1), f = t - lo;
         const A = ramps[r][lo], B = ramps[r][hi];
         d[o] = A[0] + (B[0] - A[0]) * f;
@@ -519,7 +520,7 @@ function finalize(b: Buf, ramps: RGB[][], img: ImageData) {
         const dist = off[k * 3 + 2] / 1000;
         const c = mix(ramps[v][0], OUTLINE, 0.65);
         d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2];
-        d[o + 3] = Math.round(255 * Math.min(1, Math.max(0, ow + 0.5 - dist)));
+        d[o + 3] = dist <= ow + 0.01 ? 255 : 0;
         break;
       }
     }

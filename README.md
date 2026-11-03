@@ -16,9 +16,9 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **Yapay zekâ**: pres, alan kapatma, adam markajı, koşular, pas tercihleri. 4 zorluk seviyesi var: Kolay, Normal, Zor, Çılgın.
 - **8 özgün takım**: her birinin kendi forma deseni ve hız, güç, sertlik, teknik değerleri var.
 - **3v3, 4v4 ve 5v5**; 2, 3 ve 5 dakikalık maçlar.
-- **HD grafikler**: oyun yerleşimi ~232 birimlik sanal yükseklikte kalıyor, ama tuval cihaz çözünürlüğünde çiziliyor ve tüm sprite'lar 3-4 kat süper örneklemeyle üretiliyor.
-  - Oyuncular iskeletten üretiliyor, artık yumuşak ışıklandırma, kenar yumuşatmalı dış hat ve iç kontur çizgileriyle. Top gölgeli, parlamalı bir küre.
-  - Vektör yazı (Lilita One / Rubik), yuvarlak ve parlak HUD panelleri, yumuşak gölgeler, ışık ve vinyet.
+- **HD piksel art**: oyun, sanal 232 birimlik yükseklikte ve birim başına 2 piksel olacak şekilde (~464 px) bir çerçeveye çiziliyor. Bu çerçeve tam sayı katlarla, en yakın komşu yöntemiyle büyütülüyor. Pikseller keskin kalıyor, ama klasik piksel artın iki katı ince.
+  - Oyuncular iskeletten piksel piksel üretiliyor: ton kaydırmalı renk paletleri, kademeli gölgelendirme, sert dış hat ve iç kontur çizgileri. Top, düğmeler ve halkalar da aynı tarzda.
+  - Pixelify Sans yazı tipi, kendi piksel ızgarasının tam katlarında çiziliyor (Türkçe karakterler dahil). Dither'lı vinyet, ışıklar ve saha gölgeleri, piksel seyirciler, LED panolar.
   - **Dinamik saha**: kaymalar, sert şutlar (çim kopması ve toprak parçaları), yere düşmeler ve depar adımları çime kalıcı iz bırakıyor; maç ilerledikçe saha aşınıyor.
   - **Kale direkleri** top ya da oyuncu çarptığında titriyor; ağ, topun vurduğu yerde esniyor.
   - **Korner bayrakları** sürtünmede sallanıyor, sert bir kayma ya da şutla kopup havada dönerek uçuyor; yerde kalan parça tekmelenebiliyor. Her başlama vuruşunda yenileniyor.

@@ -1,9 +1,8 @@
-import '@fontsource/lilita-one';
-import '@fontsource/rubik/400.css';
-import '@fontsource/rubik/600.css';
-import '@fontsource/rubik/800.css';
+import '@fontsource/pixelify-sans/400.css';
+import '@fontsource/pixelify-sans/600.css';
+import '@fontsource/pixelify-sans/700.css';
 import './ui/style.css';
-import './engine/gfx';
+import { PXD } from './engine/gfx';
 import { clearTextCache } from './pixel/font';
 
 import { Input, Insets } from './engine/input';
@@ -43,29 +42,26 @@ function readInsets(): Insets {
 }
 
 /**
- * HD display: layout still uses ~232 "virtual pixels" of height, but the canvas
- * renders at device resolution (capped for performance) with a scale transform,
- * and all sprites are supersampled, so everything stays sharp and smooth.
+ * HD pixel-art display: the game renders into a framebuffer with PXD (=2)
+ * pixels per virtual pixel (~464 px tall), scaled up by an integer factor with
+ * nearest-neighbour, so pixels stay crisp but twice as fine as classic pixel art.
  */
-let Q = 1;
+let Q = PXD;
 function resize() {
   const cssW = window.innerWidth, cssH = window.innerHeight;
-  const dpr = Math.min(window.devicePixelRatio || 1, settings.quality === 'high' ? 2 : 1.25);
-  let devW = Math.round(cssW * dpr), devH = Math.round(cssH * dpr);
-  const cap = settings.quality === 'high' ? 1300 : 760;
-  if (devH > cap) {
-    devW = Math.round((devW * cap) / devH);
-    devH = cap;
-  }
-  Q = devH / (232 / settings.zoom);
-  W = devW / Q;
-  H = devH / Q;
-  canvas.width = devW;
-  canvas.height = devH;
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
+  const dpr = window.devicePixelRatio || 1;
+  const devW = Math.round(cssW * dpr), devH = Math.round(cssH * dpr);
+  const px = Math.max(1, Math.round(devH / ((232 * PXD) / settings.zoom)));
+  const bw = Math.ceil(devW / px), bh = Math.ceil(devH / px);
+  Q = PXD;
+  W = bw / PXD;
+  H = bh / PXD;
+  canvas.width = bw;
+  canvas.height = bh;
+  canvas.style.width = (bw * px) / dpr + 'px';
+  canvas.style.height = (bh * px) / dpr + 'px';
   ctx = canvas.getContext('2d', { alpha: false })!;
-  const k = cssH / H; // css px per virtual px
+  const k = (px * PXD) / dpr; // css px per virtual px
   input.k = k;
   const ins = readInsets();
   input.resize(W, H, { top: ins.top / k, right: ins.right / k, bottom: ins.bottom / k, left: ins.left / k });
@@ -224,8 +220,7 @@ function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   ctx.setTransform(Q, 0, 0, Q, 0, 0);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingEnabled = false;
   if (mode === 'play' || mode === 'paused' || (mode === 'results' && game)) {
     game!.update(mode === 'play' || mode === 'results' ? dt : 0);
     game!.draw(ctx, W, H, mode === 'play');
@@ -246,7 +241,9 @@ async function boot() {
   applyLang();
   try {
     await Promise.race([
-      Promise.all([document.fonts.load('20px "Lilita One"'), document.fonts.load('600 16px "Rubik"'), document.fonts.load('800 16px "Rubik"')]),
+      Promise.all(
+        ['400 16px "Pixelify Sans"', '700 16px "Pixelify Sans"'].map((f) => document.fonts.load(f, 'AZaz09 ÇĞİÖŞÜçğıöşü')),
+      ),
       new Promise((r) => setTimeout(r, 1500)),
     ]);
   } catch {

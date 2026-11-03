@@ -49,13 +49,12 @@ export function paintAll(root: ParentNode = ui()) {
     const fn = registry.get(c.dataset.paint!);
     if (!fn) return;
     const src = fn() as HTMLCanvasElement & { __s?: number };
-    // supersampled sources render smooth; small pixel-art icons stay crisp
-    c.style.imageRendering = src.__s ? 'auto' : 'pixelated';
+    c.style.imageRendering = 'pixelated';
     c.width = src.width;
     c.height = src.height;
     const g = c.getContext('2d')! as CanvasRenderingContext2D & { __raw?: boolean };
     g.__raw = true;
-    g.imageSmoothingEnabled = true;
+    g.imageSmoothingEnabled = false;
     g.drawImage(src, 0, 0);
     registry.delete(c.dataset.paint!);
     c.removeAttribute('data-paint');
@@ -76,17 +75,9 @@ export function spriteSource(look: PlayerLook, frame: string, left = false, glow
     const [c, g] = hiCanvas(CELL_W, CELL_H);
     if (glow) {
       const rp = ramp(look.kit.primary);
-      g.save();
-      g.translate(20, 35);
-      g.scale(1, 0.25);
-      const gr = g.createRadialGradient(0, 0, 0, 0, 0, 12);
-      gr.addColorStop(0, css(rp[2], 0.75));
-      gr.addColorStop(1, css(rp[1], 0));
-      g.fillStyle = gr;
-      g.beginPath();
-      g.arc(0, 0, 12, 0, Math.PI * 2);
-      g.fill();
-      g.restore();
+      g.fillStyle = css(rp[1], 0.6);
+      g.fillRect(9, 34, 22, 2);
+      g.fillRect(12, 33, 16, 4);
     }
     drawPlayerFrame(g, sheet, FRAMES[frame], 0, 0, left);
     return c;

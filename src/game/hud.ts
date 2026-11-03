@@ -6,7 +6,7 @@ import { t } from '../engine/i18n';
 import { drawText, measure } from '../pixel/font';
 import { disc, ringDisc } from '../pixel/props';
 import { ramp, css } from '../pixel/palette';
-import { vw, vh, roundRect } from '../engine/gfx';
+import { vw, vh, snap, U, pxRoundRect, pxDisc } from '../engine/gfx';
 
 export interface BtnLabel {
   text: string;
@@ -16,23 +16,21 @@ export interface BtnLabel {
 
 const INK = '#120c1c';
 
-/** Rounded glossy panel. */
+/** Bevelled pixel panel with cut corners. */
 export function panel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill = '#1b2236', light = '#2e3a58', dark = '#0b0f1a') {
-  const r = Math.min(4, h / 2);
+  x = snap(x);
+  y = snap(y);
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  roundRect(ctx, x - 0.5, y + 0.8, w + 1, h + 1, r + 0.5);
-  ctx.fill();
-  const gr = ctx.createLinearGradient(0, y, 0, y + h);
-  gr.addColorStop(0, light);
-  gr.addColorStop(0.45, fill);
-  gr.addColorStop(1, dark);
-  ctx.fillStyle = gr;
-  roundRect(ctx, x, y, w, h, r);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
-  ctx.lineWidth = 0.6;
-  roundRect(ctx, x + 0.3, y + 0.3, w - 0.6, h - 0.6, r);
-  ctx.stroke();
+  pxRoundRect(ctx, x, y + 1, w, h, 1);
+  ctx.fillStyle = INK;
+  pxRoundRect(ctx, x - 1, y - 1, w + 2, h + 2, 1.5);
+  ctx.fillStyle = fill;
+  pxRoundRect(ctx, x, y, w, h, 1);
+  ctx.fillStyle = light;
+  ctx.fillRect(x + 1, y, w - 2, 1);
+  ctx.fillRect(x, y + 1, U, h - 2);
+  ctx.fillStyle = dark;
+  ctx.fillRect(x + 1, y + h - 1, w - 2, 1);
 }
 
 export function drawHUD(ctx: CanvasRenderingContext2D, m: Match, input: Input, W: number, H: number, time: number, labels: Record<BtnId, BtnLabel> | null) {
@@ -56,21 +54,18 @@ function drawScoreboard(ctx: CanvasRenderingContext2D, m: Match, W: number, top:
   const [h, a] = m.teams;
   const y = Math.max(top, 3) + 5;
   const w = 118, hh = 15;
-  const x = Math.round(W / 2 - w / 2);
+  const x = snap(W / 2 - w / 2);
   panel(ctx, x, y, w, hh);
   for (const [tx, team, inner] of [[x, h, x + 4], [x + w - 4, a, x + w - 5]] as const) {
     const rp = ramp(team.def.primary);
-    ctx.save();
-    roundRect(ctx, x, y, w, hh, 4);
-    ctx.clip();
-    const tg = ctx.createLinearGradient(0, y, 0, y + hh);
-    tg.addColorStop(0, css(rp[3]));
-    tg.addColorStop(1, css(rp[1]));
-    ctx.fillStyle = tg;
-    ctx.fillRect(tx, y, 4, hh);
+    ctx.fillStyle = css(rp[2]);
+    ctx.fillRect(tx, y + 1, 4, hh - 2);
+    ctx.fillStyle = css(rp[3]);
+    ctx.fillRect(tx, y + 1, 4, 1);
+    ctx.fillStyle = css(rp[1]);
+    ctx.fillRect(tx, y + hh - 2, 4, 1);
     ctx.fillStyle = team.def.secondary;
-    ctx.fillRect(inner, y, 1, hh);
-    ctx.restore();
+    ctx.fillRect(inner, y + 1, 1, hh - 2);
   }
   drawText(ctx, h.def.short, x + 9, y + 4, { color: '#fff', outline: null });
   drawText(ctx, a.def.short, x + w - 8, y + 4, { color: '#fff', outline: null, align: 'right' });
@@ -135,15 +130,15 @@ function drawRage(ctx: CanvasRenderingContext2D, m: Match, W: number, H: number,
     const k = clamp(n - i, 0, 1);
     const col = full ? (Math.floor(time * 8 + i) % 2 ? '#ffe14d' : '#ff8a1f') : i < 4 ? '#ff3b1f' : i < 7 ? '#ff6a1f' : '#ffa21f';
     ctx.fillStyle = '#2a1a1a';
-    roundRect(ctx, x + i * (sw + gap), y, sw, 4, 1.2);
-    ctx.fill();
+    ctx.fillRect(x + i * (sw + gap), y, sw, 4);
     if (k > 0) {
-      const ww = Math.max(1, sw * k);
+      const ww = Math.max(U, snap(sw * k));
       ctx.fillStyle = col;
-      roundRect(ctx, x + i * (sw + gap), y, ww, 4, 1.2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.fillRect(x + i * (sw + gap) + 0.5, y + 0.4, Math.max(0, ww - 1), 1);
+      ctx.fillRect(x + i * (sw + gap), y, ww, 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fillRect(x + i * (sw + gap), y, ww, 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(x + i * (sw + gap), y + 3.5, ww, U);
     }
   }
   const label = full ? t().rageReady : t().rage;
@@ -154,10 +149,8 @@ function drawPauseBtn(ctx: CanvasRenderingContext2D, input: Input) {
   const r = input.pauseRect;
   panel(ctx, r.x, r.y, r.w, r.h);
   ctx.fillStyle = '#ffffff';
-  roundRect(ctx, r.x + 5, r.y + 4, 2, r.h - 8, 0.8);
-  ctx.fill();
-  roundRect(ctx, r.x + r.w - 7, r.y + 4, 2, r.h - 8, 0.8);
-  ctx.fill();
+  ctx.fillRect(snap(r.x) + 5, snap(r.y) + 4, 2, snap(r.h) - 8);
+  ctx.fillRect(snap(r.x + r.w) - 7, snap(r.y) + 4, 2, snap(r.h) - 8);
 }
 
 function drawTouch(ctx: CanvasRenderingContext2D, input: Input, labels: Record<BtnId, BtnLabel>, time: number) {
@@ -167,15 +160,15 @@ function drawTouch(ctx: CanvasRenderingContext2D, input: Input, labels: Record<B
   const R = input.joyR;
   ctx.globalAlpha = input.joyActive ? 0.95 : 0.55;
   const base = ringDisc(R, '#9aa6bd', 110);
-  ctx.drawImage(base, ox - vw(base) / 2, oy - vh(base) / 2);
+  ctx.drawImage(base, snap(ox - vw(base) / 2), snap(oy - vh(base) / 2));
   ctx.fillStyle = '#9aa6bd';
   for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
     ctx.beginPath();
-    ctx.arc(ox + dx * (R - 5), oy + dy * (R - 5), 1.2, 0, Math.PI * 2);
+    pxDisc(ctx, ox + dx * (R - 5), oy + dy * (R - 5), 1.2);
     ctx.fill();
   }
   const knob = disc(10, '#c8d0e0', false);
-  ctx.drawImage(knob, ox + input.mx * R * 0.65 - vw(knob) / 2, oy + input.my * R * 0.65 - vw(knob) / 2);
+  ctx.drawImage(knob, snap(ox + input.mx * R * 0.65 - vw(knob) / 2), snap(oy + input.my * R * 0.65 - vw(knob) / 2));
   ctx.globalAlpha = 1;
 
   for (const b of input.layout) {
@@ -183,11 +176,11 @@ function drawTouch(ctx: CanvasRenderingContext2D, input: Input, labels: Record<B
     const L = labels[b.id];
     if (L.glow && Math.floor(time * 6) % 2 === 0) {
       const g = ringDisc(b.r + 3, '#ffe14d', 0);
-      ctx.drawImage(g, b.x - vw(g) / 2, b.y - vh(g) / 2);
+      ctx.drawImage(g, snap(b.x - vw(g) / 2), snap(b.y - vh(g) / 2));
     }
     const d = disc(b.r, L.color, st.down);
     ctx.globalAlpha = 0.93;
-    ctx.drawImage(d, b.x - vw(d) / 2, b.y - vw(d) / 2);
+    ctx.drawImage(d, snap(b.x - vw(d) / 2), snap(b.y - vw(d) / 2));
     ctx.globalAlpha = 1;
     drawText(ctx, L.text, b.x, b.y - 3.6 + (st.down ? 2 : 0), { color: '#ffffff', align: 'center', outline: css(ramp(L.color)[0]) });
   }
@@ -217,27 +210,13 @@ function drawBanners(ctx: CanvasRenderingContext2D, m: Match, W: number, H: numb
       const by = cy - 7;
       const bw = Math.min(W, tw + 60);
       const bx = Math.round(W / 2 - bw / 2) + Math.round(dx * 0.6);
-      const sk = bh / 2;
-      const bgr = ctx.createLinearGradient(bx, 0, bx + bw, 0);
-      bgr.addColorStop(0, 'rgba(8,6,16,0)');
-      bgr.addColorStop(0.15, 'rgba(8,6,16,0.82)');
-      bgr.addColorStop(0.85, 'rgba(8,6,16,0.82)');
-      bgr.addColorStop(1, 'rgba(8,6,16,0)');
-      ctx.fillStyle = bgr;
-      ctx.beginPath();
-      ctx.moveTo(bx + sk - 6, by);
-      ctx.lineTo(bx + bw + sk - 6, by);
-      ctx.lineTo(bx + bw - 6, by + bh);
-      ctx.lineTo(bx - 6, by + bh);
-      ctx.fill();
-      const lg = ctx.createLinearGradient(bx, 0, bx + bw, 0);
-      lg.addColorStop(0, css(rp[2], 0));
-      lg.addColorStop(0.2, css(rp[2]));
-      lg.addColorStop(0.8, css(rp[2]));
-      lg.addColorStop(1, css(rp[2], 0));
-      ctx.fillStyle = lg;
-      ctx.fillRect(bx + sk - 6, by, bw - 4, 1.5);
-      ctx.fillRect(bx - 6, by + bh - 1.5, bw - 4, 1.5);
+      ctx.fillStyle = 'rgba(8,6,16,0.8)';
+      for (let i = 0; i < bh * 2; i++) ctx.fillRect(bx + snap((bh - i * U) / 2) - 6, by + i * U, bw, U);
+      ctx.fillStyle = css(rp[2]);
+      ctx.fillRect(bx + snap(bh / 2) - 6, by, bw - 4, 2);
+      ctx.fillRect(bx - 6, by + bh - 2, bw - 4, 2);
+      ctx.fillStyle = css(rp[3]);
+      ctx.fillRect(bx + snap(bh / 2) - 6, by, bw - 4, U);
     }
     const light = css(rp[3]);
     const flashy = b.big && !short && Math.floor(time * 10) % 2 === 0 && age < 0.6;
@@ -265,7 +244,7 @@ function drawReplay(ctx: CanvasRenderingContext2D, m: Match, W: number, H: numbe
   if (Math.floor(time * 2) % 2 === 0) {
     ctx.fillStyle = '#ff3b30';
     ctx.beginPath();
-    ctx.arc(12.5, ty + 3.5, 2.6, 0, Math.PI * 2);
+    pxDisc(ctx, 12.5, ty + 3.5, 2.6);
     ctx.fill();
   }
   drawText(ctx, t().replay, 19, ty, { color: '#ffffff', outline: null });
