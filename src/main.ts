@@ -20,6 +20,7 @@ import type { Difficulty } from './game/entities';
 import { DIFF_REWARD } from './game/entities';
 import { showPause, showResults, hideUI, MenuHandlers, homeDef } from './ui/menus';
 import { showSplash, showHub } from './ui/hub';
+import { toast } from './ui/common';
 import { profile, lineupCards, loadoutTiers } from './meta/profile';
 import type { CardData } from './meta/cards';
 import { t } from './engine/i18n';
@@ -226,19 +227,62 @@ window.addEventListener('pointerdown', unlock);
 window.addEventListener('keydown', unlock);
 
 let last = performance.now();
-function frame(now: number) {
-  const dt = Math.min(0.05, (now - last) / 1000);
-  last = now;
-  ctx.imageSmoothingEnabled = false;
-  if (mode === 'play' || mode === 'paused' || (mode === 'results' && game)) {
-    game!.update(mode === 'play' || mode === 'results' ? dt : 0);
-    game!.draw(ctx, W, H, mode === 'play');
-  } else {
-    if (!demo) newDemo();
-    demo!.update(dt);
-    demo!.draw(ctx, W, H, false);
+// ---------------------------------------------------------------- crash safety
+// The loop must never stop: one exception used to leave a frozen screen forever.
+// Errors are logged (Settings shows the last one) and a match that keeps failing
+// is abandoned back to the menu.
+let errStreak = 0;
+let lastErrAt = 0;
+export function reportError(where: string, e: unknown) {
+  const msg = e instanceof Error ? `${e.message}\n${(e.stack ?? '').split('\n').slice(0, 4).join('\n')}` : String(e);
+  console.error('Mad Football error in', where, e);
+  try {
+    localStorage.setItem('mf.lastError', JSON.stringify({ at: new Date().toISOString(), where, msg, v: (import.meta.env.VITE_BUILD as string) || 'dev' }));
+  } catch {
+    /* ignore */
   }
-  requestAnimationFrame(frame);
+}
+window.addEventListener('error', (e) => reportError('window', e.error ?? e.message));
+window.addEventListener('unhandledrejection', (e) => reportError('promise', e.reason));
+
+function frame(now: number) {
+  requestAnimationFrame(frame); // schedule first, so nothing below can stop the loop
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000) || 0);
+  last = now;
+  try {
+    ctx.imageSmoothingEnabled = false;
+    if (mode === 'play' || mode === 'paused' || (mode === 'results' && game)) {
+      game!.update(mode === 'play' || mode === 'results' ? dt : 0);
+      game!.draw(ctx, W, H, mode === 'play');
+    } else {
+      if (!demo) newDemo();
+      demo!.update(dt);
+      demo!.draw(ctx, W, H, false);
+    }
+    errStreak = 0;
+  } catch (e) {
+    errStreak++;
+    if (now - lastErrAt > 2000) {
+      lastErrAt = now;
+      reportError(mode, e);
+    }
+    // a match that keeps throwing is abandoned instead of freezing the game
+    if (errStreak > 20) {
+      errStreak = 0;
+      try {
+        if (game) {
+          game.dispose();
+          game = null;
+          mode = 'menu';
+          input.enabled = false;
+          showHub(handlers);
+          toast(t().crashRecovered);
+        } else demo = null;
+      } catch (e2) {
+        reportError('recover', e2);
+      }
+    }
+  }
 }
 
 if (import.meta.env.DEV) {

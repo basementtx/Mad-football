@@ -210,7 +210,23 @@ export class Match {
 
   // ---------------------------------------------------------------- loop
 
+  /** Self-heal: if physics ever produced NaN / Infinity, put everything back on its feet. */
+  private sane() {
+    const b = this.ball;
+    const ok = (v: number) => Number.isFinite(v) && Math.abs(v) < 1e4;
+    let bad = !(ok(b.x) && ok(b.y) && ok(b.z) && ok(b.vx) && ok(b.vy) && ok(b.vz));
+    for (const p of this.all) if (!(ok(p.x) && ok(p.y) && ok(p.vx) && ok(p.vy) && ok(p.z) && ok(p.face))) bad = true;
+    if (!bad) return;
+    console.warn('Mad Football: invalid physics state, resetting positions');
+    const kt = this.kickoffTeam;
+    this.bombs.length = 0;
+    this.bullets.length = 0;
+    this.setupKickoff(kt);
+    for (const p of this.all) p.face = Number.isFinite(p.face) ? p.face : 0;
+  }
+
   step(dt: number, input: Input | null) {
+    this.sane();
     this.time += dt;
     this.phaseT += dt;
     this.goalFlash = Math.max(0, this.goalFlash - dt);

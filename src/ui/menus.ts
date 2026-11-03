@@ -184,6 +184,7 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
           ${seg(L.zoom, 'zoom', [[1.18, L.near], [1, L.mid], [0.84, L.far]], settings.zoom)}
           ${seg(L.quality, 'quality', [['high', L.high], ['low', L.low]], settings.quality)}
           ${seg(L.btnSize, 'btnScale', [[0.8, L.sizeS], [1, L.sizeM], [1.2, L.sizeL], [1.4, L.sizeXL]], settings.btnScale ?? 1)}
+          ${lastErrorHTML()}
           <div class="set-row lang-row"><span>${L.language}</span><div class="langs">${LANGS.map((l) => `<button class="lang-btn ${settings.lang === l.code ? 'on' : ''}" data-lang="${l.code}">${flagTag(l.flag)}<span>${l.name}</span></button>`).join('')}</div></div>
         </div>
       </div>
@@ -225,6 +226,17 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
     saveSettings();
     audio.applyVolume();
   });
+}
+
+function lastErrorHTML() {
+  try {
+    const raw = localStorage.getItem('mf.lastError');
+    if (!raw) return '';
+    const e = JSON.parse(raw) as { at: string; where: string; msg: string; v: string };
+    return `<div class="set-row err-row"><span>${t().lastError}</span><small>${esc(e.at.replace('T', ' ').slice(0, 19))} · ${esc(e.where)} · ${esc(e.v)}<br>${esc(e.msg).replace(/\n/g, '<br>')}</small></div>`;
+  } catch {
+    return '';
+  }
 }
 
 // ------------------------------------------------------------------ how to

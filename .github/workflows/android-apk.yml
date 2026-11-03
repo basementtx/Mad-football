@@ -41,7 +41,7 @@ jobs:
       - name: Install and build the web game
         run: |
           npm ci
-          npm run build
+          VITE_BUILD=${{ github.run_number }} npm run build
           npx cap sync android
 
       - name: Build the APK

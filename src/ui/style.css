@@ -872,3 +872,5 @@ canvas.flag { width: 39px; height: 27px; display: block; }
 .dhints span { display: flex; align-items: center; gap: calc(6 * var(--u)); font-size: calc(13 * var(--u)); font-weight: 700; color: var(--label); text-shadow: var(--sh); }
 .dhints b { min-width: calc(24 * var(--u)); height: calc(24 * var(--u)); padding: 0 calc(6 * var(--u)); display: flex; align-items: center; justify-content: center; background: var(--ink); color: var(--paper); font-family: Oswald, sans-serif; font-size: calc(14 * var(--u)); text-shadow: none; }
 .dhud.off { display: none; }
+.err-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+.err-row small { font-family: monospace; font-size: 10px; color: #ff9a8a; white-space: normal; word-break: break-all; user-select: text; -webkit-user-select: text; }

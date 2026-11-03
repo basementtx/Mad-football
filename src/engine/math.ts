@@ -23,8 +23,9 @@ export function norm(x: number, y: number): [number, number] {
 }
 
 export function wrapAngle(a: number) {
-  while (a > Math.PI) a -= TAU;
-  while (a < -Math.PI) a += TAU;
+  // never loop: an infinite / huge angle used to hang the game here
+  if (!Number.isFinite(a)) return 0;
+  a = ((((a + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
   return a;
 }
 

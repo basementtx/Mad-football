@@ -98,7 +98,7 @@ const tr = {
   selected: 'SEÇİLDİ', select: 'SEÇ', minItems: 'En az 3 eşya seçili olmalı', maxItems: 'En fazla 5 eşya seçebilirsin',
   tier: 'Seviye', tierUp: 'SEVİYE ATLADI!', copies: 'Kopya', maxTier: 'MAKS', nextSkin: 'Sonraki görünüm',
   btnSize: 'Tuş Boyutu', sizeS: 'Küçük', sizeM: 'Orta', sizeL: 'Büyük', sizeXL: 'Dev',
-  tapReveal: 'DOKUN', revealAll: 'HEPSİNİ AÇ', holdBall: 'AT!', findBox: '? KUTUSU BUL',
+  tapReveal: 'DOKUN', revealAll: 'HEPSİNİ AÇ', holdBall: 'AT!', findBox: '? KUTUSU BUL', lastError: 'Son hata', crashRecovered: 'Bir hata oluştu, menüye dönüldü',
 };
 
 type Dict = typeof tr;
@@ -201,7 +201,7 @@ const en: Dict = {
   selected: 'SELECTED', select: 'SELECT', minItems: 'Keep at least 3 items selected', maxItems: 'You can select up to 5 items',
   tier: 'Tier', tierUp: 'TIER UP!', copies: 'Copies', maxTier: 'MAX', nextSkin: 'Next skin',
   btnSize: 'Button Size', sizeS: 'Small', sizeM: 'Medium', sizeL: 'Large', sizeXL: 'Huge',
-  tapReveal: 'TAP', revealAll: 'SHOW ALL', holdBall: 'RELEASE!', findBox: 'FIND A ? BOX',
+  tapReveal: 'TAP', revealAll: 'SHOW ALL', holdBall: 'RELEASE!', findBox: 'FIND A ? BOX', lastError: 'Last error', crashRecovered: 'Something went wrong - back to the menu',
 };
 
 const DICTS: Record<Lang, Dict> = { en, tr };
