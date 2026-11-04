@@ -54,7 +54,7 @@ const tr = {
     ['💨', 'Depar', 'Basılı tut, dayanıklılık biter. (Shift / L)'],
     ['🌀', 'Çalım', 'Kısa süre dokunulmaz olursun, kaymaları boşa çıkarırsın. (I / E)'],
     ['🔥', 'Özel Güç', 'Rakipleri yere serdikçe ÖFKE dolar. Dolunca ÇALIM tuşu kuşandığın gücü kullanır: Ateş, Buz, Şimşek, Falso, Şok Dalgası ya da Turbo!'],
-    ['🎁', 'Kasalar', 'Maç kazandıkça altın topla. Kasalardan oyuncu kartları, gol patlamaları, top izleri ve yeni güçler çıkar. Koleksiyon ekranından kuşan.'],
+    ['🎁', 'Kasalar', 'Maç kazandıkça altın topla. Kasalardan oyuncu kartları, kramponlar, gol patlamaları, top izleri ve yeni güçler çıkar. Kramponları Market’ten de alabilirsin. Koleksiyon ekranından kuşan.'],
   ] as [string, string, string][],
   hint: 'Kural yok: rakibi yere ser, topu kap, golü at!',
   replay: 'TEKRAR',
@@ -91,6 +91,9 @@ const tr = {
   promoZone: 'Üst lige çıkış', releZone: 'Küme düşme', playMatchday: 'MAÇA ÇIK',
   outcomes: { promoted: 'ÜST LİGE ÇIKTIN!', relegated: 'KÜME DÜŞTÜN', stayed: 'LİGDE KALDIN', champions: 'ŞAMPİYON!' } as Record<string, string>,
   seasonEnd: 'SEZON SONU', finished: 'Bitirdiğin sıra', nextSeason: 'YENİ SEZON', continueBtn: 'DEVAM', vsHome: 'İç saha', vsAway: 'Deplasman',
+  market: 'MARKET', boots: 'Kramponlar', bootsHint: 'Kramponlar tüm takımına bonus verir ve maçta ayaklarında görünür.', owned: 'SENİN',
+  bought: 'Satın alındı', bootNoBonus: 'Bonus yok • klasik',
+  bootStat: { pace: 'HIZ', power: 'ŞUT', skill: 'TEKNİK', tackle: 'SERTLİK', stamina: 'DAYANIK.' } as Record<string, string>,
   passAssist: 'Pas Nişan Yardımı', aimLine: 'Nişan Çizgisi', leagueSub: 'Haftalık maçlar, puan tablosu',
 };
 
@@ -150,7 +153,7 @@ const en: Dict = {
     ['💨', 'Sprint', 'Hold to sprint, drains stamina. (Shift / L)'],
     ['🌀', 'Spin', 'Briefly untouchable — makes tackles whiff. (I / E)'],
     ['🔥', 'Powers', 'Knock opponents down to fill RAGE. When full, SPIN unleashes your equipped power: Fireball, Ice, Thunder, Banana, Shockwave or Turbo!'],
-    ['🎁', 'Crates', 'Earn coins from matches. Crates contain player cards, goal explosions, ball trails and new powers. Equip them in the Collection.'],
+    ['🎁', 'Crates', 'Earn coins from matches. Crates contain player cards, boots, goal explosions, ball trails and new powers. Buy boots in the Market. Equip them in the Collection.'],
   ],
   hint: 'No rules: flatten them, steal it, score!',
   replay: 'REPLAY',
@@ -187,6 +190,9 @@ const en: Dict = {
   promoZone: 'Promotion', releZone: 'Relegation', playMatchday: 'PLAY MATCH',
   outcomes: { promoted: 'PROMOTED!', relegated: 'RELEGATED', stayed: 'SURVIVED', champions: 'CHAMPIONS!' } as Record<string, string>,
   seasonEnd: 'SEASON OVER', finished: 'Finished', nextSeason: 'NEXT SEASON', continueBtn: 'CONTINUE', vsHome: 'Home', vsAway: 'Away',
+  market: 'MARKET', boots: 'Boots', bootsHint: 'Boots boost your whole team and show up on their feet in matches.', owned: 'OWNED',
+  bought: 'Bought', bootNoBonus: 'No bonus • classic',
+  bootStat: { pace: 'PACE', power: 'SHOT', skill: 'SKILL', tackle: 'BRUTAL', stamina: 'STAMINA' } as Record<string, string>,
   passAssist: 'Pass Aim Assist', aimLine: 'Aim Line', leagueSub: 'Weekly fixtures, league table',
 };
 

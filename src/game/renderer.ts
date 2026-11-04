@@ -3,6 +3,7 @@ import type { Camera } from './camera';
 import { PPM, YS } from './camera';
 import type { Pitch, Player } from './entities';
 import type { TeamDef } from './teams';
+import { itemById } from '../meta/items';
 import { playerSheet, FRAMES, CELL_W, CELL_H, ANCHOR_X, ANCHOR_Y, PlayerLook } from '../pixel/player';
 import { ballFrame, shadow, ring, arrow, BALL_SIZE } from '../pixel/props';
 import { ramp, css, RGB } from '../pixel/palette';
@@ -48,7 +49,8 @@ export class Renderer {
   constructor(private m: Match) {
     this.P = m.pitch;
     for (const p of m.all) {
-      const look: PlayerLook = { kit: p.team.def, isGK: p.isGK, skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard };
+      const boot = itemById(p.team.boots)?.boot;
+      const look: PlayerLook = { kit: p.team.def, isGK: p.isGK, skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard, boot };
       this.looks.set(p, look);
       playerSheet(look);
     }

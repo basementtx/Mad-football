@@ -39,19 +39,38 @@ export function cardHTML(c: CardData, o: CardOpts = {}) {
   </div>`;
 }
 
-import type { Item } from '../meta/items';
-import { itemName, itemDesc, RARITY_COLOR } from '../meta/items';
-import { itemIcon } from '../pixel/icons';
+import type { Item, ItemType } from '../meta/items';
+import { itemName, itemDesc, RARITY_COLOR, BOOT_STATS } from '../meta/items';
+import { itemIcon, bootIcon } from '../pixel/icons';
 
-/** Tile for an unlockable item (goal explosion, trail, power). */
+export function itemTypeLabel(tp: ItemType) {
+  const L = t();
+  return tp === 'goalfx' ? L.goalFx : tp === 'trail' ? L.trails : tp === 'boots' ? L.boots : L.powers;
+}
+
+/** Bonus bars for a pair of boots. */
+export function bootStatsHTML(it: Item) {
+  const L = t();
+  if (!it.boot) return '';
+  const b = it.boot.bonus;
+  const rows = BOOT_STATS.filter((k) => b[k] > 0);
+  if (!rows.length) return `<div class="bt-stats"><span class="bt-none">${L.bootNoBonus}</span></div>`;
+  return `<div class="bt-stats">${rows
+    .map((k) => `<div class="bt-row"><span>${L.bootStat[k]}</span><i><em style="width:${Math.min(100, (b[k] / 12) * 100)}%"></em></i><b>+${b[k]}</b></div>`)
+    .join('')}</div>`;
+}
+
+/** Tile for an unlockable item (goal explosion, trail, power, boots). */
 export function itemHTML(it: Item, o: { owned?: boolean; equipped?: boolean; badge?: string; attrs?: string; desc?: boolean } = {}) {
   const L = t();
+  const icon = it.boot ? () => bootIcon(it.id, it.boot!) : () => itemIcon(it.id, it.type, it.color);
   return `
-  <div class="itile ri-${it.rarity} ${o.owned === false ? 'locked' : ''} ${o.equipped ? 'eq' : ''}" style="--rc:${RARITY_COLOR[it.rarity]};--ic:${it.color}" ${o.attrs ?? ''}>
-    ${paintTag(() => itemIcon(it.id, it.type, it.color), 'it-icon')}
+  <div class="itile ri-${it.rarity} ${it.boot ? 'boot' : ''} ${o.owned === false ? 'locked' : ''} ${o.equipped ? 'eq' : ''}" style="--rc:${RARITY_COLOR[it.rarity]};--ic:${it.color}" ${o.attrs ?? ''}>
+    ${paintTag(icon, 'it-icon')}
     <div class="it-name">${esc(itemName(it))}</div>
-    <div class="it-rar">${L.itemRarity[it.rarity]} • ${it.type === 'goalfx' ? L.goalFx : it.type === 'trail' ? L.trails : L.powers}</div>
+    <div class="it-rar">${L.itemRarity[it.rarity]} • ${itemTypeLabel(it.type)}</div>
     ${o.desc ? `<div class="it-desc">${esc(itemDesc(it))}</div>` : ''}
+    ${it.boot && o.desc ? bootStatsHTML(it) : ''}
     ${o.badge ? `<div class="pc-badge">${o.badge}</div>` : ''}
   </div>`;
 }

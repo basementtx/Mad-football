@@ -45,6 +45,7 @@ export function showHub(h: MenuHandlers) {
   const free = freeCrateReady() || profile.starterCrate;
   const fx = itemById(profile.equipped.goalfx);
   const pw = itemById(profile.equipped.power);
+  const bt = itemById(profile.equipped.boots);
   const lang = LANGS.find((l) => l.code === settings.lang)!;
   setScreen(
     'screen-hub',
@@ -60,7 +61,7 @@ export function showHub(h: MenuHandlers) {
       </div>
       <div class="hub-grid">
         <button class="tile tile-play" data-act="play">
-          <div class="tile-art">${paintTag(spriteSource(lookFor(club, me?.look ?? { skin: '#e5b48f', hair: '#3b2416', hairStyle: 0, beard: false }), 'kick1'), 'tile-sprite')}${paintTag(spriteSource(lookFor(TEAMS[(club.name.length + 3) % TEAMS.length], { skin: '#7a4d30', hair: '#1a1310', hairStyle: 2, beard: true }), 'down0', true, false), 'tile-sprite2')}</div>
+          <div class="tile-art">${paintTag(spriteSource(lookFor(club, me?.look ?? { skin: '#e5b48f', hair: '#3b2416', hairStyle: 0, beard: false }, false, bt?.boot), 'kick1'), 'tile-sprite')}${paintTag(spriteSource(lookFor(TEAMS[(club.name.length + 3) % TEAMS.length], { skin: '#7a4d30', hair: '#1a1310', hairStyle: 2, beard: true }), 'down0', true, false), 'tile-sprite2')}</div>
           <div class="tile-label big">${L.league} ▶</div>
           <small><span class="div-badge d${league.div}">${league.div}</span> ${esc(L.divNames[league.div])} • ${league.round > 0 ? positionOf() + '.' : '—'} • ${L.matchday} ${Math.min(league.round + 1, ROUNDS)}/${ROUNDS}</small>
         </button>
@@ -75,13 +76,14 @@ export function showHub(h: MenuHandlers) {
         </button>
         <button class="tile ${free ? 'has-badge' : ''}" data-act="shop">
           <div class="tile-art">${crateTag('premium', 'crate-md')}</div>
-          <div class="tile-label">${L.crates}</div>
+          <div class="tile-label">${L.market}</div>
+          <small>${L.crates} • ${L.boots}</small>
           ${free ? `<div class="badge">${L.free}!</div>` : ''}
         </button>
         <button class="tile" data-act="collection">
           <div class="tile-art col-art"><span style="color:${fx?.color}">✦</span><span style="color:${pw?.color}">✸</span></div>
           <div class="tile-label">${L.collection}</div>
-          <small>${fx ? esc(itemName(fx)) : ''} • ${pw ? esc(itemName(pw)) : ''}</small>
+          <small>${bt ? esc(itemName(bt)) : ''} • ${pw ? esc(itemName(pw)) : ''}</small>
         </button>
         <button class="tile tile-sm" data-act="quick"><div class="tile-label">⚡ ${L.quickMatch}</div></button>
       </div>

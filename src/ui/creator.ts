@@ -3,6 +3,7 @@ import { t } from '../engine/i18n';
 import { audio } from '../engine/audio';
 import { profile, saveProfile, cardById, clubTeamDef, saveMyPlayer } from '../meta/profile';
 import { CardData, Pos, SKINS, HAIRS, HAIR_STYLES, STAT_KEYS, StatKey, uid, overall } from '../meta/cards';
+import { itemById } from '../meta/items';
 import { setScreen, bind, esc, paintTag, paintAll, spriteSource, lookFor, ui, MenuHandlers } from './common';
 import { cardHTML } from './cards';
 import { showHub } from './hub';
@@ -51,7 +52,7 @@ export function showCreator(h: MenuHandlers, first: boolean) {
 
   const renderPreview = () => {
     const el = document.getElementById('cr-preview')!;
-    el.innerHTML = `${cardHTML(d, { club, size: 'lg' })}${paintTag(spriteSource(lookFor(club, d.look, d.pos === 'GK'), 'cel0'), 'kit')}`;
+    el.innerHTML = `${cardHTML(d, { club, size: 'lg' })}${paintTag(spriteSource(lookFor(club, d.look, d.pos === 'GK', itemById(profile.equipped.boots)?.boot), 'cel0'), 'kit')}`;
     paintAll(el);
     const hairs = document.getElementById('cr-hair')!;
     hairs.innerHTML = Array.from({ length: HAIR_STYLES }, (_, i) => `<button class="opt-c ${d.look.hairStyle === i ? 'on' : ''}" data-hs="${i}">${paintTag(() => {

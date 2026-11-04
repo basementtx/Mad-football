@@ -485,6 +485,16 @@ canvas.flag { width: 39px; height: 27px; display: block; }
 .buy { display: flex; align-items: center; gap: 6px; }
 .crate-timer { font-family: var(--display); font-size: 7px; color: var(--muted); }
 
+/* boots market */
+.market-hint { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.1; }
+.itile.boot { width: 140px; }
+.bt-stats { width: 100%; display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+.bt-row { display: grid; grid-template-columns: 52px 1fr 22px; align-items: center; gap: 4px; font-family: var(--display); font-size: 6px; color: #dfe6f3; }
+.bt-row i { height: 5px; background: #121828; box-shadow: 0 0 0 1px var(--ink); }
+.bt-row em { display: block; height: 100%; background: var(--rc); }
+.bt-row b { color: #6ff5a4; text-align: right; }
+.bt-none { font-family: var(--display); font-size: 6px; color: var(--muted); }
+
 /* ---------------------------------------------------------------- crate opening */
 .opening { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; position: relative; }
 .open-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; }

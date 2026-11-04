@@ -25,7 +25,7 @@ export interface Profile {
   lineup: string[];
   myPlayer: string | null;
   owned: string[];
-  equipped: { goalfx: string; trail: string; power: string };
+  equipped: { goalfx: string; trail: string; power: string; boots: string };
   freeCrateAt: number;
   starterCrate: boolean;
 }
@@ -40,7 +40,7 @@ function fresh(): Profile {
     lineup: [],
     myPlayer: null,
     owned: ITEMS.filter((i) => i.starter).map((i) => i.id),
-    equipped: { goalfx: 'gx_classic', trail: 'tr_basic', power: 'pw_fireball' },
+    equipped: { goalfx: 'gx_classic', trail: 'tr_basic', power: 'pw_fireball', boots: 'bt_classic' },
     freeCrateAt: 0,
     starterCrate: true,
   };
@@ -49,7 +49,14 @@ function fresh(): Profile {
 function load(): Profile {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...fresh(), ...JSON.parse(raw) };
+    if (raw) {
+      const base = fresh();
+      const p: Profile = { ...base, ...JSON.parse(raw) };
+      // saves from older versions: fill in new loadout slots and starter items
+      p.equipped = { ...base.equipped, ...p.equipped };
+      for (const id of base.owned) if (!p.owned.includes(id)) p.owned.push(id);
+      return p;
+    }
   } catch {
     /* ignore */
   }
@@ -170,6 +177,14 @@ export function spendCoins(n: number) {
 export function addCoins(n: number) {
   record.coins += n;
   saveRecord();
+}
+
+/** Buy an item straight from the market. */
+export function buyItem(id: string, price: number) {
+  if (profile.owned.includes(id) || !spendCoins(price)) return false;
+  profile.owned.push(id);
+  saveProfile();
+  return true;
 }
 
 export const FREE_CRATE_EVERY = 4 * 60 * 60 * 1000;

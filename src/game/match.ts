@@ -8,7 +8,7 @@ import { settings } from '../engine/storage';
 import { t } from '../engine/i18n';
 import { runTeamAI, formationSpot } from './ai';
 import type { CardData } from '../meta/cards';
-import { POWER_ID } from '../meta/items';
+import { POWER_ID, itemById } from '../meta/items';
 
 export type Phase = 'intro' | 'kickoff' | 'play' | 'goal' | 'fulltime' | 'over';
 
@@ -23,7 +23,7 @@ export interface MatchConfig {
   homeCards?: CardData[];
   /** id of the user's own created player */
   starId?: string | null;
-  loadout?: { power: string; goalfx: string; trail: string };
+  loadout?: { power: string; goalfx: string; trail: string; boots?: string };
 }
 
 interface Frame {
@@ -102,6 +102,19 @@ export class Match {
       home.power = POWER_ID(cfg.loadout.power);
       home.goalfx = cfg.loadout.goalfx;
       home.trail = cfg.loadout.trail;
+      const boot = itemById(cfg.loadout.boots ?? '')?.boot;
+      if (boot) {
+        home.boots = cfg.loadout.boots!;
+        // boots give every player a small boost (1 point = +1 card stat)
+        const b = boot.bonus;
+        for (const p of home.players) {
+          p.pace += b.pace / 100;
+          p.power += b.power / 100;
+          p.skill += b.skill / 100;
+          p.tackle += b.tackle / 100;
+          p.staminaDrain = Math.max(0.6, 1 - b.stamina / 40);
+        }
+      }
     }
     this.kickoffTeam = Math.random() < 0.5 ? home : away;
     this.setupKickoff(this.kickoffTeam);
@@ -1006,7 +1019,7 @@ export class Match {
         if (m > 0.12) p.face = rotateToward(p.face, Math.atan2(my, mx), (hasBall ? 11 : 16) * dt);
         if (sprint) {
           p.sprinting = true;
-          p.stamina -= dt * 0.26;
+          p.stamina -= dt * 0.26 * p.staminaDrain;
           if (p.stamina <= 0) {
             p.stamina = 0;
             p.exhausted = true;

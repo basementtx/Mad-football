@@ -16,6 +16,53 @@ const POWER_ICON: Record<string, string> = { pw_fireball: 'flame', pw_ice: 'snow
 
 const cache = new Map<string, HTMLCanvasElement>();
 
+/** Boot side view: # upper, a accent (toe cap / stripe), l laces, s sole, t studs. */
+const BOOT_ROWS = [
+  '...........',
+  '..###......',
+  '..#l#......',
+  '..#l##.....',
+  '..##l##....',
+  '..#aa####..',
+  '.###aa####a',
+  '.####aa#aaa',
+  '.ssssssssss',
+  '..t..t..t.t',
+  '...........',
+];
+
+/** Pixel icon of a football boot in its own colours. */
+export function bootIcon(id: string, boot: { main: string; accent: string; sole: string }) {
+  const key = 'boot:' + id;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  c.width = 13;
+  c.height = 13;
+  const g = c.getContext('2d')!;
+  const main = ramp(boot.main), acc = ramp(boot.accent), sole = ramp(boot.sole);
+  const at = (x: number, y: number) => (y >= 0 && y < 11 && x >= 0 && x < 11 ? BOOT_ROWS[y][x] : '.');
+  for (let y = -1; y <= 11; y++)
+    for (let x = -1; x <= 11; x++) {
+      if (at(x, y) !== '.') continue;
+      if (at(x + 1, y) !== '.' || at(x - 1, y) !== '.' || at(x, y + 1) !== '.' || at(x, y - 1) !== '.') {
+        g.fillStyle = css(OUTLINE);
+        g.fillRect(x + 1, y + 1, 1, 1);
+      }
+    }
+  for (let y = 0; y < 11; y++)
+    for (let x = 0; x < 11; x++) {
+      const ch = at(x, y);
+      if (ch === '.') continue;
+      const tone = y < 4 ? 3 : y > 6 ? 1 : 2;
+      const col = ch === '#' ? main[x < 3 ? Math.max(1, tone - 1) : tone] : ch === 'a' ? acc[tone] : ch === 'l' ? acc[3] : ch === 's' ? sole[2] : sole[1];
+      g.fillStyle = css(col);
+      g.fillRect(x + 1, y + 1, 1, 1);
+    }
+  cache.set(key, c);
+  return c;
+}
+
 export function itemIcon(id: string, type: string, color: string) {
   const key = id + color;
   const hit = cache.get(key);

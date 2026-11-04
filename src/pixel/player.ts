@@ -19,7 +19,11 @@ export interface PlayerLook {
   hair: string;
   hairStyle: number;
   beard: boolean;
+  /** football boot colours (default: classic black) */
+  boot?: { main: string; accent: string; sole: string };
 }
+
+export const DEFAULT_BOOT = { main: '#2a2a36', accent: '#eef0f5', sole: '#c8ccd8' };
 
 // ------------------------------------------------------------------ poses
 
@@ -136,7 +140,7 @@ function buildPose(p: PoseP, isGK: boolean): Joints {
 
 // ------------------------------------------------------------------ raster
 
-const R_JER = 0, R_JER2 = 1, R_SHORTS = 2, R_SOCK = 3, R_SKIN = 4, R_HAIR = 5, R_BOOT = 6, R_WHITE = 7, R_EYE = 8, R_MOUTH = 9;
+const R_JER = 0, R_JER2 = 1, R_SHORTS = 2, R_SOCK = 3, R_SKIN = 4, R_HAIR = 5, R_BOOT = 6, R_WHITE = 7, R_EYE = 8, R_MOUTH = 9, R_BOOT2 = 10, R_SOLE = 11;
 
 class Buf {
   ramp = new Int8Array(CELL_W * CELL_H).fill(-1);
@@ -200,7 +204,8 @@ export interface BuiltSheet {
 const sheetCache = new Map<string, BuiltSheet>();
 
 export function lookKey(l: PlayerLook) {
-  return `${l.kit.id}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}`;
+  const bt = l.boot ?? DEFAULT_BOOT;
+  return `${l.kit.id}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}|${bt.main}${bt.accent}${bt.sole}`;
 }
 
 export function playerSheet(look: PlayerLook): BuiltSheet {
@@ -215,7 +220,10 @@ export function playerSheet(look: PlayerLook): BuiltSheet {
   ramps[R_SOCK] = ramp(look.isGK ? kit.gk : kit.socks);
   ramps[R_SKIN] = ramp(look.skin);
   ramps[R_HAIR] = ramp(look.hair);
-  ramps[R_BOOT] = ramp('#2a2a36');
+  const bt = look.boot ?? DEFAULT_BOOT;
+  ramps[R_BOOT] = ramp(bt.main);
+  ramps[R_BOOT2] = ramp(bt.accent);
+  ramps[R_SOLE] = ramp(bt.sole);
   ramps[R_WHITE] = ramp('#eef0f5');
   ramps[R_EYE] = ramp('#16121e');
   ramps[R_MOUTH] = ramp('#8a2030');
@@ -275,7 +283,7 @@ function drawBody(b: Buf, J: Joints, look: PlayerLook) {
     const sx = f[0] - k[0], sy = f[1] - k[1];
     const sl = Math.hypot(sx, sy) || 1;
     const fx = sy / sl, fy = -sx / sl;
-    capsule(b, [f[0] - fx * 0.3, f[1] - fy * 0.3], [f[0] + fx * 2.1, f[1] + fy * 2.1], 1.25, layer, (u) => (u > 0.7 ? R_WHITE : R_BOOT), shift);
+    capsule(b, [f[0] - fx * 0.3, f[1] - fy * 0.3], [f[0] + fx * 2.1, f[1] + fy * 2.1], 1.25, layer, (u, v) => (u > 0.7 ? R_BOOT2 : v > 0.5 ? R_SOLE : R_BOOT), shift);
   };
 
   arm(J.bs, J.be, J.bh, 1, true);

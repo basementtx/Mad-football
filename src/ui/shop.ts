@@ -1,12 +1,17 @@
-/** Crate shop and the crate-opening sequence. */
+/** Market: crates, football boots, and the crate-opening sequence. */
 import { t } from '../engine/i18n';
 import { audio, vibrate } from '../engine/audio';
 import { CRATES, CrateDef, openCrate, Reward } from '../meta/crates';
-import { profile, saveProfile, spendCoins, freeCrateReady, FREE_CRATE_EVERY, clubTeamDef } from '../meta/profile';
+import { profile, saveProfile, spendCoins, freeCrateReady, FREE_CRATE_EVERY, clubTeamDef, buyItem } from '../meta/profile';
+import { ITEMS, BOOT_PRICE, itemById, itemName } from '../meta/items';
 import { rarityOf } from '../meta/cards';
 import { crateCanvases } from '../pixel/crate';
 import { setScreen, bind, paintTag, paintAll, coinsPill, coinTag, crateTag, toast, ui, MenuHandlers } from './common';
 import { cardHTML, itemHTML } from './cards';
+
+export type ShopTab = 'crates' | 'boots';
+let shopTab: ShopTab = 'crates';
+const RAR_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3 };
 import { showHub } from './hub';
 import { showCollection } from './collection';
 
@@ -16,19 +21,36 @@ function fmtTime(ms: number) {
   return h ? `${h}h ${m}m` : `${m}m ${s % 60}s`;
 }
 
-export function showShop(h: MenuHandlers) {
+export function showShop(h: MenuHandlers, tab?: ShopTab) {
+  if (tab) shopTab = tab;
   const L = t();
-  const freeBasic = freeCrateReady();
-  const starter = profile.starterCrate;
+  const tabs = `<div class="tabs">
+      <button class="tab ${shopTab === 'crates' ? 'on' : ''}" data-shop-tab="crates">🎁 ${L.crates}</button>
+      <button class="tab ${shopTab === 'boots' ? 'on' : ''}" data-shop-tab="boots">👟 ${L.boots} <small>${ITEMS.filter((i) => i.boot && profile.owned.includes(i.id)).length}/${ITEMS.filter((i) => i.boot).length}</small></button>
+    </div>`;
   setScreen(
     'screen-shop',
     `<div class="shop">
       <div class="panel-head">
         <button class="btn btn-ghost btn-sm" data-act="back">‹ ${L.back}</button>
-        <div class="panel-title">${L.crates}</div>
+        <div class="panel-title">${L.market}</div>
         ${coinsPill()}
       </div>
-      <div class="crates">
+      ${tabs}
+      ${shopTab === 'crates' ? cratesHTML() : bootsHTML()}
+    </div>`,
+  );
+  bind('[data-act=back]', () => { audio.click(); showHub(h); });
+  bind('[data-shop-tab]', (b) => { audio.click(); showShop(h, b.dataset.shopTab as ShopTab); });
+  if (shopTab === 'crates') bindCrates(h);
+  else bindBoots(h);
+}
+
+function cratesHTML() {
+  const L = t();
+  const freeBasic = freeCrateReady();
+  const starter = profile.starterCrate;
+  return `<div class="crates">
         ${CRATES.map((c) => {
           const isFree = (c.id === 'basic' && freeBasic) || (c.id === 'premium' && starter);
           return `<div class="crate-card cr-${c.id}">
@@ -39,10 +61,11 @@ export function showShop(h: MenuHandlers) {
             ${c.id === 'basic' && !freeBasic ? `<div class="crate-timer">${L.freeIn} ${fmtTime(profile.freeCrateAt - Date.now())}</div>` : ''}
           </div>`;
         }).join('')}
-      </div>
-    </div>`,
-  );
-  bind('[data-act=back]', () => { audio.click(); showHub(h); });
+      </div>`;
+}
+
+function bindCrates(h: MenuHandlers) {
+  const L = t();
   bind('[data-crate]', (el) => {
     const def = CRATES.find((c) => c.id === el.dataset.crate)!;
     if (def.id === 'premium' && profile.starterCrate) {
@@ -57,6 +80,52 @@ export function showShop(h: MenuHandlers) {
     saveProfile();
     audio.select();
     showOpening(h, def);
+  });
+}
+
+function bootsHTML() {
+  const L = t();
+  const boots = ITEMS.filter((i) => i.boot).sort((a, b) => RAR_ORDER[a.rarity] - RAR_ORDER[b.rarity]);
+  return `<div class="market-hint">${L.bootsHint}</div>
+    <div class="items-grid">
+      ${boots
+        .map((it) => {
+          const owned = profile.owned.includes(it.id);
+          const eq = profile.equipped.boots === it.id;
+          const act = eq
+            ? `<span class="eq-tag">✓ ${L.equipped}</span>`
+            : owned
+              ? `<button class="btn btn-sm btn-ghost" data-equip-boot="${it.id}">${L.equip}</button>`
+              : `<button class="btn btn-sm btn-primary buy" data-buy-boot="${it.id}">${coinTag()} ${BOOT_PRICE[it.rarity]}</button>`;
+          return `<div class="iwrap">${itemHTML(it, { owned: true, equipped: eq, desc: true, badge: owned && !eq ? L.owned : undefined })}<div class="it-act">${act}</div></div>`;
+        })
+        .join('')}
+    </div>`;
+}
+
+function bindBoots(h: MenuHandlers) {
+  const L = t();
+  bind('[data-buy-boot]', (b) => {
+    const it = itemById(b.dataset.buyBoot!)!;
+    if (!buyItem(it.id, BOOT_PRICE[it.rarity])) {
+      toast(L.notEnough);
+      audio.groan();
+      return;
+    }
+    profile.equipped.boots = it.id;
+    saveProfile();
+    audio.cheer(0.4);
+    vibrate(40);
+    toast(`${L.bought}: ${itemName(it)}`);
+    showShop(h);
+  });
+  bind('[data-equip-boot]', (b) => {
+    const it = itemById(b.dataset.equipBoot!)!;
+    profile.equipped.boots = it.id;
+    saveProfile();
+    audio.select();
+    toast(`${L.equipped}: ${itemName(it)}`);
+    showShop(h);
   });
 }
 
