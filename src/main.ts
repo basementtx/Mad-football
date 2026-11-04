@@ -33,6 +33,11 @@ import { profile, lineupCards, loadoutTiers } from './meta/profile';
 import type { CardData } from './meta/cards';
 import { t } from './engine/i18n';
 import { toast } from './ui/common';
+import type { MatchConfig, Match } from './game/match';
+import { showCareer } from './ui/career/home';
+import { career } from './career/state';
+import { careerHudStart, careerHudStop, careerHudTick } from './ui/career/hud';
+import './ui/career/career.css';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 let ctx = canvas.getContext('2d', { alpha: false })!;
@@ -117,7 +122,10 @@ function requestFullscreen() {
 }
 
 /** 'quick' = friendly from the setup screen, 'league' = current league fixture */
-let matchMode: 'quick' | 'league' | 'training' = 'quick';
+let matchMode: 'quick' | 'league' | 'training' | 'career' = 'quick';
+/** career: the running config and what to do when it ends */
+let careerCfg: MatchConfig | null = null;
+let careerEnd: ((m: Match) => void) | null = null;
 let trainingMode: 'team' | 'keeper' = 'keeper';
 
 function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: boolean, training?: 'team' | 'keeper') {
@@ -143,7 +151,30 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
   hideUI();
 }
 
+function launchCfg(cfg: MatchConfig) {
+  requestFullscreen();
+  audio.unlock();
+  game?.dispose();
+  game = new Game(cfg, input);
+  game.match.onEnd = () => endMatch();
+  game.resize(W, H);
+  input.reset();
+  input.enabled = true;
+  mode = 'play';
+  hideUI();
+}
+
 const handlers: MenuHandlers = {
+  playCareer(cfg, onEnd) {
+    matchMode = 'career';
+    careerCfg = cfg;
+    careerEnd = onEnd;
+    launchCfg(cfg);
+    careerHudStart(!!cfg.drill);
+  },
+  showCareer() {
+    showCareer(handlers);
+  },
   startMatch() {
     matchMode = 'quick';
     launch(homeDef(lastSetup.home), TEAMS[lastSetup.away], lastSetup.difficulty as Difficulty, lastSetup.home < 0);
@@ -177,6 +208,11 @@ const handlers: MenuHandlers = {
     launch(club, opp, 'normal', true, m);
   },
   restart() {
+    if (matchMode === 'career' && careerCfg) {
+      launchCfg(careerCfg);
+      careerHudStart(!!careerCfg.drill);
+      return;
+    }
     if (matchMode === 'training') handlers.startTraining(trainingMode);
     else if (matchMode === 'league') handlers.startLeagueMatch();
     else handlers.startMatch();
@@ -187,6 +223,13 @@ const handlers: MenuHandlers = {
     mode = 'menu';
     input.enabled = false;
     audio.resume();
+    careerHudStop();
+    if (matchMode === 'career') {
+      // abandoning a career match: back to the week, nothing recorded
+      matchMode = 'quick';
+      showCareer(handlers);
+      return;
+    }
     showHub(handlers);
   },
   firstTap() {
@@ -227,6 +270,25 @@ document.addEventListener('visibilitychange', () => {
 function endMatch() {
   if (!game) return;
   const m = game.match;
+  if (matchMode === 'career') {
+    // career matches report back to the career flow instead of the quick results
+    careerHudStop();
+    const done = careerEnd;
+    careerEnd = null;
+    matchMode = 'quick';
+    game.dispose();
+    game = null;
+    mode = 'menu';
+    input.enabled = false;
+    audio.resume();
+    try {
+      done?.(m);
+    } catch (e) {
+      reportError('career', e);
+      showCareer(handlers);
+    }
+    return;
+  }
   const [a, b] = m.teams;
   const res = a.score > b.score ? 'w' : a.score < b.score ? 'l' : 'd';
   record.played++;
@@ -279,6 +341,7 @@ function frame(now: number) {
     if (mode === 'play' || mode === 'paused' || (mode === 'results' && game)) {
       game!.update(mode === 'play' || mode === 'results' ? dt : 0);
       game!.draw(ctx, W, H, mode === 'play');
+      if (matchMode === 'career' && game) careerHudTick(game.match, !!careerCfg?.startScore, false, mode === 'play');
     } else {
       if (!demo) newDemo();
       demo!.update(dt);
@@ -311,7 +374,7 @@ function frame(now: number) {
 }
 
 if (import.meta.env.DEV) {
-  (window as unknown as { __mf: unknown }).__mf = { get game() { return game; }, get demo() { return demo; } };
+  (window as unknown as { __mf: unknown }).__mf = { get game() { return game; }, get demo() { return demo; }, get career() { return career(); } };
 }
 
 /** One-time test gift: 50 000 coins (granted once per install). */

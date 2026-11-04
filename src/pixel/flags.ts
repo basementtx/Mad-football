@@ -34,6 +34,28 @@ const FLAGS: Record<string, Px> = {
   },
 };
 
+// ---- simple national flags for the career world
+const hBands = (...c: string[]): Px => (_x, y) => c[Math.min(c.length - 1, Math.floor((y / H) * c.length))];
+const vBands = (...c: string[]): Px => (x) => c[Math.min(c.length - 1, Math.floor((x / W) * c.length))];
+Object.assign(FLAGS, {
+  en: (x: number, y: number) => (Math.abs(x + 0.5 - W / 2) < 2 || Math.abs(y + 0.5 - H / 2) < 2 ? '#ce1124' : '#ffffff'),
+  es: (x: number, y: number) => (y < 4 || y >= 12 ? '#c60b1e' : x >= 5 && x <= 8 && y >= 6 && y <= 9 ? '#ad1519' : '#ffc400'),
+  it: vBands('#009246', '#ffffff', '#ce2b37'),
+  de: hBands('#1a1a1a', '#dd0000', '#ffce00'),
+  fr: vBands('#0055a4', '#ffffff', '#ef4135'),
+  nl: hBands('#ae1c28', '#ffffff', '#21468b'),
+  ng: vBands('#008751', '#ffffff', '#008751'),
+  ar: (x: number, y: number) => (Math.hypot(x + 0.5 - W / 2, y + 0.5 - H / 2) < 2.2 && y >= 5 && y < 11 ? '#f6b40e' : y < 5 || y >= 11 ? '#74acdf' : '#ffffff'),
+  jp: (x: number, y: number) => (Math.hypot(x + 0.5 - W / 2, y + 0.5 - H / 2) < 4.6 ? '#bc002d' : '#ffffff'),
+  pt: (x: number, y: number) => (Math.hypot(x + 0.5 - 9.6, y + 0.5 - H / 2) < 3.4 ? (Math.hypot(x + 0.5 - 9.6, y + 0.5 - H / 2) < 2 ? '#ffffff' : '#ffe000') : x < 9.6 ? '#006600' : '#ff0000'),
+  br: (x: number, y: number) => {
+    const cx = x + 0.5 - W / 2, cy = y + 0.5 - H / 2;
+    if (Math.hypot(cx, cy) < 3.7) return Math.abs(cy + cx * 0.25 - 0.3) < 0.6 ? '#ffffff' : '#002776';
+    if (Math.abs(cx) / 10.5 + Math.abs(cy) / 6.5 < 1) return '#ffdf00';
+    return '#009c3b';
+  },
+});
+
 export function flagCanvas(code: string): HTMLCanvasElement {
   const hit = cache.get(code);
   if (hit) return hit;

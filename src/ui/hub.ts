@@ -21,6 +21,10 @@ import { market, tickMarket } from '../meta/market';
 import { TEAMS } from '../game/teams';
 import { league, positionOf, ROUNDS } from '../meta/league';
 import { showLeague } from './league';
+import { career } from '../career/state';
+import { clubName } from '../career/world';
+import { L2 } from '../career/util';
+import { lookOf } from '../career/util';
 
 export function showSplash(h: MenuHandlers) {
   const L = t();
@@ -73,6 +77,7 @@ export function showHub(h: MenuHandlers) {
           <div class="tile-label big">${L.league}<span class="arr">▶</span></div>
           <small><span class="div-badge d${league.div}">${league.div}</span> ${esc(L.divNames[league.div])} • ${league.round > 0 ? positionOf() + '.' : '—'} • ${L.matchday} ${Math.min(league.round + 1, ROUNDS)}/${ROUNDS}</small>
         </button>
+        ${careerTile()}
         <button class="tile" data-act="squad">
           <div class="tile-art">${crestTag(club, 'crest-lg')}</div>
           <div class="tile-label">${L.myClub}</div>
@@ -104,6 +109,7 @@ export function showHub(h: MenuHandlers) {
     </div>`,
   );
   bind('[data-act=play]', () => { audio.select(); showLeague(h); });
+  bind('[data-act=career]', () => { audio.select(); h.showCareer(); });
   bind('[data-act=quick]', () => { audio.select(); showSetup(h); });
   bind('[data-act=training]', () => { audio.select(); showTraining(h); });
   bind('[data-act=squad]', () => { audio.click(); showSquad(h); });
@@ -122,4 +128,20 @@ export function showHub(h: MenuHandlers) {
     h.settingsChanged();
     showHub(h);
   });
+}
+
+function careerTile() {
+  const c = career();
+  const me = c?.me;
+  const kit = c?.contract ? (() => { const k = c.clubs[c.contract!.club]; return { ...TEAMS[0], id: k.id, primary: k.primary, secondary: k.secondary, shorts: k.shorts, socks: k.primary, pattern: k.pattern }; })() : { ...TEAMS[2], primary: '#3a4766', secondary: '#ffd23f' };
+  const look = me?.look ?? lookOf('hub-career', 'br');
+  const sub = c
+    ? c.phase === 'retired' ? L2('Retired · legacy', 'Emekli · miras') : `${c.contract ? clubName(c, c.contract.club) : L2('Free agent', 'Serbest')} · ${L2('S', 'S')}${c.season} ${L2('W', 'H')}${c.week}`
+    : L2('Start a pro career at 17', '17 yaşında profesyonel kariyere başla');
+  return `<button class="tile tile-career" data-act="career">
+    <div class="tile-art">${paintTag(spriteSource(lookFor(kit, look, false, itemById(profile.equipped.boots)?.boot), c ? 'cel0' : 'idle0'), 'tile-sprite')}</div>
+    <div><div class="tile-label big">${L2('CAREER', 'KARİYER')}<span class="arr">▶</span></div>
+    <small>${esc(sub)}</small></div>
+    ${!c ? `<div class="badge">${L2('NEW', 'YENİ')}</div>` : ''}
+  </button>`;
 }

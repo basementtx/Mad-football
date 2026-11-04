@@ -220,6 +220,11 @@ export class Player {
   steals = 0;
   saves = 0;
   assists = 0;
+  /** completed passes, balls lost, shots on target, times knocked down (match ratings) */
+  passOk = 0;
+  lost = 0;
+  onTarget = 0;
+  downs = 0;
 
   constructor(
     public team: Team,

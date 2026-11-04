@@ -28,6 +28,33 @@ export interface MatchConfig {
   training?: 'team' | 'keeper';
   /** store preview: scripted scenes, no AI, no goals, no clock */
   showcase?: boolean;
+  /** career: you only ever control your own player (the star); team-mates are AI */
+  lockStar?: boolean;
+  /** career: how readily team-mates pass to you (0..1) */
+  starTrust?: number;
+  /** career: score when the match starts (coming on as a substitute) */
+  startScore?: [number, number];
+  /** career: perk ids of the star (small match effects) */
+  starPerks?: string[];
+  /** career: match label shown in the intro banner */
+  title?: string;
+  /** career: the opponents' real players (slot 0 = GK) */
+  awayCards?: CardData[];
+  /** career: how sharp your AI team-mates are */
+  homeDifficulty?: Difficulty;
+  /** career: a timed training drill (training mode with a running clock) */
+  drill?: boolean;
+}
+
+export interface GoalEvent {
+  /** match clock fraction 0..1 when it was scored */
+  at: number;
+  team: 0 | 1;
+  scorer: string;
+  assist: string | null;
+  star: boolean;
+  starAssist: boolean;
+  own: boolean;
 }
 
 interface Frame {
@@ -82,6 +109,12 @@ export class Match {
   lastGoal: { team: Team; scorer: Player | null; own: boolean } | null = null;
   onEnd: (() => void) | null = null;
   private countShown = -1;
+  /** goals in order (career match reports) */
+  goalLog: GoalEvent[] = [];
+  /** the user's player in a career match */
+  star: Player | null = null;
+  /** match time when the star last called for the ball */
+  passCall = -9;
   /** player the human would pass to (for UI hint) */
   passHint: Player | null = null;
   /** human aim direction (for the aim arrow) */
@@ -125,7 +158,7 @@ export class Match {
   constructor(public cfg: MatchConfig, public fx: FX) {
     this.pitch = makePitch(cfg.size);
     this.clock = cfg.duration;
-    const home = new Team(cfg.home, 0, 1, !cfg.demo, cfg.demo ? DIFF.normal : DIFF.normal);
+    const home = new Team(cfg.home, 0, 1, !cfg.demo, cfg.homeDifficulty ? DIFF[cfg.homeDifficulty] : DIFF.normal);
     const away = new Team(awayKit(cfg.home, cfg.away), 1, -1, false, DIFF[cfg.difficulty]);
     home.opp = away;
     away.opp = home;
@@ -134,7 +167,7 @@ export class Match {
       const roles = ROLES[cfg.size] ?? ROLES[4];
       const names = [...team.def.names].sort(() => Math.random() - 0.5);
       const nums = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 17, 19, 23].sort(() => Math.random() - 0.5);
-      const cards = team.index === 0 ? cfg.homeCards : undefined;
+      const cards = team.index === 0 ? cfg.homeCards : cfg.awayCards;
       roles.forEach((r, i) => {
         const card = cards?.[i];
         const p = new Player(team, i, r, card ? card.name.split(' ').pop()! : names[i % names.length] ?? (r === 'GK' ? 'Keeper' : 'Player ' + (i + 1)), r === 'GK' ? 1 : nums[i]);
@@ -176,6 +209,20 @@ export class Match {
           p.staminaDrain = Math.max(0.6, 1 - b.stamina / 40);
         }
       }
+    }
+    this.star = home.players.find((p) => p.star) ?? null;
+    if (this.star && cfg.starPerks) {
+      const k = cfg.starPerks;
+      const st = this.star;
+      if (k.includes('engine')) st.staminaDrain *= 0.7;
+      if (k.includes('rocket')) st.power = Math.min(1.1, st.power + 0.05);
+      if (k.includes('silk')) st.skill = Math.min(1.1, st.skill + 0.05);
+      if (k.includes('bulldozer')) st.tackle = Math.min(1.1, st.tackle + 0.05);
+      if (k.includes('jet')) st.pace = Math.min(1.1, st.pace + 0.04);
+    }
+    if (cfg.startScore) {
+      home.score = cfg.startScore[0];
+      away.score = cfg.startScore[1];
     }
     this.kickoffTeam = cfg.training || cfg.showcase ? home : Math.random() < 0.5 ? home : away;
     this.setupKickoff(this.kickoffTeam);
@@ -244,7 +291,7 @@ export class Match {
       const field = ht.players.filter((p) => !p.isGK);
       this.human = kt === ht ? field[field.length - 1] : field.reduce((a, c) => (Math.abs(c.x) < Math.abs(a.x) ? c : a));
       const star = field.find((p) => p.star);
-      if (star && kt !== ht) this.human = star;
+      if (star && (kt !== ht || this.cfg.lockStar)) this.human = star;
     } else this.human = null;
     this.countShown = -1;
   }
@@ -254,7 +301,7 @@ export class Match {
     this.phaseT = 0;
     if (this.cfg.training) this.fx.banner(t().training, this.cfg.training === 'keeper' ? t().trainKeeper : t().trainTeam, '#fff', 2.2);
     else if (!this.cfg.demo) {
-      this.fx.banner(`${this.teams[0].def.name}`, `${t().vs}  ${this.teams[1].def.name}`, '#fff', 2.2);
+      this.fx.banner(this.cfg.title ?? `${this.teams[0].def.name}`, this.cfg.title ? `${this.teams[0].def.short}  ${t().vs}  ${this.teams[1].def.short}` : `${t().vs}  ${this.teams[1].def.name}`, '#fff', 2.2);
     }
   }
 
@@ -301,7 +348,7 @@ export class Match {
         break;
       }
       case 'play':
-        if (this.cfg.training || this.cfg.showcase) break;
+        if ((this.cfg.training && !this.cfg.drill) || this.cfg.showcase) break;
         this.clock -= dt;
         if (this.clock <= 0) {
           this.clock = 0;
@@ -527,6 +574,16 @@ export class Match {
     this.lastSwitch = this.time;
   }
 
+  /** Career: shout for the ball - the AI carrier looks for you first. */
+  callForBall(p: Player) {
+    if (this.time - this.passCall < 0.6) return;
+    this.passCall = this.time;
+    const o = this.ball.owner;
+    if (o && o.team === p.team && o !== p) o.aiTimer = Math.min(o.aiTimer, 0.08);
+    this.fx.text(p.x, p.y, 1.1, t().needBall, '#7fe8ff', 0.8);
+    audio.click();
+  }
+
   private switchHuman(ahead = 0.4) {
     const team = this.teams[0];
     const b = this.ball;
@@ -547,19 +604,21 @@ export class Match {
   private controlHuman(inp: Input, dt: number) {
     const team = this.teams[0];
     const b = this.ball;
+    const lock = !!this.cfg.lockStar && !!this.star;
+    if (lock && this.human !== this.star) this.setHuman(this.star!);
     // you always control the ball carrier - the keeper too
-    if (b.owner && b.owner.team === team && b.owner !== this.human) this.setHuman(b.owner);
+    if (!lock && b.owner && b.owner.team === team && b.owner !== this.human) this.setHuman(b.owner);
     let h = this.human;
     if (!h) return;
     // the keeper has released the ball: back to an outfield player
-    if (h.isGK && b.owner !== h) {
+    if (!lock && h.isGK && b.owner !== h) {
       if (b.passTarget && b.passTarget.team === team && !b.passTarget.isGK) this.setHuman(b.passTarget);
       else this.switchHuman(1);
       h = this.human!;
     }
 
     // auto switch while defending / loose ball
-    if (settings.autoSwitch && (!b.owner || b.owner.team !== team) && this.time - this.lastSwitch > 0.9 && h.chargeKind === 'none') {
+    if (!lock && settings.autoSwitch && (!b.owner || b.owner.team !== team) && this.time - this.lastSwitch > 0.9 && h.chargeKind === 'none') {
       const target = b.passTarget && b.passTarget.team === team && !b.passTarget.isGK ? b.passTarget : null;
       if (target && target !== h) this.setHuman(target);
       else if (!target) {
@@ -667,6 +726,8 @@ export class Match {
       if (hasBall && hp.canAct) {
         hp.chargeKind = 'pass';
         hp.charge = 0;
+      } else if (!hasBall && lock) {
+        this.callForBall(hp);
       } else if (!hasBall) {
         this.switchHuman();
       }
@@ -681,7 +742,7 @@ export class Match {
           const q = this.assistTarget(hp, ndx, ndy);
           if (q) {
             this.passTo(hp, q, lob);
-            if (!q.isGK) this.setHuman(q);
+            if (!q.isGK && !lock) this.setHuman(q);
           } else {
             // no assist: the ball goes exactly where you point
             const sp = lob ? 11 + hp.charge * 9 : 15;
@@ -963,7 +1024,10 @@ export class Match {
     const tt = (gx - p.x) / (Math.cos(ang) * speed);
     if (tt > 0) {
       const yAt = p.y + Math.sin(ang) * speed * tt;
-      if (Math.abs(yAt) < P.goalHalf && vz < 7) p.team.stats.onTarget++;
+      if (Math.abs(yAt) < P.goalHalf && vz < 7) {
+        p.team.stats.onTarget++;
+        p.onTarget++;
+      }
     }
     this.fx.addShake(0.08 + power * 0.12);
     if (power > 0.85) this.fx.emit('ring', b.x, b.y, 0.2, { n: 1, life: 0.3, size: 0.5, color: '#fff' });
@@ -1551,8 +1615,10 @@ export class Match {
         a.steals++;
         a.team.stats.tackles++;
       }
+      if (a && a.team !== v.team) v.lost++;
     }
-    v.setState('down', dur * (1.12 - v.power * 0.22));
+    v.downs++;
+    v.setState('down', dur * (1.12 - v.power * 0.22) * (v.star && this.cfg.starPerks?.includes('iron') ? 0.7 : 1));
     v.vx = ix;
     v.vy = iy;
     v.chargeKind = 'none';
@@ -1582,6 +1648,7 @@ export class Match {
     o.kickCd = 0.55;
     o.chargeKind = 'none';
     this.setOwner(q);
+    o.lost++;
     q.steals++;
     q.team.stats.tackles++;
     if (o === this.human || q === this.human) this.fx.text(q.x, q.y, 0, t().stolen, '#7fe8ff', 0.9);
@@ -1592,7 +1659,10 @@ export class Match {
   setOwner(p: Player) {
     const b = this.ball;
     p.feetBall = false;
-    if (b.passTarget && b.lastTouch && b.lastTouch.team === p.team && b.lastTouch !== p) p.team.stats.passes++;
+    if (b.passTarget && b.lastTouch && b.lastTouch.team === p.team && b.lastTouch !== p) {
+      p.team.stats.passes++;
+      b.lastTouch.passOk++;
+    } else if (b.passTarget && b.lastTouch && b.lastTouch.team !== p.team && b.kickAge < 2.5) b.lastTouch.lost++;
     if (b.lastTouch !== p) b.prevTouch = b.lastTouch;
     if (this.possTeam !== p.team) {
       this.possTeam = p.team;
@@ -2310,11 +2380,24 @@ export class Match {
     const own = !!scorer && scorer.team !== scoring;
     scoring.score++;
     this.lastGoal = { team: scoring, scorer, own };
+    let assistBy: Player | null = null;
     if (scorer && !own) {
       scorer.goals++;
       const assist = b.prevTouch;
-      if (assist && assist !== scorer && assist.team === scoring) assist.assists++;
+      if (assist && assist !== scorer && assist.team === scoring) {
+        assist.assists++;
+        assistBy = assist;
+      }
     }
+    this.goalLog.push({
+      at: this.cfg.duration > 0 ? clamp(1 - this.clock / this.cfg.duration, 0, 1) : 0,
+      team: scoring.index,
+      scorer: scorer ? scorer.name : '?',
+      assist: assistBy ? assistBy.name : null,
+      star: !!scorer && scorer === this.star && !own,
+      starAssist: !!assistBy && assistBy === this.star,
+      own,
+    });
     this.toPhase('goal');
     this.goalFlash = 1;
     for (const p of this.all) {

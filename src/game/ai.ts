@@ -368,6 +368,12 @@ function passPlans(m: Match, p: Player): PassPlan[] {
       }
     }
   }
+  // career: team-mates look for your player (more once they trust you)
+  const star = m.cfg.lockStar ? m.star : null;
+  if (star && star.team === team && star !== p) {
+    const called = m.time - m.passCall < 1.4;
+    for (const pl of out) if (pl.q === star) pl.val += (m.cfg.starTrust ?? 0.3) * 0.5 + (called ? 0.9 : 0);
+  }
   return out.sort((a, c) => c.val - a.val);
 }
 
@@ -424,6 +430,16 @@ function carrierAI(m: Match, p: Player, decide: boolean) {
 
     // --- pass when a team-mate has a better chance than we do here
     const plans = passPlans(m, p);
+    // career: your player called for it - play it unless the lane is suicidal
+    const star = m.cfg.lockStar ? m.star : null;
+    if (star && star.team === team && star !== p && m.time - m.passCall < 1.4) {
+      const sp = plans.find((pl) => pl.q === star);
+      if (sp && sp.val > -0.9 + (1 - (m.cfg.starTrust ?? 0.3)) * 0.6) {
+        playPass(m, p, sp);
+        m.passCall = -9;
+        return;
+      }
+    }
     // backward / square passes only to escape real pressure
     const fwdPlans = plans.filter((pl) => (pl.x - p.x) * team.side > -1.5);
     const best = pressure > 0.55 ? plans[0] : fwdPlans[0];

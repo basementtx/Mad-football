@@ -76,8 +76,9 @@ export class Game {
     const h = m.human;
     if (h && m.phase === 'play') {
       // keep the controlled player in view
-      tx = tx * 0.75 + h.x * 0.25;
-      ty = ty * 0.75 + h.y * 0.25;
+      const k = m.cfg.lockStar ? 0.4 : 0.25;
+      tx = tx * (1 - k) + h.x * k;
+      ty = ty * (1 - k) + h.y * k;
     }
     if (m.phase === 'goal' && m.lastGoal && !m.replaying) {
       // watch the goal explosion first, then the celebrating scorer
@@ -122,7 +123,7 @@ export class Game {
     const usable = !!h && m.canUseItem(h);
     return {
       a: { text: aText, color: hasBall ? '#ff4d3d' : '#ff7a1f', ic: aIc },
-      b: { text: keeper ? L.throwBtn : hasBall ? L.pass : L.switchBtn, color: '#2f9bff', ic: keeper ? 'throw' : hasBall ? 'pass' : 'switch' },
+      b: { text: keeper ? L.throwBtn : hasBall ? L.pass : m.cfg.lockStar ? L.callBtn : L.switchBtn, color: '#2f9bff', ic: keeper ? 'throw' : hasBall || m.cfg.lockStar ? 'pass' : 'switch' },
       c: { text: L.sprint, color: '#2fc46a', dim: keeper, ic: 'sprint' },
       d: { text: L.spin, color: '#a35cff', dim: keeper, ic: 'spin' },
       e: it
