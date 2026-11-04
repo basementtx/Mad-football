@@ -118,7 +118,7 @@ export function runTeamAI(m: Match, team: Team, dt: number) {
     }
   });
 
-  gkAI(m, team.gk, dt);
+  if (team.gk.isGK && team.gk !== m.human) gkAI(m, team.gk, dt);
   if (!team.human) itemAI(m, team, dt);
 }
 

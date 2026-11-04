@@ -79,3 +79,48 @@
 #ui .opt-c .lk { right: 1px; bottom: 1px; font-size: 9px; padding: 0 2px; border-width: 1px; }
 #ui .sw .lk { right: 1px; bottom: 1px; padding: 1px; border-width: 1px; }
 #ui .sw .lk svg { width: 7px; height: 7px; }
+
+/* ---------------------------------------------------------------- hub: training tile */
+#ui .hub-grid > .tile-sm[data-act=quick] { grid-column: 2; }
+#ui .hub-grid > .tile-train { grid-column: 3; background: #1f3a2a; --strip: #2fc46a; flex-direction: column; gap: 0; }
+#ui .tile-train small { color: #9ad8b0; }
+#ui .tile-train .cone { display: inline-block; color: #ff7a1a; transform: rotate(-45deg) scale(.8); margin-right: 2px; }
+
+/* ---------------------------------------------------------------- training picker */
+#ui .training { width: 100%; max-width: 900px; height: 100%; display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+#ui .tr-modes { flex: 1; min-height: 0; display: flex; gap: 18px; }
+#ui .tr-card { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; padding: 18px 16px 14px; cursor: pointer;
+  background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 6px 6px 0 rgba(21,23,28,0.45); transition: transform .4s var(--e-spring), outline-color .2s; outline: 4px solid transparent; overflow: hidden; }
+#ui .tr-card::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 8px; background: #2fc46a; }
+#ui .tr-card.on { outline-color: var(--marker); transform: translateY(-6px); }
+#ui .tr-art { flex: 1; min-height: 0; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 0; container-type: size;
+  background: linear-gradient(180deg, transparent 55%, #2f8b3a 55%, #2a7a36 100%); border: 2px solid var(--ink); }
+#ui .tr-spr { height: min(120px, 92cqh); width: auto; image-rendering: pixelated; margin: 0 -14px; }
+#ui .tr-card.on .tr-spr { animation: m-idle 1.4s ease-in-out infinite; transform-origin: 50% 100%; }
+#ui .tr-vs { align-self: center; font-family: var(--display); font-weight: 700; font-size: 26px; color: var(--marker); text-shadow: 3px 3px 0 var(--ink); margin: 0 10px; }
+#ui .tr-card b { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1; }
+#ui .tr-card p { margin: 0; font-size: 13px; font-weight: 700; color: var(--note2); text-align: center; line-height: 1.25; }
+#ui .training .btn-start { align-self: center; }
+@media (max-height: 430px) { #ui .tr-card b { font-size: 19px; } #ui .tr-card p { font-size: 11px; } }
+
+/* ---------------------------------------------------------------- live item preview */
+#ui .so-art[data-prev] { cursor: pointer; }
+#ui .so-play { position: absolute; right: -4px; bottom: -2px; z-index: 2; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; padding-left: 3px;
+  font-size: 14px; color: var(--ink); background: var(--marker); border: 2px solid var(--ink); border-radius: 50%; box-shadow: 2px 2px 0 rgba(21,23,28,0.45); animation: so-playpulse 1.8s ease-in-out infinite; }
+@keyframes so-playpulse { 0%, 100% { box-shadow: 2px 2px 0 rgba(21,23,28,0.45), 0 0 0 0 rgba(250,204,21,0.6); } 50% { box-shadow: 2px 2px 0 rgba(21,23,28,0.45), 0 0 0 7px rgba(250,204,21,0); } }
+@media (hover: hover) { #ui .so-art[data-prev]:hover .so-play { transform: scale(1.15); } }
+.pv-box { width: min(560px, 92vw); align-items: stretch; gap: 8px; padding: 16px 18px 14px; }
+.pv-head { display: flex; align-items: center; gap: 10px; }
+.pv-icon { width: 40px; height: 40px; image-rendering: pixelated; }
+.pv-screen { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 52vh; border: 3px solid var(--ink); background: #0a101c; box-shadow: inset 0 0 0 2px rgba(255,255,255,0.15); }
+.pv-canvas { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.pv-live { position: absolute; left: 8px; top: 6px; font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 12px; color: #fff; background: rgba(200,45,32,0.9); padding: 0 6px; animation: dpulse 1.2s ease-in-out infinite; }
+.pv-desc { font-weight: 700; font-size: 14px; color: var(--note2); text-align: center; }
+.pv-box .um-btns { justify-content: center; }
+.pv-box .btn s { font-size: 12px; opacity: .55; margin-right: 4px; }
+@media (max-height: 430px) {
+  .pv-box { padding: 10px 14px; gap: 5px; }
+  .pv-screen { max-height: 50vh; width: auto; align-self: center; }
+  .pv-head .um-name { font-size: 20px; }
+  .pv-desc { font-size: 12px; }
+}

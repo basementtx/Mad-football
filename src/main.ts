@@ -110,9 +110,10 @@ function requestFullscreen() {
 }
 
 /** 'quick' = friendly from the setup screen, 'league' = current league fixture */
-let matchMode: 'quick' | 'league' = 'quick';
+let matchMode: 'quick' | 'league' | 'training' = 'quick';
+let trainingMode: 'team' | 'keeper' = 'keeper';
 
-function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: boolean) {
+function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: boolean, training?: 'team' | 'keeper') {
   requestFullscreen();
   audio.unlock();
   const homeCards = useClub ? lineupCards().filter((c): c is CardData => !!c) : undefined;
@@ -123,6 +124,7 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
       homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
       starId: useClub ? profile.myPlayer : null,
       loadout: { goalfx: profile.equipped.goalfx, trail: profile.equipped.trail, powers: profile.loadout, tiers: loadoutTiers() },
+      training,
     },
     input,
   );
@@ -160,8 +162,16 @@ const handlers: MenuHandlers = {
     audio.resume();
     hideUI();
   },
+  startTraining(m: 'team' | 'keeper') {
+    matchMode = 'training';
+    trainingMode = m;
+    const club = teamById('club');
+    const opp = TEAMS[Math.floor(Math.random() * TEAMS.length)];
+    launch(club, opp, 'normal', true, m);
+  },
   restart() {
-    if (matchMode === 'league') handlers.startLeagueMatch();
+    if (matchMode === 'training') handlers.startTraining(trainingMode);
+    else if (matchMode === 'league') handlers.startLeagueMatch();
     else handlers.startMatch();
   },
   quit() {

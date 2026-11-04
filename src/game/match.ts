@@ -24,6 +24,10 @@ export interface MatchConfig {
   /** id of the user's own created player */
   starId?: string | null;
   loadout?: { goalfx: string; trail: string; powers: string[]; tiers: Record<string, number> };
+  /** free practice: your team (or one player) against a lone keeper, no clock */
+  training?: 'team' | 'keeper';
+  /** store preview: scripted scenes, no AI, no goals, no clock */
+  showcase?: boolean;
 }
 
 interface Frame {
@@ -121,6 +125,16 @@ export class Match {
         this.all.push(p);
       });
     }
+    if (cfg.training || cfg.showcase) {
+      // the opponents are a lone keeper (the showcase keeps a couple of targets)
+      if (!cfg.showcase) away.players = away.players.filter((p) => p.isGK);
+      if (cfg.training === 'keeper' || cfg.showcase) {
+        const field = home.players.filter((p) => !p.isGK);
+        const me = field.find((p) => p.star) ?? field[field.length - 1];
+        home.players = [me];
+      }
+      this.all = [...home.players, ...away.players];
+    }
     for (const tm of this.teams) tm.loadout = [...ALL_POWERS].sort(() => Math.random() - 0.5).slice(0, 4);
     if (cfg.loadout) {
       if (cfg.loadout.powers.length) home.loadout = cfg.loadout.powers.map(POWER_ID);
@@ -128,7 +142,7 @@ export class Match {
       home.goalfx = cfg.loadout.goalfx;
       home.trail = cfg.loadout.trail;
     }
-    this.kickoffTeam = Math.random() < 0.5 ? home : away;
+    this.kickoffTeam = cfg.training || cfg.showcase ? home : Math.random() < 0.5 ? home : away;
     this.setupKickoff(this.kickoffTeam);
     this.phase = 'intro';
   }
@@ -175,7 +189,7 @@ export class Match {
           }
         }
       }
-      if (team === kt) {
+      if (team === kt && field.length) {
         const kicker = field[field.length - 1];
         kicker.x = -team.side * 0.65;
         kicker.y = 0;
@@ -203,7 +217,8 @@ export class Match {
   start() {
     this.phase = 'intro';
     this.phaseT = 0;
-    if (!this.cfg.demo) {
+    if (this.cfg.training) this.fx.banner(t().training, this.cfg.training === 'keeper' ? t().trainKeeper : t().trainTeam, '#fff', 2.2);
+    else if (!this.cfg.demo) {
       this.fx.banner(`${this.teams[0].def.name}`, `${t().vs}  ${this.teams[1].def.name}`, '#fff', 2.2);
     }
   }
@@ -249,6 +264,7 @@ export class Match {
         break;
       }
       case 'play':
+        if (this.cfg.training || this.cfg.showcase) break;
         this.clock -= dt;
         if (this.clock <= 0) {
           this.clock = 0;
@@ -264,10 +280,14 @@ export class Match {
         break;
       case 'goal': {
         const skip = !!input && this.replay !== null && this.replayT > 0.4 && (input.btn.a.pressed || input.btn.b.pressed || input.btn.d.pressed);
-        if (this.replay === null && !this.replayDone && this.phaseT > 2.3 && this.history.length > 30 && !this.cfg.demo) this.startReplay();
+        if (this.replay === null && !this.replayDone && this.phaseT > 2.3 && this.history.length > 30 && !this.cfg.demo && !this.cfg.training) this.startReplay();
         if (this.replay !== null) {
           this.replayT += dt * 0.65;
           if (!this.applyReplayFrame() || skip) this.endReplay();
+        }
+        if (this.cfg.training) {
+          if (this.phaseT > 2.4) this.trainingReset();
+          break;
         }
         const done = this.cfg.demo ? this.phaseT > 3.4 : this.replayDone && this.phaseT > 2.6;
         if (done) {
@@ -290,7 +310,12 @@ export class Match {
     }
 
     const live = this.phase === 'play';
-    if (live) {
+    if (live && this.cfg.training) {
+      // the keeper hands the ball back instead of starting a counter
+      const o = this.ball.owner;
+      if (o && o.team === this.teams[1] && o.holdT > 1.1) this.trainingReset();
+    }
+    if (live && !this.cfg.showcase) {
       if (input && this.teams[0].human) this.controlHuman(input, dt);
       for (const team of this.teams) runTeamAI(this, team, dt);
     } else if (this.phase === 'goal') {
@@ -321,7 +346,7 @@ export class Match {
       this.interactions(dt);
       this.updateItems(dt);
       this.record();
-      this.checkGoal();
+      if (!this.cfg.showcase) this.checkGoal();
       const o = this.ball.owner;
       if (o) o.team.stats.possession += dt;
     }
@@ -413,8 +438,32 @@ export class Match {
     this.phaseT = 2.0;
   }
 
-  private beginPlay() {
+  /** Training: back to a shooting position with the ball, straight into play. */
+  trainingReset() {
+    const P = this.pitch;
+    const home = this.teams[0];
+    this.bombs.length = 0;
+    this.bullets.length = 0;
+    if (this.cfg.training === 'team') this.setupKickoff(home);
+    else {
+      this.setupKickoff(home);
+      const me = home.players[0];
+      me.x = P.hw - rand(11, 16);
+      me.y = rand(-5, 5);
+      me.face = 0;
+      const b = this.ball;
+      b.owner = me;
+      b.lastTouch = me;
+      b.x = me.x + 0.6;
+      b.y = me.y;
+    }
+    for (const p of this.all) if (p.state !== 'run') p.setState('run');
     this.toPhase('play');
+  }
+
+  private beginPlay() {
+    if (this.cfg.training === 'keeper') this.trainingReset();
+    else this.toPhase('play');
     audio.whistle('short');
     if (!this.cfg.demo) this.fx.banner(t().kickoff, '', '#fff', 0.9);
   }
@@ -1181,7 +1230,7 @@ export class Match {
     const P = this.pitch;
     const b = this.ball;
     // ---- boxes
-    this.boxT -= dt;
+    if (!this.cfg.showcase) this.boxT -= dt;
     const maxBoxes = this.cfg.size >= 5 ? 3 : 2;
     if (this.boxT <= 0) {
       this.boxT = rand(5, 9);

@@ -14,6 +14,7 @@ import { showCreator } from './creator';
 import { showShop } from './shop';
 import { showCollection } from './collection';
 import { showMarket } from './market';
+import { showTraining } from './training';
 import { crate3D } from './crate3d';
 import { tickStore, newStoreOffers } from '../meta/cosmetics';
 import { market, tickMarket } from '../meta/market';
@@ -98,11 +99,13 @@ export function showHub(h: MenuHandlers) {
           ${market.offers.length ? `<div class="badge">${market.offers.length}</div>` : ''}
         </button>
         <button class="tile tile-sm" data-act="quick"><div class="tile-label"><span class="bolt">⚡</span> ${L.quickMatch}</div></button>
+        <button class="tile tile-sm tile-train" data-act="training"><div class="tile-label"><span class="cone">◢</span> ${L.training}</div><small>${L.trainingSub}</small></button>
       </div>
     </div>`,
   );
   bind('[data-act=play]', () => { audio.select(); showLeague(h); });
   bind('[data-act=quick]', () => { audio.select(); showSetup(h); });
+  bind('[data-act=training]', () => { audio.select(); showTraining(h); });
   bind('[data-act=squad]', () => { audio.click(); showSquad(h); });
   bind('[data-act=club]', () => { audio.click(); showSquad(h); });
   bind('[data-act=player]', () => { audio.click(); showCreator(h, false); });

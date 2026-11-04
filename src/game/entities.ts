@@ -117,7 +117,7 @@ export class Team {
   ) {}
 
   get gk(): Player {
-    return this.players[0];
+    return this.players.find((p) => p.isGK) ?? this.players[0];
   }
 }
 

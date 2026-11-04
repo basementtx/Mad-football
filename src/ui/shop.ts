@@ -11,10 +11,11 @@ import { cardHTML, itemHTML } from './cards';
 import { showHub } from './hub';
 import { showCollection } from './collection';
 import { store, tickStore, refreshStore, buyOffer, StoreOffer, offerItem, offerCos, offerRarity, markStoreSeen, cosName, cosKindName, STORE_REFRESH_COST, Cosmetic } from '../meta/cosmetics';
-import { itemName, RARITY_COLOR } from '../meta/items';
+import { itemName, itemDesc, RARITY_COLOR } from '../meta/items';
+import { Showcase } from '../game/showcase';
 import { itemIcon } from '../pixel/icons';
 import { crestTag, portraitSource, lookFor, esc, toast as toastMsg } from './common';
-import { cardById } from '../meta/profile';
+import { cardById, lineupCards } from '../meta/profile';
 import type { KitPattern } from '../game/teams';
 
 function fmtTime(ms: number) {
@@ -67,7 +68,7 @@ function offerTile(o: StoreOffer, i: number) {
   return `<div class="so-tile r-${rar} ${o.featured ? 'featured' : ''} ${gone ? 'gone' : ''}" style="--rc:${RARITY_COLOR[rar]};--i:${i}">
     ${flag}
     ${o.off ? `<span class="so-off">-${o.off}%</span>` : ''}
-    <div class="so-art"><div class="so-glow"></div>${offerArt(o)}</div>
+    <div class="so-art" ${it ? `data-prev="${i}"` : ''}><div class="so-glow"></div>${offerArt(o)}${it ? `<span class="so-play" aria-label="${L.preview}">▶</span>` : ''}</div>
     <div class="so-kick">${esc(kind)} · ${L.itemRarity[rar]}${copy ? ` · ${L.upgradeCopy}` : ''}</div>
     <div class="so-name">${esc(name)}</div>
     <button class="btn ${gone ? 'btn-ghost' : 'btn-primary'} so-buy" data-buy="${i}" ${gone ? 'disabled' : ''}>
@@ -75,6 +76,54 @@ function offerTile(o: StoreOffer, i: number) {
     </button>
     ${o.bought ? `<div class="stamp green so-stamp">${L.bought}</div>` : ''}
   </div>`;
+}
+
+/** Live preview of an item (trail, goal explosion, special item) in a small match scene. */
+function showPreview(o: StoreOffer, onBuy: (el: HTMLElement) => void) {
+  const L = t();
+  const it = offerItem(o);
+  const club = clubTeamDef();
+  if (!it || !club) return;
+  document.querySelector('.preview-modal')?.remove();
+  const rar = offerRarity(o);
+  const gone = o.bought || (!!o.until && Date.now() > o.until);
+  const kind = it.type === 'goalfx' ? L.goalFx : it.type === 'trail' ? L.trails : L.items;
+  const el = document.createElement('div');
+  el.className = 'unlock-modal preview-modal';
+  el.innerHTML = `<div class="um-box pv-box" style="--rc:${RARITY_COLOR[rar]}">
+    <div class="pv-head">${paintTag(() => itemIcon(it.id, it.type, it.color), 'pv-icon')}<div><div class="um-kick">${esc(kind)} · ${L.itemRarity[rar]}</div><div class="um-name">${esc(itemName(it))}</div></div></div>
+    <div class="pv-screen"><canvas class="pix pv-canvas"></canvas><span class="pv-live">● LIVE</span></div>
+    <div class="pv-desc">${esc(itemDesc(it))}</div>
+    <div class="um-btns">
+      <button class="btn btn-ghost" data-pv="close">${L.back}</button>
+      ${gone ? '' : `<button class="btn btn-primary" data-pv="buy">${L.buy} ${o.off ? `<s>${o.base}</s>` : ''}${coinTag()} ${o.price}</button>`}
+    </div>
+  </div>`;
+  ui().appendChild(el);
+  paintAll(el);
+  const canvas = el.querySelector<HTMLCanvasElement>('.pv-canvas')!;
+  const cards = lineupCards().filter((c): c is NonNullable<typeof c> => !!c);
+  const me = cardById(profile.myPlayer);
+  if (me) cards.sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : 0));
+  const sc = new Showcase(canvas, it, club, me ? [me, ...cards.filter((c) => c.id !== me.id)] : cards);
+  sc.start();
+  const close = () => {
+    sc.stop();
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 220);
+  };
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-pv]');
+    if (!b && e.target !== el) return;
+    if (b?.dataset.pv === 'buy') {
+      close();
+      onBuy(el);
+      return;
+    }
+    audio.click();
+    close();
+  });
 }
 
 export function showShop(h: MenuHandlers, tab: 'crates' | 'store' = shopTab) {
@@ -123,6 +172,13 @@ export function showShop(h: MenuHandlers, tab: 'crates' | 'store' = shopTab) {
     if (!refreshStore()) { toastMsg(L.notEnough); audio.groan(); return; }
     audio.select();
     showShop(h, 'store');
+  });
+  bind('[data-prev]', (el) => {
+    const i = Number(el.dataset.prev);
+    const o = store.offers[i];
+    if (!o) return;
+    audio.click();
+    showPreview(o, () => ui().querySelector<HTMLElement>(`[data-buy="${i}"]`)?.click());
   });
   bind('[data-buy]', (el) => {
     const o = store.offers[Number(el.dataset.buy)];

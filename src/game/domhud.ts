@@ -247,7 +247,7 @@ export class DomHud {
       }
     });
     const c = Math.ceil(m.clock);
-    setText(this.clock, `${Math.floor(c / 60)}:${(c % 60).toString().padStart(2, '0')}`);
+    setText(this.clock, m.cfg.training ? L.training : `${Math.floor(c / 60)}:${(c % 60).toString().padStart(2, '0')}`);
     setCls(this.clock, 'urgent', c <= 10 && m.phase === 'play');
 
     // ---- me
