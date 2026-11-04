@@ -90,11 +90,12 @@ function calTab(c: Career, rerender: () => void): R {
   return {
     html: `<div class="ct">
       <div class="ct-left"><div class="sec-label">${L2('YOUR FIXTURES', 'FİKSTÜRÜN')}</div>${list}</div>
-      <div class="ct-right"><div class="ct-comps">${uniq.map((k) => `<button class="${k.id === calComp ? 'on' : ''}" data-comp="${k.id}">${k.nat ? flagTag(k.nat, 'cr-flag-xs') : k.id === 'T' ? '🌍' : '⭐'} ${esc(LP(k.name))}</button>`).join('')}</div>${main}</div>
+      <div class="ct-right"><div class="ct-comps">${uniq.map((k) => `<button class="${k.id === calComp ? 'on' : ''}" data-comp="${k.id}">${k.nat ? flagTag(k.nat, 'cr-flag-xs') : k.id === 'T' ? '🌍' : '⭐'} ${esc(LP(k.name))}</button>`).join('')}<button class="ct-edit" data-act="edit">✎ ${L2('Edit', 'Düzenle')}</button></div>${main}</div>
     </div>`,
     bind: (root) => {
       root.querySelectorAll<HTMLElement>('[data-comp]').forEach((b) => b.addEventListener('click', () => { calComp = b.dataset.comp!; audio.click(); rerender(); }));
       root.querySelector('.ct-f.now')?.scrollIntoView({ block: 'center' });
+      root.querySelector('[data-act=edit]')?.addEventListener('click', () => { audio.click(); editPicker(c, comp, rerender); });
     },
   };
 }
@@ -318,3 +319,52 @@ void avg;
 void overall;
 void playerName;
 void ratingClass;
+
+// ------------------------------------------------------------------ edit mode (names, like the classic option files)
+
+function editPicker(c: Career, comp: Competition | null | undefined, rerender: () => void) {
+  const ids = (comp?.teams ?? []).filter((id) => c.clubs[id]);
+  const m = modal(`<div class="ed">
+    <div class="cr-mh"><b>✎ ${L2('Edit mode', 'Düzenleme modu')}</b><button class="cr-x" data-x>✕</button></div>
+    <p class="cr-hint">${L2('Rename clubs and players in this save. Changes stay in your own career only.', 'Bu kayıttaki kulüp ve oyuncu isimlerini değiştir. Değişiklikler sadece kendi kariyerinde kalır.')}</p>
+    <div class="ed-clubs">${ids.map((id) => `<button data-club="${id}">${crestOf(c, id, 'crest-sm')}<span>${esc(clubName(c, id))}</span></button>`).join('') || `<p class="cr-hint">${L2('Pick a league or cup first.', 'Önce bir lig ya da kupa seç.')}</p>`}</div>
+  </div>`, 'sheet wide');
+  m.querySelector('[data-x]')?.addEventListener('click', () => closeModal());
+  m.querySelectorAll<HTMLElement>('[data-club]').forEach((b) => b.addEventListener('click', () => { audio.click(); editClub(c, b.dataset.club!, comp, rerender); }));
+}
+
+function editClub(c: Career, id: string, comp: Competition | null | undefined, rerender: () => void) {
+  const k = c.clubs[id];
+  const players = k.squad.map((pid) => c.npcs[pid]).filter(Boolean);
+  const m = modal(`<div class="ed">
+    <div class="cr-mh"><b>${crestOf(c, id, 'crest-sm')} ${esc(k.name)}</b><button class="cr-x" data-x>✕</button></div>
+    <div class="ed-form">
+      <label>${L2('Club name', 'Kulüp adı')}<input class="ed-in" data-f="name" maxlength="28" value="${esc(k.name)}"></label>
+      <label>${L2('Short (3)', 'Kısaltma (3)')}<input class="ed-in short" data-f="short" maxlength="3" value="${esc(k.short)}"></label>
+      <label>${L2('Stadium', 'Stadyum')}<input class="ed-in" data-f="stadium" maxlength="28" value="${esc(k.stadium)}"></label>
+      <label>${L2('Manager', 'Teknik direktör')}<input class="ed-in" data-f="manager" maxlength="28" value="${esc(k.manager)}"></label>
+      <div class="ed-players"><small>${L2('PLAYERS', 'OYUNCULAR')}</small>${players.map((p) => `<label><span class="pos p-${p.pos}">${t().pos[p.pos]}</span><input class="ed-in" data-p="${p.id}" maxlength="24" value="${esc(p.name)}"><input class="ed-in num" data-n="${p.id}" type="number" min="1" max="99" value="${p.num}"></label>`).join('')}</div>
+    </div>
+    <div class="row"><button class="btn btn-ghost" data-back>‹ ${L2('Clubs', 'Kulüpler')}</button><button class="btn btn-primary" data-save>${L2('Save', 'Kaydet')}</button></div>
+  </div>`, 'sheet wide');
+  m.querySelectorAll('input').forEach((i) => i.addEventListener('keydown', (e) => e.stopPropagation()));
+  m.querySelector('[data-x]')?.addEventListener('click', () => closeModal());
+  m.querySelector('[data-back]')?.addEventListener('click', () => editPicker(c, comp, rerender));
+  m.querySelector('[data-save]')?.addEventListener('click', () => {
+    const val = (f: string) => (m.querySelector<HTMLInputElement>(`[data-f=${f}]`)?.value ?? '').trim();
+    if (val('name')) {
+      k.name = val('name');
+      k.handle = k.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]/g, '').slice(0, 15) || k.handle;
+    }
+    if (val('short')) k.short = val('short').toUpperCase().slice(0, 3);
+    if (val('stadium')) k.stadium = val('stadium');
+    if (val('manager')) k.manager = val('manager');
+    m.querySelectorAll<HTMLInputElement>('[data-p]').forEach((i) => { const p = c.npcs[i.dataset.p!]; if (p && i.value.trim()) p.name = i.value.trim(); });
+    m.querySelectorAll<HTMLInputElement>('[data-n]').forEach((i) => { const p = c.npcs[i.dataset.n!]; const n = Math.round(Number(i.value)); if (p && n >= 1 && n <= 99) p.num = n; });
+    saveCareer();
+    audio.select();
+    toast(L2('Saved ✔', 'Kaydedildi ✔'));
+    editPicker(c, comp, rerender);
+    rerender();
+  });
+}

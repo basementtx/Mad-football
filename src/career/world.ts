@@ -3,10 +3,10 @@
  * used for every game the user does not play on the pitch.
  */
 import type { Career, Club, Competition, Fixture, NPC, NPos, Row } from './types';
-import { NATIONS, LEAGUE_NATIONS, nationBy, STADIUM_FMT, NICKNAMES, MANAGER_FIRST, MANAGER_LAST } from './data';
+import { NATIONS, LEAGUE_NATIONS, nationBy, MANAGER_FIRST, MANAGER_LAST } from './data';
+import { CLUB_SEEDS, STADIUM_WORDS } from './clubs';
 import { clamp, gauss, pick, rand, randInt } from '../engine/math';
-import { ICON_IDS, CREST_SHAPES } from '../pixel/crest';
-import type { KitPattern, TeamDef } from '../game/teams';
+import type { TeamDef } from '../game/teams';
 import { poisson, shuffle, weighted, LP, npcStats, lookOf } from './util';
 import { overall } from '../meta/cards';
 import type { CardData } from '../meta/cards';
@@ -19,8 +19,6 @@ export const TOURNEY_WEEKS = [30, 31, 32, 33, 34];
 /** the winter transfer window */
 export const WINTER_WINDOW = [14, 15, 16];
 
-const COLORS = ['#e23a2e', '#ff7a1a', '#ffd23f', '#b6ff3b', '#21a85a', '#14b8a6', '#7fd3ff', '#2f7bff', '#13215e', '#6b3fd6', '#ff2fa0', '#ffffff', '#c8d0e0', '#6c7480', '#1b1b1f', '#7a3b12', '#8a1538', '#0e5c3a'];
-const PATTERNS: KitPattern[] = ['solid', 'stripes', 'hoops', 'half', 'sash', 'chevron', 'pinstripe', 'band', 'yoke', 'diagonal'];
 const NAT_COLORS: Record<string, [string, string]> = {
   en: ['#ffffff', '#13215e'], es: ['#c60b1e', '#ffc400'], it: ['#2f7bff', '#ffffff'], tr: ['#e30a17', '#ffffff'], de: ['#ffffff', '#1a1a1a'],
   fr: ['#13215e', '#ffffff'], br: ['#ffdf00', '#009c3b'], ar: ['#74acdf', '#ffffff'], nl: ['#ff7a1a', '#ffffff'], pt: ['#8a1538', '#0e5c3a'],
@@ -68,36 +66,21 @@ export function generateWorld(c: Career) {
   const clubs: Record<string, Club> = {};
   const npcs: Record<string, NPC> = {};
   for (const code of LEAGUE_NATIONS) {
-    const n = nationBy(code);
-    const towns = shuffle([...n.towns!]);
-    const fmts = n.clubFmt!;
-    const nick = shuffle([...NICKNAMES]);
-    // nation-specific spread of prestige: two giants, a chasing pack, the rest
-    const reps = [rand(86, 93), rand(82, 88), rand(73, 80), rand(69, 76), rand(64, 71), rand(60, 67), rand(57, 64), rand(55, 61), rand(52, 58), rand(50, 56)];
-    for (let i = 0; i < 10; i++) reps.push(rand(30, 50));
-    const strBias = (n.str - 4.3) * 6;
-    towns.forEach((town, i) => {
+    const seeds = CLUB_SEEDS[code] ?? [];
+    const byShort = new Map<string, string>();
+    seeds.forEach((sd, i) => {
       const id = nid('c');
-      const primary = pick(COLORS);
-      let secondary = pick(COLORS);
-      while (secondary === primary) secondary = pick(COLORS);
-      const name = pick(fmts).replace('{T}', town);
-      const sf = pick(STADIUM_FMT);
-      const rep = Math.round(clamp(reps[i] + strBias, 20, 96));
+      byShort.set(sd.short, id);
+      const rep = Math.round(clamp(sd.rep + rand(-2, 2), 20, 97));
       clubs[id] = {
-        id, name,
-        short: town.replace(/[^A-Za-zÇĞİÖŞÜçğıöşüÁÉÍÓÚáéíóúñÑ]/g, '').slice(0, 3).toUpperCase(),
-        nat: code, div: i < 10 ? 1 : 2, rep,
-        primary, secondary, shorts: Math.random() < 0.5 ? secondary : primary,
-        pattern: pick(PATTERNS),
-        crest: { shape: Math.floor(Math.random() * CREST_SHAPES), icon: pick(ICON_IDS) },
-        stadium: sf[0].replace('{T}', town),
-        nick: nick[i % nick.length] as [string, string],
-        rival: null,
+        id, name: sd.name, short: sd.short, nat: code, div: i < 10 ? 1 : 2, rep,
+        primary: sd.p, secondary: sd.s, shorts: sd.shorts, pattern: sd.kit, crest: { ...sd.crest },
+        stadium: `${sd.city} ${STADIUM_WORDS[(sd.short.charCodeAt(0) + sd.short.charCodeAt(2)) % STADIUM_WORDS.length]}`,
+        nick: sd.nick, rival: null,
         manager: `${pick(MANAGER_FIRST)} ${pick(MANAGER_LAST)}`,
         squad: [],
         budget: Math.round(rep * rep * rep * 40),
-        handle: name.replace(/[^A-Za-z0-9]/g, '').slice(0, 15),
+        handle: sd.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i').replace(/İ/g, 'I').replace(/[^A-Za-z0-9]/g, '').slice(0, 15),
       };
       const lvl = clubLevel(rep);
       for (const pos of SQUAD_POS) {
@@ -108,15 +91,19 @@ export function generateWorld(c: Career) {
         clubs[id].squad.push(p.id);
       }
     });
-    // derbies: pair clubs of the same division
-    const ids = Object.values(clubs).filter((k) => k.nat === code);
-    for (const div of [1, 2]) {
-      const d = shuffle(ids.filter((k) => k.div === div));
-      for (let i = 0; i + 1 < d.length; i += 2) {
-        d[i].rival = d[i + 1].id;
-        d[i + 1].rival = d[i].id;
+    // one shirt number per player in every squad
+    for (const id of byShort.values()) {
+      const used = new Set<number>();
+      for (const pid of clubs[id].squad) {
+        const p = npcs[pid];
+        while (used.has(p.num)) p.num = p.pos === 'GK' ? p.num + 12 : (p.num % 40) + 1;
+        used.add(p.num);
       }
     }
+    // real derbies
+    seeds.forEach((sd) => {
+      if (sd.rival && byShort.has(sd.rival)) clubs[byShort.get(sd.short)!].rival = byShort.get(sd.rival)!;
+    });
   }
   // every nation needs a national pool: players abroad (outside the simulated leagues)
   for (const n of NATIONS) {

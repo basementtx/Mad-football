@@ -2,6 +2,14 @@
 export interface CrestCfg {
   shape: number;
   icon: string;
+  /** field pattern behind the icon (two club colours) */
+  bg?: 'plain' | 'stripes' | 'halves' | 'hoops' | 'sash' | 'quarters' | 'cross' | 'band' | 'chevron';
+  /** accent colour for the icon, ring and initials (e.g. gold) */
+  accent?: string;
+  /** inner ring in the accent colour */
+  ring?: boolean;
+  /** up to 3 initials on a band at the top */
+  text?: string;
 }
 
 export type KitPattern = 'solid' | 'stripes' | 'hoops' | 'half' | 'sash' | 'chevron' | 'pinstripe' | 'checker' | 'band' | 'yoke' | 'diagonal' | 'zigzag';
