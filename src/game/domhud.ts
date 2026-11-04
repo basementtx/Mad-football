@@ -51,8 +51,15 @@ function setText(e: HTMLElement, v: string) {
 function setCls(e: HTMLElement, cls: string, on: boolean) {
   if (e.classList.contains(cls) !== on) e.classList.toggle(cls, on);
 }
+/** Last value written per element / property: comparing against our own copy
+ *  avoids reading the inline style back (a style-system call) on every frame. */
+const styleCache = new WeakMap<HTMLElement, Map<string, string>>();
 function setStyle(e: HTMLElement, k: string, v: string) {
-  if (e.style.getPropertyValue(k) !== v) e.style.setProperty(k, v);
+  let m = styleCache.get(e);
+  if (!m) styleCache.set(e, (m = new Map()));
+  if (m.get(k) === v) return;
+  m.set(k, v);
+  e.style.setProperty(k, v);
 }
 
 function paintIcon(c: HTMLCanvasElement, id: string | null) {

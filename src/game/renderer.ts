@@ -34,6 +34,22 @@ interface Sprite {
   y: number;
 }
 
+/** hsl() colour strings, cached: the mystery box paints a few hundred pixels a frame and
+ *  building + parsing a fresh string for each one was a measurable cost. Hue is kept to
+ *  1/4 degree and lightness to 1/8 %, finer than an 8-bit colour can show. */
+const hslMemo = new Map<number, string>();
+function hslCached(hue: number, light: number) {
+  const hq = Math.round((((hue % 360) + 360) % 360) * 4), lq = Math.round(light * 8);
+  const key = hq * 1024 + lq;
+  let v = hslMemo.get(key);
+  if (v === undefined) {
+    if (hslMemo.size > 8192) hslMemo.clear();
+    v = `hsl(${hq / 4},100%,${lq / 8}%)`;
+    hslMemo.set(key, v);
+  }
+  return v;
+}
+
 export class Renderer {
   private P: Pitch;
   private OX = 0;
@@ -965,11 +981,12 @@ export class Renderer {
       for (let c = 0; c < fw; c++) {
         const wv = Math.round(Math.sin(time * speed + f.ph - c * 0.9) * (0.6 + exc * 0.9));
         const yTop = y0 - pole + wv;
-        for (let r = 0; r < fh; r++) {
-          const band = (r / fh) < 0.5 ? f.c1 : f.c2;
-          ctx.fillStyle = band;
-          ctx.fillRect(topX + 1 + c, yTop + r, 1, 1);
-        }
+        // top half in the first colour, bottom half in the second (rows r / fh < 0.5)
+        const n1 = Math.ceil(fh / 2);
+        ctx.fillStyle = f.c1;
+        ctx.fillRect(topX + 1 + c, yTop, 1, n1);
+        ctx.fillStyle = f.c2;
+        ctx.fillRect(topX + 1 + c, yTop + n1, 1, fh - n1);
         // light / shade on the folds
         if (wv < 0) {
           ctx.fillStyle = 'rgba(255,255,255,0.28)';
@@ -1051,7 +1068,7 @@ export class Renderer {
     const px = (x: number, y: number, hue: number, light: number) => {
       const d = x - X + (y - cy) * 0.8 - sweep;
       if (d > 0 && d < 3) light = Math.min(97, light + 32);
-      ctx.fillStyle = `hsl(${hue % 360},100%,${light}%)`;
+      ctx.fillStyle = hslCached(hue, light);
       ctx.fillRect(x, y, 1, 1);
     };
     const edges: number[] = [];
@@ -1284,14 +1301,16 @@ export class Renderer {
     const x1 = cam.sx(h.x + ux * end), y1 = cam.sy(h.y + uy * end);
     const steps = Math.max(2, Math.floor(Math.hypot(x1 - x0, y1 - y0) / 3));
     const march = (time * 10) % 1;
+    // one colour, per-dot opacity through globalAlpha (no colour string to build and parse per dot)
+    ctx.fillStyle = `rgb(${col})`;
     for (let i = 0; i <= steps; i++) {
       const t = Math.min(1, (i + march) / steps);
       const wx = h.x + ux * (start + (end - start) * t), wy = h.y + uy * (start + (end - start) * t);
       const z = arcH ? 4 * arcH * t * (1 - t) : 0;
-      const alpha = (base + boost) * (1 - t * 0.8);
-      ctx.fillStyle = `rgba(${col},${alpha.toFixed(3)})`;
+      ctx.globalAlpha = (base + boost) * (1 - t * 0.8);
       ctx.fillRect(cam.sx(wx), cam.sy(wy, z), 1, 1);
     }
+    ctx.globalAlpha = 1;
     // end marker
     const ex = cam.sx(h.x + ux * end), ey = cam.sy(h.y + uy * end);
     const ma = (base + boost) * 0.9;
@@ -1324,9 +1343,10 @@ export class Renderer {
       py = ny;
       if (i < 3 || acc < 3) continue;
       acc = 0;
-      const alpha = (0.45 + boost) * (1 - (i / total) * 0.6);
-      ctx.fillStyle = `rgba(${col},${alpha.toFixed(3)})`;
+      ctx.fillStyle = `rgb(${col})`;
+      ctx.globalAlpha = (0.45 + boost) * (1 - (i / total) * 0.6);
       ctx.fillRect(nx, ny, 1, 1);
+      ctx.globalAlpha = 1;
     }
     const [ex, ey] = path[total - 1];
     ctx.fillStyle = `rgba(${col},${(0.6 + boost).toFixed(3)})`;
