@@ -89,3 +89,9 @@
    (260% image, 130% -> -40%  =  translateX -80% -> 24.615% on a 260%-wide strip) */
 #ui .tile-play .tl-sheen { right: auto; width: 260%; background-size: 100% 100%; animation: m-sheen-x 5s var(--e-soft) infinite 1.2s; will-change: transform; transform: translateX(-80%); }
 @keyframes m-sheen-x { 0% { transform: translateX(-80%); } 30%, 100% { transform: translateX(24.615%); } }
+
+/* career fixtures list: on narrow phones the competition label gives way so the row fits its column */
+@media (max-width: 820px) {
+  #ui .ct-f { grid-template-columns: 28px 18px minmax(0, 1fr) 14px 32px 30px; }
+  #ui .ct-f .cp { display: none; }
+}
