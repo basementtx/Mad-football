@@ -906,8 +906,6 @@ canvas.flag { width: 39px; height: 27px; display: block; }
 }
 
 /* ---------------------------------------------------------------- missions */
-.hub-grid .tile-sm { grid-column: auto; }
-.hub-grid .tile-missions { grid-column: 2 / span 2; flex-direction: row; gap: 12px; }
 .missions .panel-body { overflow-y: auto; touch-action: pan-y; }
 .m-col { display: flex; flex-direction: column; gap: 8px; }
 .mission { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #1b2236;
@@ -945,5 +943,22 @@ canvas.flag { width: 39px; height: 27px; display: block; }
 .dbtn .dflick.on { opacity: 0.9; animation: dflick-bob .5s ease-in-out infinite alternate; }
 .dbtn .dflick.armed { color: var(--stamp); opacity: 1; animation: none; transform: translate(-50%, -18%) scale(1.25); }
 @keyframes dflick-bob { from { transform: translate(-50%, 0); } to { transform: translate(-50%, -14%); } }
-.otag.lift { background: var(--marker); color: var(--ink); }
+.otag.lift { background: var(--marker); color: var(--ink); white-space: nowrap; }
 .otag.lift.cross { background: #9cd8ff; }
+/* missions button in the hub top bar */
+#ui .icon-btn.missions-btn { position: relative; width: auto; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 14px; }
+#ui .missions-btn .mi { color: var(--marker); font-size: 18px; line-height: 1; }
+#ui .missions-btn b { font-family: var(--display); font-weight: 600; letter-spacing: 0.03em; }
+#ui .missions-btn .mb { position: absolute; top: -9px; right: -9px; min-width: 20px; height: 20px; padding: 0 4px; display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 12px; background: var(--red, #c82d20); color: #fff; border: 2px solid var(--ink, #15171c); animation: blink 1.2s steps(2) infinite; }
+@media (max-height: 430px), (max-width: 760px) { #ui .missions-btn b { display: none; } }
+
+/* larger text for the Dossier (non-pixel) menu font */
+#ui .chem-bar { font-size: 13px; font-weight: 600; }
+#ui .chem-bar small { font-size: 11px; }
+#ui .chem-dots { font-size: 13px; }
+#ui .chem-dots em { font-size: 10px; font-weight: 700; }
+#ui .m-bar span { font-size: 9px; top: 0; }
+#ui .m-rew { font-size: 12px; font-weight: 700; }
+#ui .missions .sec-label small { font-size: 11px; }
+#ui .res-mission { font-size: 12px; font-weight: 600; }
+#ui .slot .chem-dots { padding-bottom: 20px; }

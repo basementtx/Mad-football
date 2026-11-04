@@ -241,3 +241,4 @@
 #update-banner.min > span, #update-banner.min .upd-later { display: none; }
 /* never over the match: only shown on menu screens */
 body:has(#ui.hidden) #update-banner { opacity: 0; pointer-events: none; transform: translate(-50%, -140%); }
+.dhud .dover.live > * { animation: none; }

@@ -70,6 +70,7 @@ export function showHub(h: MenuHandlers) {
       <div class="hub-top">
         <button class="club-chip" data-act="club">${crestTag(club, 'crest-md')}<div><b>${esc(club.name)}</b><small>${L.ovr} ${clubOverall()} • <span style="color:${chemColor(chem)}">${L.chemistry} ${chem}</span> • ${record.wins}${L.w} ${record.draws}${L.d} ${record.losses}${L.l}</small></div></button>
         <div class="hub-top-r">
+          <button class="icon-btn missions-btn ${claim ? 'has-badge' : ''}" data-act="missions" aria-label="${L.missions}"><span class="mi">◎</span><b>${L.missions}</b>${claim ? `<i class="mb">${claim}</i>` : ''}</button>
           ${coinsPill()}
           <button class="icon-btn" data-act="lang">${flagTag(lang.flag)}</button>
           <button class="icon-btn" data-act="howto" aria-label="${L.howTo}">?</button>
@@ -110,7 +111,6 @@ export function showHub(h: MenuHandlers) {
         </button>
         <button class="tile tile-sm" data-act="quick"><div class="tile-label"><span class="bolt">⚡</span> ${L.quickMatch}</div></button>
         <button class="tile tile-sm tile-train" data-act="training"><div class="tile-label"><span class="cone">◢</span> ${L.training}</div><small>${L.trainingSub}</small></button>
-        <button class="tile tile-sm tile-missions ${claim ? 'has-badge' : ''}" data-act="missions"><div class="tile-label">🎯 ${L.missions}</div><small>${L.missionsSub}</small>${claim ? `<div class="badge">${claim}</div>` : ''}</button>
       </div>
     </div>`,
   );

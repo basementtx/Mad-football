@@ -119,7 +119,7 @@ const tr = {
   missionsSub: 'Günlük ve haftalık ödüller', hours: 'sa', minutes: 'dk', days: 'g',
   missionText: {
     play: '{n} maç oyna', win: '{n} maç kazan', goals: '{n} gol at', knockdowns: '{n} rakibi yere ser', passes: '{n} isabetli pas yap',
-    crosses: '{n} orta aç', chips: '{n} aşırtma şut çek', headers: '{n} kafa / vole vuruşu yap', powers: '{n} özel güç kullan',
+    crosses: '{n} orta aç', chips: '{n} aşırtma şut çek', headers: '{n} kafa / vole vuruşu yap', powers: '{n} eşya kullan',
     cleanSheet: '{n} maçı gol yemeden bitir', hardWin: 'Zor veya üstünde {n} galibiyet al', weatherWin: 'Yağmur, fırtına ya da karda {n} galibiyet',
     league: '{n} lig maçı oyna', steals: '{n} top kap',
   } as Record<string, string>,
@@ -248,7 +248,7 @@ const en: Dict = {
   missionsSub: 'Daily and weekly rewards', hours: 'h', minutes: 'm', days: 'd',
   missionText: {
     play: 'Play {n} matches', win: 'Win {n} matches', goals: 'Score {n} goals', knockdowns: 'Knock down {n} opponents', passes: 'Complete {n} passes',
-    crosses: 'Whip in {n} crosses', chips: 'Try {n} chip shots', headers: 'Hit {n} headers / volleys', powers: 'Use {n} powers',
+    crosses: 'Whip in {n} crosses', chips: 'Try {n} chip shots', headers: 'Hit {n} headers / volleys', powers: 'Use {n} items',
     cleanSheet: 'Keep {n} clean sheets', hardWin: 'Win {n} on Hard or above', weatherWin: 'Win {n} in rain, storm or snow',
     league: 'Play {n} league matches', steals: 'Make {n} steals',
   } as Record<string, string>,

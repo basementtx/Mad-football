@@ -203,6 +203,10 @@ export class DomHud {
     }
     const html = parts.join('');
     if (this.over.dataset.h !== html) {
+      // the fade-in should only play when a chip appears, not on every value change
+      const shape = html.replace(/style="[^"]*"/g, '').replace(/<b>[^<]*<\/b>/g, '');
+      setCls(this.over, 'live', this.over.dataset.s === shape);
+      this.over.dataset.s = shape;
       this.over.dataset.h = html;
       this.over.innerHTML = html;
     }

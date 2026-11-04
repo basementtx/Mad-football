@@ -175,6 +175,8 @@ function launchCfg(cfg: MatchConfig) {
 
 const handlers: MenuHandlers = {
   playCareer(cfg, onEnd) {
+    // career matches get a random venue and weather too (not the training drills)
+    if (!cfg.env && !cfg.drill && !cfg.training) cfg.env = resolveEnv('random', 'random', 'random');
     matchMode = 'career';
     careerCfg = cfg;
     careerEnd = onEnd;

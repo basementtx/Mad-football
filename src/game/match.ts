@@ -186,7 +186,7 @@ export class Match {
         if (r === 'FWD') p.number = pick([9, 10, 11, 7]);
         if (card) {
           p.applyCard(card);
-          const cm = cfg.homeChem?.[i] ?? 1;
+          const cm = team.index === 0 ? cfg.homeChem?.[i] ?? 1 : 1;
           p.pace *= cm;
           p.power *= cm;
           p.tackle *= cm;
