@@ -4,7 +4,7 @@ import type { Camera } from './camera';
 import { drawText } from '../pixel/font';
 import { ring, star } from '../pixel/props';
 
-type PType = 'dust' | 'grass' | 'spark' | 'confetti' | 'fire' | 'smoke' | 'star' | 'ring' | 'pix' | 'rocket' | 'bolt' | 'coin' | 'vortex' | 'snow';
+type PType = 'dust' | 'grass' | 'spark' | 'confetti' | 'fire' | 'smoke' | 'star' | 'ring' | 'pix' | 'rocket' | 'bolt' | 'coin' | 'vortex' | 'snow' | 'heart' | 'bubble' | 'meteor';
 
 interface Particle {
   type: PType;
@@ -170,6 +170,37 @@ export class FX {
         this.emit('pix', x, y, z, { n: 2, speed: 0.5, up: 0.2, life: 0.7, size: 0.25, colors: ['#3a1a8a', '#8a5cff', '#d8b0ff'], g: 0 });
         if (Math.random() < 0.15) this.emit('star', x, y, z, { n: 1, speed: 0.5, up: 1, life: 0.5, size: 0.3, color: '#ffffff' });
         break;
+      case 'tr_ice':
+        this.emit('pix', x, y, z, { n: 2, speed: 0.5, up: 0.2, life: 0.6, size: 0.25, colors: ['#ffffff', '#bfe8ff', '#5fc8ff'], g: 0 });
+        if (Math.random() < 0.2) this.emit('snow', x, y, z + 0.2, { n: 1, speed: 0.6, up: 0.5, life: 0.9, size: 0.18, color: '#ffffff' });
+        break;
+      case 'tr_hearts':
+        if (Math.random() < 0.35) this.emit('heart', x, y, z, { n: 1, speed: 0.4, up: 1.2, life: 0.8, size: 0.3, colors: ['#ff3fa4', '#ff7ac0', '#ff3b5a'], g: -1 });
+        this.emit('pix', x, y, z, { n: 1, speed: 0.2, up: 0, life: 0.4, size: 0.2, color: '#ffb3d1', g: 0 });
+        break;
+      case 'tr_toxic':
+        if (Math.random() < 0.5) this.emit('bubble', x, y, z, { n: 1, speed: 0.4, up: 0.8, life: 0.8, size: 0.3, colors: ['#7aff3a', '#c8ff5a', '#2fb45a'], g: -1.2 });
+        this.emit('pix', x, y, z, { n: 1, speed: 0.3, up: 0, life: 0.5, size: 0.3, colors: ['#7aff3a', '#2fb45a'], g: 0 });
+        break;
+      case 'tr_sakura':
+        if (Math.random() < 0.6) this.emit('confetti', x, y, z, { n: 1, speed: 1.2, up: 0.8, life: 1.1, size: 0.25, colors: ['#ffb3d1', '#ff8ab8', '#ffffff'] });
+        break;
+      case 'tr_neon': {
+        const c = Math.floor(performance.now() / 90) % 2 ? '#ff3fa4' : '#3bd9ff';
+        this.emit('pix', x, y, z, { n: 2, speed: 0.05, up: 0, life: 0.45, size: 0.35, color: c, g: 0 });
+        break;
+      }
+      case 'tr_shadow':
+        this.emit('smoke', x, y, z, { n: 1, speed: 0.3, up: 0.3, life: 0.7, size: 0.5, color: '#222' });
+        this.emit('pix', x, y, z, { n: 1, speed: 0.4, up: 0.2, life: 0.6, size: 0.3, colors: ['#3a1a5a', '#6a2aa8', '#120c1c'], g: 0 });
+        break;
+      case 'tr_comet':
+        this.emit('fire', x, y, z, { n: 3, speed: 0.6, up: 0.4, life: 0.45, size: 0.5 });
+        this.emit('pix', x, y, z, { n: 2, speed: 0.3, up: 0.1, life: 0.5, size: 0.35, colors: ['#ffffff', '#8ad8ff', '#3f8cff'], g: 0 });
+        break;
+      case 'tr_bubbles':
+        if (Math.random() < 0.6) this.emit('bubble', x, y, z, { n: 1, speed: 0.6, up: 1, life: 1, size: 0.3, colors: ['#bfe8ff', '#ffffff', '#8ad8ff'], g: -0.8 });
+        break;
       case 'tr_gold':
         this.emit('pix', x, y, z, { n: 2, speed: 0.4, up: 0.2, life: 0.6, size: 0.25, colors: ['#fff2a8', '#ffcc2a', '#c88a00'], g: 0 });
         if (Math.random() < 0.1) this.emit('coin', x, y, z, { n: 1, speed: 1, up: 3, life: 0.8, size: 0.3, color: '#ffcc2a' });
@@ -265,8 +296,78 @@ export class FX {
         this.emit('pix', x, y, 1, { n: 40, speed: 8, up: 6, life: 1.2, size: 0.25, colors: ['#ffffff', '#fff2a8', '#ffcc2a'] });
         break;
       }
+      case 'gx_hearts': {
+        this.doFlash(0.35, '#ff7ac0');
+        this.emit('heart', x, y, 1, { n: 40, speed: 6, up: 6, life: 2, size: 0.3, colors: ['#ff3fa4', '#ff7ac0', '#ff3b5a', '#ffffff'], g: -0.6 });
+        this.confetti(x, y, ['#ff3fa4', '#ffb3d1', '#ffffff'], 50);
+        for (let i = 0; i < 3; i++) this.after(i * 0.2, () => this.emit('ring', x, y, 0.1, { n: 1, life: 0.7, size: 2 + i, color: '#ff7ac0' }));
+        break;
+      }
+      case 'gx_sakura': {
+        for (let i = 0; i < 24; i++) this.after(i * 0.05, () => this.emit('confetti', x + rand(-6, 6), y + rand(-7, 7), rand(4, 8), { n: 4, speed: 2, up: 0.5, life: 2.4, size: 0.3, colors: ['#ffb3d1', '#ff8ab8', '#ffe0ee', '#ffffff'] }));
+        this.emit('ring', x, y, 0.1, { n: 1, life: 0.8, size: 2.5, color: '#ffb3d1' });
+        break;
+      }
+      case 'gx_toxic': {
+        this.doFlash(0.3, '#7aff3a');
+        this.emit('bubble', x, y, 0.5, { n: 50, speed: 5, up: 3, life: 1.8, size: 0.35, colors: ['#7aff3a', '#c8ff5a', '#2fb45a'], g: -1.5 });
+        this.emit('smoke', x, y, 0.5, { n: 18, speed: 3, up: 1, life: 1.6, size: 0.9, color: '#3a6a2a' });
+        this.emit('pix', x, y, 1, { n: 30, speed: 8, up: 6, life: 1, size: 0.3, colors: ['#7aff3a', '#eaff8a'] });
+        break;
+      }
+      case 'gx_disco': {
+        const cols = ['#ff3fa4', '#3bd9ff', '#ffe14d', '#5ff0a4', '#b04cff'];
+        for (let i = 0; i < 8; i++) this.after(i * 0.12, () => {
+          this.emit('ring', x, y, 0.1, { n: 1, life: 0.6, size: 1.5 + i * 0.5, color: cols[i % cols.length] });
+          this.emit('star', x + rand(-5, 5), y + rand(-5, 5), rand(1, 4), { n: 3, speed: 2, up: 3, life: 0.7, size: 0.3, color: '#ffffff' });
+          this.doFlash(0.18, cols[i % cols.length]);
+        });
+        this.emit('pix', x, y, 1, { n: 50, speed: 9, up: 7, life: 1.4, size: 0.3, colors: cols });
+        break;
+      }
+      case 'gx_volcano': {
+        this.addShake(0.8);
+        for (let i = 0; i < 30; i++) this.after(i * 0.04, () => {
+          this.emit('fire', x + rand(-1, 1), y + rand(-1, 1), 0.3, { n: 6, speed: 1.5, up: 9, life: 0.9, size: 0.8, g: 6 });
+          if (i % 3 === 0) this.emit('pix', x, y, 0.5, { n: 3, speed: 5, up: 9, life: 1.4, size: 0.4, colors: ['#3a2a2a', '#5a3a2a', '#ff5a1f'], g: 12 });
+        });
+        this.emit('smoke', x, y, 1, { n: 20, speed: 2.5, up: 3, life: 2, size: 1, color: '#333' });
+        this.after(1.1, () => { this.doFlash(0.5, '#ff5a1f'); this.emit('ring', x, y, 0.1, { n: 1, life: 0.8, size: 3.5, color: '#ff9a1f' }); });
+        break;
+      }
+      case 'gx_tornado': {
+        for (let i = 0; i < 60; i++) this.after(i * 0.02, () => {
+          const a = i * 0.7, r = 0.6 + i * 0.06;
+          this.emit('pix', x + Math.cos(a) * r, y + Math.sin(a) * r, i * 0.12, { n: 2, speed: 0.4, up: 1.5, life: 1, size: 0.3, colors: ['#ffffff', '#c8d0e0', '#8a94aa', ...team.slice(0, 2)], g: -0.5 });
+        });
+        this.fx_dustRing(x, y);
+        this.slowmo(0.5, 1);
+        break;
+      }
+      case 'gx_meteor': {
+        this.slowmo(0.5, 1.4);
+        for (let i = 0; i < 7; i++) this.after(i * 0.16, () => {
+          const mx = x + rand(-6, 6), my = y + rand(-7, 7);
+          this.add({ type: 'meteor', x: mx - 4, y: my, z: 14, vx: 10, vy: 0, vz: -32, life: 0.44, max: 0.44, size: 0.4, color: '#ff9a1f', rot: 0, vr: 0, g: 0 });
+          this.after(0.43, () => {
+            this.emit('ring', mx, my, 0.1, { n: 1, life: 0.5, size: 1.8, color: '#ffe14d' });
+            this.emit('fire', mx, my, 0.3, { n: 14, speed: 5, up: 5, life: 0.6, size: 0.6 });
+            this.emit('pix', mx, my, 0.3, { n: 8, speed: 5, up: 6, life: 0.9, size: 0.35, colors: ['#3a2a2a', '#6a4a3a'], g: 12 });
+            this.addShake(0.35);
+            this.doFlash(0.25, '#ff9a1f');
+          });
+        });
+        break;
+      }
       default:
         this.confetti(x, y, team);
+    }
+  }
+
+  private fx_dustRing(x: number, y: number) {
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * TAU;
+      this.emit('dust', x + Math.cos(a) * 2, y + Math.sin(a) * 2, 0.1, { n: 2, speed: 3, up: 1, life: 1, size: 0.5, color: '#d8c9a0', vx: Math.cos(a) * 4, vy: Math.sin(a) * 4 });
     }
   }
 
@@ -313,7 +414,7 @@ export class FX {
         p.z *= Math.exp(-2 * dt);
         continue;
       }
-      const g = p.g ?? (p.type === 'confetti' ? 3 : p.type === 'fire' || p.type === 'smoke' ? -1.5 : p.type === 'star' ? 6 : p.type === 'snow' ? 1.2 : 14);
+      const g = p.g ?? (p.type === 'confetti' ? 3 : p.type === 'fire' || p.type === 'smoke' ? -1.5 : p.type === 'star' ? 6 : p.type === 'snow' ? 1.2 : p.type === 'heart' ? -0.6 : p.type === 'bubble' ? -1 : 14);
       p.vz -= g * dt;
       if (p.type === 'snow') p.vz = Math.max(p.vz, -1.4);
       p.x += p.vx * dt;
@@ -323,6 +424,10 @@ export class FX {
       p.vx *= Math.exp(-drag * dt);
       p.vy *= Math.exp(-drag * dt);
       if (p.type === 'confetti') p.vz = Math.max(p.vz, -1.6);
+      if (p.type === 'meteor') {
+        if (Math.random() < 0.9) this.emit('fire', p.x, p.y, p.z, { n: 2, speed: 0.4, up: 0.3, life: 0.3, size: 0.6 });
+        if (p.z <= 0.05) { p.life = 0; continue; }
+      }
       p.rot += p.vr * dt;
       if (p.z < 0) {
         p.z = 0;
@@ -445,6 +550,43 @@ export class FX {
             x = nx;
             y = ny;
           }
+          break;
+        }
+        case 'heart': {
+          ctx.globalAlpha = k > 0.3 ? 1 : 0.55;
+          ctx.fillStyle = '#120c1c';
+          ctx.fillRect(sx - 3, sy - 2, 7, 4);
+          ctx.fillRect(sx - 2, sy + 2, 5, 1);
+          ctx.fillRect(sx - 1, sy + 3, 3, 1);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(sx - 2, sy - 2, 2, 1);
+          ctx.fillRect(sx + 1, sy - 2, 2, 1);
+          ctx.fillRect(sx - 2, sy - 1, 5, 2);
+          ctx.fillRect(sx - 1, sy + 1, 3, 1);
+          ctx.fillRect(sx, sy + 2, 1, 1);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(sx - 2, sy - 2, 1, 1);
+          break;
+        }
+        case 'bubble': {
+          const r = k > 0.66 ? 1 : 2;
+          ctx.globalAlpha = k > 0.25 ? 0.95 : 0.5;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(sx - r, sy - r - 1, r * 2 + 1, 1);
+          ctx.fillRect(sx - r, sy + r + 1, r * 2 + 1, 1);
+          ctx.fillRect(sx - r - 1, sy - r, 1, r * 2 + 1);
+          ctx.fillRect(sx + r + 1, sy - r, 1, r * 2 + 1);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(sx - r + 1, sy - r + 1, 1, 1);
+          break;
+        }
+        case 'meteor': {
+          ctx.fillStyle = '#ffe14d';
+          ctx.fillRect(sx - 3, sy - 3, 6, 6);
+          ctx.fillStyle = '#5a3a2a';
+          ctx.fillRect(sx - 2, sy - 2, 4, 4);
+          ctx.fillStyle = '#8a6a4a';
+          ctx.fillRect(sx - 2, sy - 2, 2, 2);
           break;
         }
         case 'star': {

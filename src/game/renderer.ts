@@ -723,6 +723,30 @@ export class Renderer {
       ctx.fillRect(bx, by + h - 1, w, 1);
       ctx.globalAlpha = 1;
     }
+    if (p.shield > 0 && (p.shield > 1.2 || Math.floor(time * 10) % 2 === 0)) {
+      // force-field bubble
+      const r = 13 + Math.round(Math.sin(time * 8));
+      const cy = y - 14;
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = '#3bd9ff';
+      ctx.beginPath();
+      ctx.ellipse(x, cy, r, r + 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = '#bff4ff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(x + 0.5, cy + 0.5, r, r + 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - r + 4, cy - r + 3, 2, 1);
+      ctx.fillRect(x - r + 3, cy - r + 4, 1, 2);
+      ctx.globalAlpha = 1;
+    }
+    if (p.drink > 0 && Math.floor(time * 8) % 2 === 0) {
+      ctx.fillStyle = '#5ff0a4';
+      ctx.fillRect(x - 1, y - 33, 3, 1);
+    }
     if (p.magnet > 0 && Math.floor(time * 6) % 2 === 0) {
       ctx.fillStyle = '#ff3b5a';
       ctx.fillRect(x - 3, y - 2, 2, 1);

@@ -163,6 +163,10 @@ export class Player {
   turbo = 0;
   /** magnet boots (seconds) */
   magnet = 0;
+  /** force-field bubble (seconds) */
+  shield = 0;
+  /** energy drink: endless sprint (seconds) */
+  drink = 0;
   /** the user's own created player */
   star = false;
   card: CardData | null = null;

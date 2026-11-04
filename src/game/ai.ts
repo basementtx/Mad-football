@@ -164,6 +164,27 @@ function itemAI(m: Match, team: Team, dt: number) {
         tx = rival.x + rival.vx * lead;
         ty = rival.y + rival.vy * lead;
       }
+    } else if (k === 'drink') {
+      use = (own === p && nearestOpp(p, team)[1] < 6) || (!!rival && dc < 8 && dc > 3);
+    } else if (k === 'teleport') {
+      if (own === p && nearestOpp(p, team)[1] < 2.5) {
+        use = true;
+        const [ux, uy] = norm(gx - p.x, -p.y * 0.5);
+        tx = p.x + ux * 7.5;
+        ty = p.y + uy * 7.5;
+      }
+    } else if (k === 'shield') {
+      use = (own === p && nearestOpp(p, team)[1] < 3.5) || (!!rival && dc < 2.5);
+    } else if (k === 'quake') {
+      let n = 0;
+      for (const q of team.opp.players) if (!q.isGK && !q.isDown && dist(p.x, p.y, q.x, q.y) < 12) n++;
+      use = n >= 2;
+    } else if (k === 'meteor') {
+      if (rival && dc > 4 && dc < 16) {
+        use = true;
+        tx = rival.x + rival.vx * 0.9;
+        ty = rival.y + rival.vy * 0.9;
+      }
     } else if (k === 'magnet') {
       const db = dist(p.x, p.y, b.x, b.y);
       use = (!own && db > 2 && db < 8) || (own === p && nearestOpp(p, team)[1] < 2.5);

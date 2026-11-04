@@ -625,6 +625,7 @@ export class Match {
   /** Where an item aimed in direction (dx,dy) should go: goal, opponent in the cone, or straight ahead. */
   itemAim(p: Player, kind: string, dx: number, dy: number): [number, number] {
     if (SHOT_POWERS.includes(kind)) return this.aimAtGoal(p, dx, dy) ?? [p.x + dx * 20, p.y + dy * 20];
+    if (kind === 'teleport') return [p.x + dx * 7.5, p.y + dy * 7.5];
     const range = kind === 'bomb' ? 12 : 18;
     const cone = kind === 'bomb' ? 0.72 : 0.86;
     let best: Player | null = null;
@@ -909,6 +910,11 @@ export class Match {
       case 'bomb': this.throwBomb(p, tx, ty); break;
       case 'rifle': this.fireRifle(p, tx, ty); break;
       case 'magnet': this.magnetBoots(p); break;
+      case 'drink': this.energyDrink(p); break;
+      case 'teleport': this.teleport(p, tx, ty); break;
+      case 'shield': this.forceField(p); break;
+      case 'quake': this.quake(p); break;
+      case 'meteor': this.meteorStrike(p, tx, ty); break;
       default: this.powerShot(p, tx, ty, kind);
     }
     this.excitement = 1;
@@ -966,7 +972,7 @@ export class Match {
 
   private powerName(kind: string) {
     const L = t();
-    return ({ fireball: L.powerShotBanner, ice: L.pIce, thunder: L.pThunder, banana: L.pBanana, shockwave: L.pShock, turbo: L.pTurbo, bomb: L.pBomb, rifle: L.pRifle, magnet: L.pMagnet } as Record<string, string>)[kind] ?? L.powerShotBanner;
+    return ({ fireball: L.powerShotBanner, ice: L.pIce, thunder: L.pThunder, banana: L.pBanana, shockwave: L.pShock, turbo: L.pTurbo, bomb: L.pBomb, rifle: L.pRifle, magnet: L.pMagnet, drink: L.pDrink, teleport: L.pTeleport, shield: L.pShield, quake: L.pQuake, meteor: L.pMeteor } as Record<string, string>)[kind] ?? L.powerShotBanner;
   }
 
   private shockwave(p: Player) {
@@ -1014,6 +1020,98 @@ export class Match {
     this.fx.banner(this.powerName('magnet'), '', col[0], 1.2, false);
   }
 
+  private energyDrink(p: Player) {
+    p.drink = 6;
+    p.stamina = 1;
+    p.exhausted = false;
+    audio.power();
+    vibrate(40);
+    const col = this.itemColors(p.team, 'drink', ['#5ff0a4', '#c8ff5a', '#2fb45a']);
+    this.fx.emit('bubble', p.x, p.y, 1, { n: 12, speed: 2, up: 2, life: 0.8, size: 0.3, colors: col, g: -1 });
+    this.fx.emit('ring', p.x, p.y, 0.1, { n: 1, life: 0.4, size: 1, color: col[0] });
+    this.fx.banner(this.powerName('drink'), '', col[2] ?? col[0], 1.2, false);
+  }
+
+  private teleport(p: Player, tx: number, ty: number) {
+    const P = this.pitch;
+    const col = this.itemColors(p.team, 'teleport', ['#b04cff', '#d8b0ff', '#ffffff']);
+    const burst = (x: number, y: number) => {
+      this.fx.emit('pix', x, y, 0.8, { n: 22, speed: 4, up: 3, life: 0.6, size: 0.3, colors: col, g: 0 });
+      this.fx.emit('star', x, y, 1, { n: 4, speed: 2, up: 3, life: 0.5, size: 0.3, color: '#ffffff' });
+      this.fx.emit('ring', x, y, 0.1, { n: 1, life: 0.35, size: 0.9, color: col[0] });
+    };
+    burst(p.x, p.y);
+    let nx = clamp(tx, -P.hw + 0.8, P.hw - 0.8);
+    const ny = clamp(ty, -P.hh + 0.8, P.hh - 0.8);
+    // never into the opponent keeper's box with the ball
+    if (Math.abs(nx) > P.hw - P.boxDepth && Math.abs(ny) < P.boxHalf) nx = Math.sign(nx) * (P.hw - P.boxDepth - 0.3);
+    p.x = nx;
+    p.y = ny;
+    p.invuln = Math.max(p.invuln, 0.6);
+    const b = this.ball;
+    if (b.owner === p) {
+      b.x = p.x + p.faceX * 0.5;
+      b.y = p.y + p.faceY * 0.5;
+    }
+    burst(p.x, p.y);
+    audio.whoosh();
+    vibrate(40);
+    this.fx.doFlash(0.3, col[0]);
+    this.fx.banner(this.powerName('teleport'), '', col[0], 1.1, false);
+  }
+
+  private forceField(p: Player) {
+    p.shield = 5;
+    audio.power();
+    vibrate(50);
+    const col = this.itemColors(p.team, 'shield', ['#3bd9ff', '#bff4ff', '#1f8ad8']);
+    this.fx.emit('ring', p.x, p.y, 0.6, { n: 1, life: 0.45, size: 1.2, color: col[0] });
+    this.fx.emit('spark', p.x, p.y, 0.8, { n: 16, speed: 5, up: 2, life: 0.4, colors: col });
+    this.fx.banner(this.powerName('shield'), '', col[2] ?? col[0], 1.2, false);
+  }
+
+  private quake(p: Player) {
+    const team = p.team;
+    p.setState('shove', 0.4);
+    for (const q of team.opp.players) {
+      const d = dist(p.x, p.y, q.x, q.y);
+      if (d > 15) continue;
+      const [ux, uy] = norm(q.x - p.x, q.y - p.y);
+      q.invuln = 0;
+      this.knockdown(q, p, ux * 4, uy * 4, 1.4);
+    }
+    const col = this.itemColors(team, 'quake', ['#d8a018', '#8a5a2a', '#ffe14d']);
+    for (let i = 0; i < 5; i++) this.fx.after(i * 0.1, () => {
+      this.fx.emit('ring', p.x, p.y, 0.1, { n: 1, life: 0.7, size: 2 + i * 1.4, color: col[i % 2] });
+      this.fx.dust(p.x + rand(-8, 8), p.y + rand(-6, 6), 14);
+    });
+    this.wear(p.x, p.y, 1.6, 200, 2);
+    this.fx.emit('pix', p.x, p.y, 0.3, { n: 30, speed: 9, up: 7, life: 1, size: 0.35, colors: ['#5a3a2a', '#8a6a4a', ...col], g: 14 });
+    audio.boom();
+    vibrate([80, 40, 120]);
+    this.fx.addShake(1.2);
+    this.fx.doFlash(0.35, col[2] ?? '#ffe14d');
+    this.fx.banner(this.powerName('quake'), '', col[0], 1.3, false);
+  }
+
+  private meteorStrike(p: Player, tx: number, ty: number) {
+    const by = p;
+    const tier = this.tierOf(p.team, 'meteor');
+    for (let i = 0; i < 3; i++) {
+      const mx = tx + rand(-2.2, 2.2), my = ty + rand(-2.2, 2.2);
+      this.fx.after(0.15 + i * 0.28, () => {
+        this.fx.emit('meteor', mx - 4, my, 14, { n: 1, speed: 0, up: 0, vx: 10, life: 0.44, size: 0.4, color: '#ff9a1f', g: 0 });
+        // emit() randomises vz, so drive the fall explicitly
+        const mp = this.fx.particles[this.fx.particles.length - 1];
+        if (mp && mp.type === 'meteor') { mp.vx = 9; mp.vy = 0; mp.vz = -32; mp.life = mp.max = 0.44; }
+        this.fx.after(0.43, () => this.explode({ x: mx, y: my, z: 0, vx: 0, vy: 0, vz: 0, fuse: 0, by, tier }, 3.4));
+      });
+    }
+    audio.whoosh();
+    this.fx.slowmo(0.6, 1);
+    this.fx.banner(this.powerName('meteor'), '', '#ff9a1f', 1.3, false);
+  }
+
   private throwBomb(p: Player, tx: number, ty: number) {
     let d = dist(p.x, p.y, tx, ty);
     const [ux, uy] = d > 0.1 ? norm(tx - p.x, ty - p.y) : [p.faceX, p.faceY];
@@ -1031,8 +1129,7 @@ export class Match {
     this.fx.banner(this.powerName('bomb'), '', '#ff8a1f', 1, false);
   }
 
-  private explode(bm: Bomb) {
-    const R = 4.6;
+  private explode(bm: Bomb, R = 4.6) {
     const by = bm.by;
     for (const q of by.team.opp.players) {
       const d = dist(bm.x, bm.y, q.x, q.y);
@@ -1431,6 +1528,27 @@ export class Match {
       p.magnet -= dt;
       if (Math.random() < 0.35) this.fx.emit('pix', p.x, p.y, 0.3, { n: 1, speed: 1.2, up: 1, life: 0.4, size: 0.2, colors: this.itemColors(p.team, 'magnet', ['#ff3b5a', '#3bd9ff']), g: 0 });
     }
+    if (p.drink > 0) {
+      p.drink -= dt;
+      p.stamina = 1;
+      p.exhausted = false;
+      if (Math.random() < 0.3) this.fx.emit('bubble', p.x, p.y, 0.8, { n: 1, speed: 0.6, up: 1, life: 0.5, size: 0.25, colors: this.itemColors(p.team, 'drink', ['#5ff0a4', '#c8ff5a']), g: -1 });
+    }
+    if (p.shield > 0) {
+      p.shield -= dt;
+      p.invuln = Math.max(p.invuln, 0.05);
+      if (this.phase === 'play') {
+        for (const q of p.team.opp.players) {
+          if (q.isGK || q.state === 'down' || q.state === 'recover') continue;
+          const d = dist(p.x, p.y, q.x, q.y);
+          if (d < 1.15 && d > 0.01) {
+            const [ux, uy] = norm(q.x - p.x, q.y - p.y);
+            q.invuln = 0;
+            if (this.knockdown(q, p, ux * 7, uy * 7, 1.1)) this.fx.emit('spark', q.x, q.y, 0.8, { n: 8, speed: 5, up: 2, life: 0.3, colors: ['#ffffff', '#3bd9ff'] });
+          }
+        }
+      }
+    }
     if (p.turbo > 0) {
       p.turbo -= dt;
       p.invuln = Math.max(p.invuln, 0.05);
@@ -1470,6 +1588,7 @@ export class Match {
         if (p.chargeKind !== 'none') max *= 0.75;
         if (p.state === 'spin') max *= 1.12;
         if (p.turbo > 0) max *= 1.5;
+        else if (p.drink > 0) max *= 1.15;
         if (p.state === 'sad') max *= 0.45;
         // keepers walk slower than outfield players
         if (p.isGK) max *= hasBall ? 0.62 : 0.8;
