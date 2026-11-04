@@ -91,9 +91,9 @@ interface Joints {
   face: NonNullable<PoseP['face']>;
 }
 
-/** chibi proportions: a big head on a compact, sturdy body */
-const THIGH = 4.4, SHIN = 4.3, TORSO = 7.2, NECK = 5.4, UARM = 3.5, FARM = 3.1;
-export const HEAD_R = 5.9;
+/** sporty arcade proportions: a slightly big head on an athletic body */
+const THIGH = 5.1, SHIN = 5.0, TORSO = 8.2, NECK = 5.0, UARM = 3.9, FARM = 3.5;
+export const HEAD_R = 5.0;
 const HEAD_K = HEAD_R / 4.45;
 
 function buildPose(p: PoseP, isGK: boolean): Joints {
@@ -305,28 +305,28 @@ function drawBody(b: Buf, J: Joints, look: PlayerLook) {
   const arm = (s: V, e: V, h: V, layer: number, back: boolean) => {
     const shift = back ? -1 : 0;
     // short sleeve with a cuff in the second colour (keepers: long sleeves)
-    capsule(b, s, e, 1.75, layer, (u) => (!gk && u > 0.7 ? R_JER2 : R_JER), shift, 1.5);
-    capsule(b, e, h, 1.35, layer, () => (gk ? R_JER : R_SKIN), shift, 1.25);
-    capsule(b, h, h, gk ? 2.1 : 1.65, layer, (_u, v) => (gk ? (v > 0.4 ? R_ACC : R_WHITE) : R_SKIN), shift);
+    capsule(b, s, e, 1.6, layer, (u) => (!gk && u > 0.7 ? R_JER2 : R_JER), shift, 1.4);
+    capsule(b, e, h, 1.25, layer, () => (gk ? R_JER : R_SKIN), shift, 1.1);
+    capsule(b, h, h, gk ? 1.95 : 1.4, layer, (_u, v) => (gk ? (v > 0.4 ? R_ACC : R_WHITE) : R_SKIN), shift);
   };
   const leg = (k: V, f: V, layer: number, back: boolean) => {
     const shift = back ? -1 : 0;
     // thigh: shorts with a side stripe, then the knee
-    capsule(b, J.hip, k, 2.3, layer, (u, v) => (u < 0.45 ? (Math.abs(v) < 0.2 && !gk ? R_JER2 : R_SHORTS) : R_SKIN), shift, 1.65);
+    capsule(b, J.hip, k, 2.15, layer, (u, v) => (u < 0.45 ? (Math.abs(v) < 0.2 && !gk ? R_JER2 : R_SHORTS) : R_SKIN), shift, 1.65);
     // shin: a strong calf, sock with two hoops at the top
-    capsule(b, k, f, 1.85, layer, (u) => (u < 0.14 ? R_SKIN : u < 0.24 ? R_JER2 : u < 0.31 ? R_SOCK : u < 0.39 ? R_JER2 : R_SOCK), shift, 1.45);
+    capsule(b, k, f, 1.7, layer, (u) => (u < 0.14 ? R_SKIN : u < 0.24 ? R_JER2 : u < 0.31 ? R_SOCK : u < 0.39 ? R_JER2 : R_SOCK), shift, 1.3);
     // boot points forward, perpendicular to the shin: dark upper, coloured stripe and sole, studs
     const sx = f[0] - k[0], sy = f[1] - k[1];
     const sl = Math.hypot(sx, sy) || 1;
     const fx = sy / sl, fy = -sx / sl;
-    capsule(b, [f[0] - fx * 0.5, f[1] - fy * 0.5], [f[0] + fx * 2.2, f[1] + fy * 2.2], 1.6, layer, (u, v) => (v > 0.55 ? R_ACC : u > 0.3 && u < 0.62 && Math.abs(v + 0.05) < 0.22 ? R_ACC : R_BOOT), shift, 1.15);
+    capsule(b, [f[0] - fx * 0.45, f[1] - fy * 0.45], [f[0] + fx * 2.3, f[1] + fy * 2.3], 1.45, layer, (u, v) => (v > 0.55 ? R_ACC : u > 0.3 && u < 0.62 && Math.abs(v + 0.05) < 0.22 ? R_ACC : R_BOOT), shift, 1.15);
   };
 
   arm(J.bs, J.be, J.bh, 1, true);
   leg(J.bk, J.bf, 2, true);
 
   // torso with kit pattern in local (u along body, v across: +front)
-  capsule(b, J.hip, J.neck, 4.0, 3, (u, v) => {
+  capsule(b, J.hip, J.neck, 3.7, 3, (u, v) => {
     if (u > 0.9 && Math.abs(v) < 0.6) return R_JER2; // collar
     if (u > 0.86 && v > 0.55) return R_JER2; // collar tip at the front
     switch (pattern) {
@@ -344,12 +344,12 @@ function drawBody(b: Buf, J: Joints, look: PlayerLook) {
       case 'gk': return Math.abs(u - 0.55) < 0.08 ? R_JER2 : R_JER;
       default: return u < 0.12 ? R_JER2 : R_JER;
     }
-  }, 0, 4.5);
+  }, 0, 4.25);
   // shorts
   const ax = J.neck[0] - J.hip[0], ay = J.neck[1] - J.hip[1];
   const al = Math.hypot(ax, ay) || 1;
   const ux = ax / al, uy = ay / al;
-  capsule(b, [J.hip[0] + ux * 0.9, J.hip[1] + uy * 0.9], [J.hip[0] - ux * 0.7, J.hip[1] - uy * 0.7], 4.1, 4, (u, v) => (u > 0.9 ? R_JER2 : Math.abs(v) < 0.14 && u < 0.6 && !gk ? R_JER2 : R_SHORTS));
+  capsule(b, [J.hip[0] + ux * 0.9, J.hip[1] + uy * 0.9], [J.hip[0] - ux * 0.7, J.hip[1] - uy * 0.7], 3.8, 4, (u, v) => (u > 0.9 ? R_JER2 : Math.abs(v) < 0.14 && u < 0.6 && !gk ? R_JER2 : R_SHORTS));
 
   leg(J.fk, J.ff, 5, false);
 
@@ -427,7 +427,7 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
           tone = 2;
         }
         // ear
-        if (Math.abs(lx + 0.7) < 0.75 && Math.abs(ly - 0.4) < 0.9 && col === R_SKIN) tone = 1;
+        if (Math.abs(lx + 1.3) < 0.7 && Math.abs(ly - 0.5) < 0.9 && col === R_SKIN) tone = 1;
       }
       if (col < 0) continue;
       b.set(x, y, col, tone, 6);
@@ -462,19 +462,19 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
   };
   const eye = (oy = 0, closed = false) => {
     if (closed) {
-      for (const [ex, w] of [[2.3, 3], [0.2, 2]] as const) for (let i = 0; i < w; i++) dot(ex - 0.35 + i * 0.4, -0.1 + oy, R_EYE, 2, 1);
+      for (const [ex, w] of [[2.6, 3], [1.15, 2]] as const) for (let i = 0; i < w; i++) dot(ex - 0.35 + i * 0.4, -0.1 + oy, R_EYE, 2, 1);
       return;
     }
-    paint(STYLE, 1.55, -1.25 + oy);
+    paint(STYLE, 2.0, -1.25 + oy);
     // far eye: the front half of the same eye, narrower
-    paint(STYLE.map((r) => r.slice(Math.max(0, r.length - 2))), 0.1, -1.15 + oy);
+    paint(STYLE.map((r) => r.slice(Math.max(0, r.length - 2))), 0.95, -1.15 + oy);
   };
   const brow = (tilt: number) => {
-    dot(1.6, -1.75 - tilt * 0.35, R_HAIR, 0, 1);
-    dot(2.0, -1.85, R_HAIR, 0, 1);
-    dot(2.4, -1.8 + tilt * 0.35, R_HAIR, 0, 1);
-    dot(0.05, -1.6 + tilt * 0.3, R_HAIR, 0, 1);
-    dot(0.45, -1.7, R_HAIR, 0, 1);
+    dot(2.0, -1.75 - tilt * 0.35, R_HAIR, 0, 1);
+    dot(2.4, -1.85, R_HAIR, 0, 1);
+    dot(2.8, -1.8 + tilt * 0.35, R_HAIR, 0, 1);
+    dot(0.95, -1.6 + tilt * 0.3, R_HAIR, 0, 1);
+    dot(1.3, -1.7, R_HAIR, 0, 1);
   };
   switch (J.face) {
     case 'ko':
@@ -500,10 +500,10 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
       break;
     default:
       eye(); brow(0);
-      dot(1.7, 2.0, R_MOUTH, 1, 1); dot(2.1, 2.2, R_MOUTH, 1, 1); dot(2.5, 2.0, R_MOUTH, 1, 1);
+      dot(2.2, 2.0, R_MOUTH, 1, 1); dot(2.6, 2.2, R_MOUTH, 1, 1); dot(3.0, 2.0, R_MOUTH, 1, 1);
   }
   // cheek catching the light, and the ear's inner shadow
-  if (J.face !== 'ko') { dot(2.9, 1.1, R_MOUTH, 3, 1); dot(-0.2, 1.0, R_MOUTH, 3, 1); }
+  if (J.face !== 'ko') dot(3.3, 1.1, R_MOUTH, 3, 1);
 }
 
 function finalize(b: Buf, ramps: RGB[][], img: ImageData) {
