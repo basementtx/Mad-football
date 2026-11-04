@@ -1017,6 +1017,17 @@ export class Renderer {
   private drawGroundMarkers(ctx: CanvasRenderingContext2D, cam: Camera, time: number) {
     const m = this.m;
     const h = m.human;
+    // team rings under every player: your side cyan, the opponents red (always readable, whatever the kits)
+    if (m.teams[0].human && !m.replaying) {
+      for (const p of m.all) {
+        if (p === h || p.state === 'down' || p.state === 'dive') continue;
+        const mine = p.team === m.teams[0];
+        const r = ring(7, 2, mine ? '#4fd8ff' : '#ff4a4a');
+        ctx.globalAlpha = 0.9;
+        ctx.drawImage(r, cam.sx(p.x) - (r.width >> 1), cam.sy(p.y) - (r.height >> 1) + 1);
+      }
+      ctx.globalAlpha = 1;
+    }
     if (m.passHint && h && m.ball.owner === h && Math.floor(time * 4) % 2 === 0) {
       const r = ring(8, 3, '#ffffff');
       ctx.drawImage(r, cam.sx(m.passHint.x) - (r.width >> 1), cam.sy(m.passHint.y) - (r.height >> 1) + 1);

@@ -22,6 +22,9 @@ export interface BtnLayout {
 
 export interface Insets { top: number; right: number; bottom: number; left: number }
 
+/** the game's input (the controls editor reads its layout) */
+export let activeInput: Input | null = null;
+
 /**
  * Unified input: virtual joystick + 4 action buttons for touch, keyboard for desktop.
  * a = shoot/tackle, b = pass/switch, c = sprint, d = spin, e = special item
@@ -55,6 +58,7 @@ export class Input {
   private keys = new Set<string>();
 
   constructor(private el: HTMLElement) {
+    activeInput = this;
     el.addEventListener('pointerdown', (e) => this.onDown(e), { passive: false });
     el.addEventListener('pointermove', (e) => this.onMove(e), { passive: false });
     el.addEventListener('pointerup', (e) => this.onUp(e));
@@ -85,6 +89,12 @@ export class Input {
     ];
     this.joyR = Math.round(24 * Math.min(k, 1.3));
     if (settings.leftHanded) L = L.map((b) => ({ ...b, x: W - b.x }));
+    // user layout from the controls editor
+    const C = settings.ctrl;
+    if (C) {
+      L = L.map((b) => (C[b.id] ? { ...b, x: C[b.id].x * W, y: C[b.id].y * H, r: Math.round(b.r * C[b.id].s) } : b));
+      if (C.joy) this.joyR = Math.round(this.joyR * C.joy.s);
+    }
     this.layout = L;
     const ps = 16;
     const top = Math.max(insets.top, 3) + 4;
@@ -92,12 +102,16 @@ export class Input {
   }
 
   get joyHome() {
+    const C = settings.ctrl?.joy;
+    if (C) return { x: C.x * this.W, y: C.y * this.H };
     const k = this.joyR / 24;
     const x = this.insets.left + 46 * k;
     return { x: settings.leftHanded ? this.W - x : x, y: this.H - Math.max(this.insets.bottom, 3) - 42 * k };
   }
 
   private isJoySide(x: number) {
+    const C = settings.ctrl?.joy;
+    if (C) return C.x < 0.5 ? x < this.W * 0.5 : x > this.W * 0.5;
     return settings.leftHanded ? x > this.W * 0.55 : x < this.W * 0.45;
   }
 

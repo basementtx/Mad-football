@@ -16,6 +16,8 @@ export interface Settings {
   aimLine: boolean;
   /** size multiplier of the touch buttons and joystick */
   btnScale: number;
+  /** custom touch layout: centre as a fraction of the screen + size multiplier, per control (a..e, joy) */
+  ctrl: { [id: string]: { x: number; y: number; s: number } } | null;
   /** settings schema version */
   v: number;
 }
@@ -45,6 +47,7 @@ const DEFAULT_SETTINGS: Settings = {
   passAssist: true,
   aimLine: true,
   btnScale: 1,
+  ctrl: null,
   v: 2,
 };
 

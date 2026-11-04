@@ -190,7 +190,7 @@ const handlers: MenuHandlers = {
     // only redo the work a setting actually needs: rebuilding the stadium renderers
     // on every toggle is what made the settings screen stutter
     if (!key || key === 'lang') applyLang();
-    if (!key || key === 'zoom' || key === 'leftHanded' || key === 'btnScale') resize();
+    if (!key || key === 'zoom' || key === 'leftHanded' || key === 'btnScale' || key === 'ctrl') resize();
     if (!key || key === 'quality') {
       // let the menu repaint first, then rebuild (expensive) in the background
       setTimeout(() => {

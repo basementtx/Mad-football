@@ -46,6 +46,26 @@ const ROLES: Record<number, Role[]> = {
   5: ['GK', 'DEF', 'DEF', 'MID', 'FWD'],
 };
 
+const rgb = (h: string) => {
+  const n = parseInt(h.replace('#', '').padEnd(6, '0').slice(0, 6), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+/** perceptual-ish colour distance (0..~765) */
+export function kitDist(a: string, b: string) {
+  const [r1, g1, b1] = rgb(a), [r2, g2, b2] = rgb(b);
+  const rm = (r1 + r2) / 2;
+  return Math.sqrt((2 + rm / 256) * (r1 - r2) ** 2 + 4 * (g1 - g2) ** 2 + (2 + (255 - rm) / 256) * (b1 - b2) ** 2);
+}
+/** When the two shirts look alike, the away side wears its change kit. */
+function awayKit(home: TeamDef, away: TeamDef): TeamDef {
+  const CLASH = 190;
+  if (kitDist(home.primary, away.primary) > CLASH) return away;
+  const alts = [away.secondary, '#f4f4f4', '#1b1b22', '#ff7a1a', '#2f7bff', '#21a85a'];
+  const primary = alts.find((c) => kitDist(home.primary, c) > CLASH + 60 && kitDist(home.secondary, c) > 120) ?? alts.find((c) => kitDist(home.primary, c) > CLASH)!;
+  const secondary = kitDist(primary, away.primary) > 120 ? away.primary : primary === '#1b1b22' ? '#f4f4f4' : '#1b1b22';
+  return { ...away, id: away.id + '-alt', primary, secondary, shorts: secondary, socks: primary };
+}
+
 export class Match {
   pitch: Pitch;
   teams: [Team, Team];
@@ -104,7 +124,7 @@ export class Match {
     this.pitch = makePitch(cfg.size);
     this.clock = cfg.duration;
     const home = new Team(cfg.home, 0, 1, !cfg.demo, cfg.demo ? DIFF.normal : DIFF.normal);
-    const away = new Team(cfg.away, 1, -1, false, DIFF[cfg.difficulty]);
+    const away = new Team(awayKit(cfg.home, cfg.away), 1, -1, false, DIFF[cfg.difficulty]);
     home.opp = away;
     away.opp = home;
     this.teams = [home, away];

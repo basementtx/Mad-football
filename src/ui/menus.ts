@@ -1,3 +1,4 @@
+import { showControls } from './controls';
 import { TEAMS, TeamDef, teamRating } from '../game/teams';
 import { t, LANGS } from '../engine/i18n';
 import { settings, saveSettings, record, lastSetup, saveSetup } from '../engine/storage';
@@ -184,6 +185,7 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
           ${seg(L.zoom, 'zoom', [[1.18, L.near], [1, L.mid], [0.84, L.far]], settings.zoom)}
           ${seg(L.quality, 'quality', [['high', L.high], ['low', L.low]], settings.quality)}
           ${seg(L.btnSize, 'btnScale', [[0.8, L.sizeS], [1, L.sizeM], [1.2, L.sizeL], [1.4, L.sizeXL]], settings.btnScale ?? 1)}
+          <div class="set-row"><span>${L.controlsLayout}${settings.ctrl ? ` <small class="ctl-custom">${L.custom}</small>` : ''}</span><button class="btn btn-ghost btn-sm" data-act="controls">${L.edit} ▶</button></div>
           ${lastErrorHTML()}
           <div class="set-row lang-row"><span>${L.language}</span><div class="langs">${LANGS.map((l) => `<button class="lang-btn ${settings.lang === l.code ? 'on' : ''}" data-lang="${l.code}">${flagTag(l.flag)}<span>${l.name}</span></button>`).join('')}</div></div>
         </div>
@@ -192,6 +194,7 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
   );
   const again = () => showSettings(h, back, inGame);
   bind('[data-act=back]', () => { audio.click(); back(); });
+  bind('[data-act=controls]', () => { audio.click(); showControls(h, again); });
   // update the control in place (instant feedback) instead of rebuilding the screen
   bind('[data-toggle]', (el) => {
     const k = el.dataset.toggle as 'sound' | 'vibration' | 'autoSwitch' | 'leftHanded' | 'minimap' | 'passAssist' | 'aimLine';
