@@ -184,6 +184,11 @@ export class Player {
   aiTX = 0;
   aiTY = 0;
   aiHas = false;
+  /** keeper took a back pass: plays it with his feet instead of picking it up */
+  feetBall = false;
+  /** keeper boredom (seconds with nothing to do) and the yawn it ends in */
+  boredT = 0;
+  yawnT = 0;
   aiTx = 0;
   aiTy = 0;
 

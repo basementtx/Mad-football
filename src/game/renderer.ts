@@ -45,6 +45,8 @@ export class Renderer {
   private vignette: HTMLCanvasElement | null = null;
   private vigKey = '';
   private standRects: [number, number, number, number][] = [];
+  /** waving flags in the stands: stadium-pixel x / y (pole base), colours, phase */
+  private flags: { x: number; y: number; c1: string; c2: string; ph: number; big: boolean }[] = [];
   private looks = new Map<Player, PlayerLook>();
 
   constructor(private m: Match) {
@@ -352,6 +354,19 @@ export class Renderer {
 
     this.led = this.buildLed(h, a);
 
+    // ---- waving flags in the crowd (drawn live)
+    this.flags = [];
+    const hdef = this.m.teams[0].def, adef = this.m.teams[1].def;
+    let fk = 7;
+    const addFlag = (x: number, y: number) => {
+      fk++;
+      const home = x < W / 2 ? hash(fk, 5) < 0.8 : hash(fk, 5) < 0.25;
+      const t = home ? hdef : adef;
+      this.flags.push({ x, y, c1: t.primary, c2: t.secondary, ph: hash(fk, 9) * 6.28, big: hash(fk, 4) < 0.25 });
+    };
+    for (let x = 18; x < W - 18; x += 26 + Math.floor(hash(x, 3) * 22)) addFlag(x, topY1 - 6 - Math.floor(hash(x, 8) * 3) * 7);
+    for (let x = 24; x < W - 24; x += 34 + Math.floor(hash(x, 6) * 26)) addFlag(x, botY0 + 10 + Math.floor(hash(x, 2) * 2) * 7);
+
     // ---- crowd variants
     const nVar = settings.quality === 'high' ? 3 : 1;
     for (let v = 0; v < nVar; v++) {
@@ -586,6 +601,8 @@ export class Renderer {
     this.paintWear();
     if (this.wear) ctx.drawImage(this.wear, bx + this.wearX, by + this.wearY);
 
+    this.drawFlags(ctx, bx, by, time);
+
     // LED boards (scrolling)
     const L = this.ledRect;
     const off = Math.floor(time * 18) % this.led.width;
@@ -643,8 +660,16 @@ export class Renderer {
     // goal fronts (with a little net shake after a goal)
     this.goalFront.forEach((gf, i) => {
       const s = i === 0 ? -1 : 1;
-      const shake = m.ball.inGoal === s && m.goalFlash > 0.3 ? Math.round(Math.sin(time * 60) * 1) : 0;
-      ctx.drawImage(gf.c, bx + gf.x + shake, by + gf.y);
+      let shake = m.ball.inGoal === s && m.goalFlash > 0.3 ? Math.round(Math.sin(time * 60) * 1) : 0;
+      // the woodwork rattles after the ball hits it
+      const ph = m.postHit[i];
+      let vy = 0;
+      if (ph > 0) {
+        const amp = Math.ceil(ph * 4);
+        shake += Math.round(Math.sin(time * 70) * amp);
+        vy = Math.round(Math.cos(time * 55) * Math.min(1, amp / 2));
+      }
+      ctx.drawImage(gf.c, bx + gf.x + shake, by + gf.y + vy);
     });
     ctx.drawImage(this.frontBoard.c, bx + this.frontBoard.x, by + this.frontBoard.y);
 
@@ -685,10 +710,18 @@ export class Renderer {
       return k < 0.25 ? 'kick0' : k < 0.6 ? 'kick1' : 'kick2';
     }
     if (p.chargeKind === 'shot') return 'charge';
-    if (p.isGK && b.owner === p) return 'hold';
+    if (p.isGK && b.owner === p) {
+      // a back pass is played with the feet: little taps from foot to foot
+      if (p.feetBall) return Math.floor(time * 5) % 2 ? 'run1' : 'run4';
+      return 'hold';
+    }
     if (p.z > 0.25) return 'header';
     const sp = Math.hypot(p.vx, p.vy);
-    if (sp < 0.7) return Math.floor(time * 1.8 + p.idx * 0.7) % 2 ? 'idle0' : 'idle1';
+    if (sp < 0.7) {
+      if (p.isGK && p.yawnT > 0) return p.yawnT > 0.5 && p.yawnT < 1.4 ? 'yawn1' : 'yawn0';
+      if (!p.isGK && (p.exhausted || p.stamina < 0.22) && p.state === 'run') return Math.floor(time * 2.6 + p.idx) % 2 ? 'tired0' : 'tired1';
+      return Math.floor(time * 1.8 + p.idx * 0.7) % 2 ? 'idle0' : 'idle1';
+    }
     const f = Math.floor(((p.runPhase / (Math.PI * 2)) * 6) % 6);
     return 'run' + ((f + 6) % 6);
   }
@@ -722,6 +755,15 @@ export class Renderer {
       ctx.fillRect(bx + w - 1, by, 1, h);
       ctx.fillRect(bx, by + h - 1, w, 1);
       ctx.globalAlpha = 1;
+    }
+    if (p.isGK && p.yawnT > 0 && p.state === 'run') {
+      // a sleepy "z z" drifting up
+      const k = 1 - p.yawnT / 1.7;
+      for (let i = 0; i < 2; i++) {
+        const kk = (k * 1.3 - i * 0.35);
+        if (kk <= 0 || kk >= 1) continue;
+        drawText(ctx, i ? 'Z' : 'z', x + 6 + i * 4 + Math.round(Math.sin(kk * 6) * 2), y - 38 - Math.round(kk * 10), { color: '#ffffff', outline: '#120c1c', align: 'center' });
+      }
     }
     if (p.shield > 0 && (p.shield > 1.2 || Math.floor(time * 10) % 2 === 0)) {
       // force-field bubble
@@ -761,6 +803,44 @@ export class Renderer {
       ctx.fillRect(x - 1, y - 36, 3, 3);
       ctx.fillRect(x, y - 37, 1, 5);
       ctx.fillRect(x - 2, y - 35, 5, 1);
+    }
+  }
+
+  /** Fans' flags: they wave harder (and more of them go up) as the excitement rises. */
+  private drawFlags(ctx: CanvasRenderingContext2D, bx: number, by: number, time: number) {
+    const exc = this.m.excitement;
+    const speed = 5 + exc * 9;
+    for (let i = 0; i < this.flags.length; i++) {
+      const f = this.flags[i];
+      // only some flags are up when the stadium is calm
+      if (exc < 0.5 && i % 3 !== 0) continue;
+      if (exc < 0.75 && i % 3 === 2) continue;
+      const lift = Math.round(Math.max(0, Math.sin(time * 2.2 + f.ph)) * 2 * exc);
+      const sway = Math.round(Math.sin(time * 1.6 + f.ph) * (1 + exc));
+      const x0 = bx + f.x, y0 = by + f.y - lift;
+      const fw = f.big ? 11 : 8, fh = f.big ? 7 : 5, pole = f.big ? 12 : 9;
+      const topX = x0 + sway;
+      // pole
+      ctx.fillStyle = '#d8d0c0';
+      for (let j = 0; j < pole; j++) ctx.fillRect(Math.round(x0 + (sway * j) / pole), y0 - j, 1, 1);
+      // cloth: each column ripples on its own
+      for (let c = 0; c < fw; c++) {
+        const wv = Math.round(Math.sin(time * speed + f.ph - c * 0.9) * (0.6 + exc * 0.9));
+        const yTop = y0 - pole + wv;
+        for (let r = 0; r < fh; r++) {
+          const band = (r / fh) < 0.5 ? f.c1 : f.c2;
+          ctx.fillStyle = band;
+          ctx.fillRect(topX + 1 + c, yTop + r, 1, 1);
+        }
+        // light / shade on the folds
+        if (wv < 0) {
+          ctx.fillStyle = 'rgba(255,255,255,0.28)';
+          ctx.fillRect(topX + 1 + c, yTop, 1, fh);
+        } else if (wv > 0) {
+          ctx.fillStyle = 'rgba(0,0,0,0.25)';
+          ctx.fillRect(topX + 1 + c, yTop, 1, fh);
+        }
+      }
     }
   }
 

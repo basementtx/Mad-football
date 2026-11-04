@@ -90,6 +90,8 @@ export class Match {
   /** where the human's ball would go (for the aim line) */
   aim: { x: number; y: number; kind: 'shot' | 'pass' | 'free' } | null = null;
   goalFlash = 0;
+  /** woodwork rattle per goal (0 = left, 1 = right), seconds left */
+  postHit: [number, number] = [0, 0];
   /** curved-shot preview while charging */
   aimPath: [number, number][] | null = null;
   /** shot direction locked at the press; the stick then adds curl */
@@ -265,6 +267,8 @@ export class Match {
     this.time += dt;
     this.phaseT += dt;
     this.goalFlash = Math.max(0, this.goalFlash - dt);
+    this.postHit[0] = Math.max(0, this.postHit[0] - dt);
+    this.postHit[1] = Math.max(0, this.postHit[1] - dt);
 
     switch (this.phase) {
       case 'intro':
@@ -1574,6 +1578,7 @@ export class Match {
 
   setOwner(p: Player) {
     const b = this.ball;
+    p.feetBall = false;
     if (b.passTarget && b.lastTouch && b.lastTouch.team === p.team && b.lastTouch !== p) p.team.stats.passes++;
     if (b.lastTouch !== p) b.prevTouch = b.lastTouch;
     if (this.possTeam !== p.team) {
@@ -1607,6 +1612,21 @@ export class Match {
     const hasBall = b.owner === p;
     p.sprinting = false;
     p.frozen = Math.max(0, p.frozen - dt);
+    if (p.isGK) {
+      // nothing happening at this end for a while: the keeper gets bored and yawns
+      p.yawnT = Math.max(0, p.yawnT - dt);
+      const far = dist(b.x, b.y, -p.team.side * this.pitch.hw, 0) > this.pitch.hw * 1.25;
+      if (far && this.phase === 'play' && b.owner !== p && Math.hypot(p.vx, p.vy) < 0.6) {
+        p.boredT += dt;
+        if (p.boredT > 7 + (p.idx % 3)) {
+          p.boredT = -rand(4, 9);
+          p.yawnT = 1.7;
+        }
+      } else {
+        p.boredT = Math.min(p.boredT, 0);
+        if (!far) p.yawnT = 0;
+      }
+    }
     if (p.magnet > 0) {
       p.magnet -= dt;
       if (Math.random() < 0.35) this.fx.emit('pix', p.x, p.y, 0.3, { n: 1, speed: 1.2, up: 1, life: 0.4, size: 0.2, colors: this.itemColors(p.team, 'magnet', ['#ff3b5a', '#3bd9ff']), g: 0 });
@@ -1839,7 +1859,13 @@ export class Match {
 
     if (b.owner) {
       const o = b.owner;
-      if (o.isGK && o.state !== 'dive') {
+      if (o.isGK && o.feetBall && o.state !== 'dive') {
+        // tapping a back pass from foot to foot
+        const tap = Math.sin(this.time * 10);
+        b.x = o.x + o.faceX * 0.45;
+        b.y = o.y + tap * 0.28 + 0.05;
+        b.z = Math.abs(Math.cos(this.time * 10)) * 0.12;
+      } else if (o.isGK && o.state !== 'dive') {
         b.x = o.x + o.faceX * 0.35;
         b.y = o.y + o.faceY * 0.2 + 0.05;
         b.z = 1.05;
@@ -1951,13 +1977,7 @@ export class Match {
             b.vy -= 1.75 * dot * uy;
             b.x = pxp + ux * (R + 0.11);
             b.y = pyp + uy * (R + 0.11);
-            if (-dot > 6) {
-              audio.post();
-              this.fx.text(b.x, b.y, 0, t().post, '#fff', 0.9);
-              this.fx.addShake(0.2);
-              this.excitement = 1;
-              audio.groan();
-            }
+            if (-dot > 6) this.woodwork(sx, b.x, b.y, b.z, -dot);
           }
         }
       }
@@ -1967,11 +1987,7 @@ export class Match {
           b.vx = -b.vx * 0.5;
           b.vz = b.z > P.goalHeight ? Math.abs(b.vz) + 2 : -Math.abs(b.vz);
           b.x = sx * (P.hw - R);
-          if (Math.abs(b.vx) > 4) {
-            audio.post();
-            this.fx.text(b.x, b.y, b.z, t().post, '#fff', 0.9);
-            audio.groan();
-          }
+          if (Math.abs(b.vx) > 4) this.woodwork(sx, b.x, b.y, b.z, Math.abs(b.vx) * 2);
         }
       }
       // side netting from outside
@@ -2200,9 +2216,11 @@ export class Match {
     if (d > reach || b.z > hmax) return false;
     const ownX = -g.team.side * P.hw;
     const inBox = Math.abs(b.x - ownX) < P.boxDepth + 0.6 && Math.abs(b.y) < P.boxHalf + 0.6;
+    const backPass = !!b.lastTouch && b.lastTouch.team === g.team && b.lastTouch !== g && b.z < 0.6 && !diving;
     if (!inBox) {
       if (d < PHYS.pickupR && b.z < 0.85 && g.canAct) {
         this.setOwner(g);
+        g.feetBall = true;
         return true;
       }
       return false;
@@ -2213,6 +2231,9 @@ export class Match {
     if (sp < limit) {
       this.setOwner(g);
       g.holdT = 0;
+      g.feetBall = backPass;
+      g.boredT = 0;
+      g.yawnT = 0;
       if (wasShot && sp > 11) {
         g.saves++;
         g.team.stats.saves++;
@@ -2243,6 +2264,20 @@ export class Match {
     this.fx.impact(b.x, b.y, b.z);
     audio.hit(0.5);
     return true;
+  }
+
+  /** Ball off the post or the bar: clang, sparks, the frame rattles, the crowd gasps. */
+  private woodwork(sx: number, x: number, y: number, z: number, speed: number) {
+    const k = clamp(speed / 25, 0.3, 1);
+    this.postHit[sx < 0 ? 0 : 1] = 0.35 + k * 0.45;
+    audio.post();
+    audio.groan();
+    vibrate(Math.round(30 + k * 50));
+    this.fx.emit('spark', x, y, Math.max(0.4, z), { n: 8 + Math.round(k * 10), speed: 6, up: 3, life: 0.35, colors: ['#ffffff', '#fff3a0', '#c8d0e0'] });
+    this.fx.emit('ring', x, y, Math.max(0.2, z), { n: 1, life: 0.3, size: 0.6, color: '#ffffff' });
+    this.fx.text(x, y, z, t().post, '#fff', k > 0.6 ? 1.2 : 0.95);
+    this.fx.addShake(0.15 + k * 0.25);
+    this.excitement = 1;
   }
 
   private checkGoal() {

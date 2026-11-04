@@ -15,6 +15,7 @@ import './ui/store.css';
 import './ui/crate3d.css';
 import { installMotion } from './ui/motion';
 import { initUpdater } from './engine/update';
+import { initNotifications } from './engine/notify';
 
 import { Input, Insets } from './engine/input';
 import { audio } from './engine/audio';
@@ -334,6 +335,7 @@ async function boot() {
   input.enabled = false;
   showSplash(handlers);
   initUpdater();
+  initNotifications();
   requestAnimationFrame(frame);
   // studio screen: keep it up for a moment, then fade out
   const bootEl = document.getElementById('boot');

@@ -65,6 +65,12 @@ add('sad0', { lean: 0.32, tilt: 0.45, tF: 0.22, kF: 0.25, tB: -0.15, kB: 0.3, aF
 add('sad1', { lean: 0.32, tilt: 0.45, tF: -0.12, kF: 0.3, tB: 0.2, kB: 0.25, aF: -0.04, eF: 0.1, aB: 0.05, eB: 0.1, face: 'sad' });
 add('hold', { lean: 0.05, tF: 0.12, kF: 0.15, tB: -0.1, kB: 0.2, aF: 1.15, eF: 0.95, aB: 1.0, eB: 1.0 });
 add('header', { lean: -0.12, tilt: -0.25, tF: 0.45, kF: 1.5, tB: -0.25, kB: 1.5, aF: -0.6, eF: 0.4, aB: 0.7, eB: 0.6, face: 'angry' });
+// out of breath: hands on the knees, chest heaving
+add('tired0', { lean: 0.8, tilt: -0.4, tF: 0.45, kF: 0.75, tB: 0.05, kB: 0.7, aF: -0.3, eF: 0.05, aB: -0.45, eB: 0.1, face: 'sad' });
+add('tired1', { lean: 0.72, tilt: -0.5, tF: 0.45, kF: 0.78, tB: 0.05, kB: 0.72, aF: -0.22, eF: 0.05, aB: -0.38, eB: 0.1, face: 'shout' });
+// bored keeper: a big yawn and a stretch
+add('yawn0', { lean: -0.12, tilt: -0.4, tF: 0.08, kF: 0.12, tB: -0.08, kB: 0.12, aF: PI - 0.5, eF: 0.9, aB: PI - 0.7, eB: 0.9, face: 'shout' });
+add('yawn1', { lean: -0.18, tilt: -0.55, tF: 0.08, kF: 0.1, tB: -0.08, kB: 0.1, aF: PI - 0.25, eF: 0.4, aB: PI - 0.45, eB: 0.4, face: 'shout' });
 add('charge', { lean: -0.08, tF: -0.55, kF: 1.35, tB: 0.08, kB: 0.25, aF: -0.7, eF: 0.4, aB: 0.9, eB: 0.5, face: 'angry' });
 
 export const FRAMES: Record<string, number> = Object.fromEntries(POSES.map(([n], i) => [n, i]));

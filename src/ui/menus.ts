@@ -7,8 +7,12 @@ import type { Match } from '../game/match';
 import type { Difficulty, Player } from '../game/entities';
 import { DIFF_REWARD } from '../game/entities';
 import { clubTeamDef, clubOverall } from '../meta/profile';
+import { clamp } from '../engine/math';
 import { ui, esc, bind, setScreen, paintTag, paintAll, crestTag, flagTag, spriteSource, lookFor, coinTag, MenuHandlers } from './common';
 import { showHub } from './hub';
+import { cardHTML } from './cards';
+import type { CardData, Pos } from '../meta/cards';
+import { vibrate } from '../engine/audio';
 
 export type { MenuHandlers };
 
@@ -306,6 +310,18 @@ export function mvpOf(m: Match): Player {
   return best;
 }
 
+/** The player's card, or one made up from his match attributes (rivals have no card). */
+function cardOf(p: Player): CardData {
+  if (p.card) return p.card;
+  const pos: Pos = p.isGK ? 'GK' : (p.role as Pos);
+  const v = (x: number) => Math.round(clamp(45 + x * 45, 30, 95));
+  return {
+    id: 'motm', name: p.name, number: p.number, pos,
+    stats: { pac: v(p.pace), sho: v(p.power), pas: v(p.skill), dri: v(p.skill * 0.6 + p.pace * 0.4), def: v(p.tackle), phy: v(p.power * 0.5 + p.tackle * 0.5) },
+    look: { skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard, face: p.faceShape },
+  };
+}
+
 export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode = false) {
   const L = t();
   const [a, b] = m.teams;
@@ -340,11 +356,10 @@ export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode
           ${rows.map(([l, x, y]) => `<div class="rs-row"><b>${x}</b><span>${l}</span><b>${y}</b></div>`).join('')}
         </div>
         <div class="res-side">
-          <div class="mvp" style="--c:${mvp.team.def.primary}">
-            <div class="mvp-label">⭐ ${L.mvp}</div>
-            ${paintTag(spriteSource(lookFor(mvp.team.def, mvp, mvp.isGK), 'cel0'), 'mvp-kit')}
-            <div class="mvp-name">${esc(mvp.name)} <small>#${mvp.number}</small></div>
-            <div class="mvp-line">⚽ ${mvp.goals} · 💥 ${mvp.knockdowns} · 🧤 ${mvp.saves}</div>
+          <div class="mvp motm" style="--c:${mvp.team.def.primary}">
+            <div class="motm-stage"><div class="motm-rays"></div>${cardHTML(cardOf(mvp), { club: mvp.team.def, size: 'md' })}<div class="stamp motm-stamp">⭐ ${L.mvp}</div></div>
+            <div class="motm-info"><div class="mvp-name">${esc(mvp.name)} <small>#${mvp.number}</small></div>
+            <div class="mvp-line"><span>⚽ <b data-count="${mvp.goals}">0</b></span><span>🎯 <b data-count="${mvp.assists}">0</b></span><span>💥 <b data-count="${mvp.knockdowns}">0</b></span>${mvp.isGK ? `<span>🧤 <b data-count="${mvp.saves}">0</b></span>` : ''}</div></div>
           </div>
           <div class="coins">+${coins} ${coinTag()}</div>
         </div>
@@ -355,6 +370,15 @@ export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode
       </div>
     </div>`;
   paintAll();
+  // man of the match: the card spins in, the stamp lands, the numbers count up
+  setTimeout(() => { audio.whoosh(); }, 450);
+  setTimeout(() => { audio.horn(); vibrate(40); }, 1350);
+  setTimeout(() => {
+    ui().querySelectorAll<HTMLElement>('[data-count]').forEach((el) => {
+      const n = Number(el.dataset.count);
+      for (let i = 1; i <= n; i++) setTimeout(() => { el.textContent = String(i); audio.click(); }, i * 160);
+    });
+  }, 1700);
   bind('[data-act=quit]', () => h.quit());
   bind('[data-act=restart]', () => h.restart());
   bind('[data-act=league]', () => h.showLeague());
