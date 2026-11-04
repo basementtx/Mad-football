@@ -9,12 +9,13 @@ import { ramp, css, RGB } from '../pixel/palette';
 import { drawText, measure } from '../pixel/font';
 import { clamp, hexToRgb, TAU, pick } from '../engine/math';
 import { settings } from '../engine/storage';
+import { THEMES, GRASS, DIRT, SAND, MUD, SNOW, mowing, vnoise, isLit, drawRoof, drawStadiumFront, StadiumTheme } from './stadium';
+import { WeatherFX } from './weatherfx';
 
 const SPONSORS = ['MADFOOT', 'BONK COLA', 'NO RULES', 'TURBO BOOTS', 'GG ENERGY', 'KICK HARD', 'RAGE FM', 'SLIDE CO.'];
-const GRASS: RGB[] = ['#174a24', '#1f5e2c', '#277035', '#2f803c', '#389045', '#45a050', '#57b05c'].map((h) => hexToRgb(h) as RGB);
-const DIRT: RGB[] = ['#4f5a2c', '#5d6532', '#6c703c', '#7a7a46'].map((h) => hexToRgb(h) as RGB);
 const LINE: RGB = [236, 242, 230];
 const LINE_W: RGB = [205, 220, 200];
+const UMBRELLAS = ['#e23a2e', '#1d4ed8', '#14a050', '#f5c400', '#202028', '#e8e8e8'];
 const SKINS = ['#f1cfb0', '#d9a882', '#b47b55', '#7c5135', '#5a3722'];
 const HAIRS = ['#1a1310', '#3b2416', '#6b3e1f', '#c98a3a', '#2a2a2a', '#7a1a10'];
 
@@ -44,9 +45,14 @@ export class Renderer {
   private vigKey = '';
   private standRects: [number, number, number, number][] = [];
   private looks = new Map<Player, PlayerLook>();
+  private T: StadiumTheme;
+  private torches: [number, number][] = [];
+  private weather: WeatherFX;
 
   constructor(private m: Match) {
     this.P = m.pitch;
+    this.T = THEMES[m.env.stadium];
+    this.weather = new WeatherFX(m.env);
     for (const p of m.all) {
       const look: PlayerLook = { kit: p.team.def, isGK: p.isGK, skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard };
       this.looks.set(p, look);
@@ -80,7 +86,10 @@ export class Renderer {
     base.height = H;
     const g = base.getContext('2d')!;
     g.imageSmoothingEnabled = false;
-    g.fillStyle = '#0a101c';
+    const T = this.T;
+    const env = this.m.env;
+    const lit = isLit(env.weather);
+    g.fillStyle = T.bg;
     g.fillRect(0, 0, W, H);
 
     const [h, a] = [this.m.teams[0].def, this.m.teams[1].def];
@@ -89,20 +98,20 @@ export class Renderer {
 
     // ---- stands structure
     const tier = (x0: number, y0: number, x1: number, y1: number, vertical: boolean, dark = 0) => {
-      g.fillStyle = dark ? '#151b2b' : '#1c2337';
+      g.fillStyle = dark ? T.seatDark : T.seat;
       g.fillRect(x0, y0, x1 - x0, y1 - y0);
       if (!vertical) {
         for (let y = y1 - 1; y >= y0; y -= 7) {
-          g.fillStyle = dark ? '#222a3e' : '#2b3550';
+          g.fillStyle = dark ? T.stepDark : T.step;
           g.fillRect(x0, y - 6, x1 - x0, 1);
-          g.fillStyle = '#10141f';
+          g.fillStyle = T.stepLo;
           g.fillRect(x0, y, x1 - x0, 1);
         }
       } else {
         for (let x = x0; x < x1; x += 7) {
-          g.fillStyle = '#2b3550';
+          g.fillStyle = T.step;
           g.fillRect(x, y0, 1, y1 - y0);
-          g.fillStyle = '#10141f';
+          g.fillStyle = T.stepLo;
           g.fillRect(x + 6, y0, 1, y1 - y0);
         }
       }
@@ -111,31 +120,20 @@ export class Renderer {
     tier(0, 18, W, topY1, false);
     // aisles
     for (let x = 60; x < W; x += 170) {
-      g.fillStyle = '#323c56';
+      g.fillStyle = T.aisle;
       g.fillRect(x, 18, 5, topY1 - 18);
-      g.fillStyle = '#242c42';
+      g.fillStyle = T.aisleLo;
       for (let y = 20; y < topY1; y += 4) g.fillRect(x, y, 5, 1);
     }
-    // roof + floodlights
-    g.fillStyle = '#060a12';
-    g.fillRect(0, 0, W, 18);
-    g.fillStyle = '#1a2133';
-    g.fillRect(0, 16, W, 2);
-    for (let x = 16; x < W; x += 36) {
-      g.fillStyle = 'rgba(255,240,180,0.10)';
-      g.fillRect(x - 6, 6, 15, 10);
-      g.fillStyle = '#fff4c4';
-      g.fillRect(x, 9, 3, 3);
-      g.fillStyle = '#fffbe8';
-      g.fillRect(x + 1, 10, 1, 1);
-    }
+    // roof + lights (stadium specific)
+    drawRoof(g, env.stadium, W, lit, this.torches);
     // sides
     tier(0, py0 - boardH, px0 - 6, py1 + 2, true);
     tier(px1 + 6, py0 - boardH, W, py1 + 2, true);
     // bottom stand
     const botY0 = py1 + 12;
     tier(0, botY0, W, H, false, 1);
-    g.fillStyle = '#0d121e';
+    g.fillStyle = T.gap;
     g.fillRect(0, py1 + 1, W, 11);
     this.standRects = [
       [0, 18, W, topY1],
@@ -158,17 +156,25 @@ export class Renderer {
       d[o + 3] = 255;
     };
     const tuftNext = new Uint8Array(pw);
+    const style = env.pitch;
+    const grass = GRASS[style];
+    const wet = env.weather === 'rain' || env.weather === 'storm';
+    const snowy = env.weather === 'snow';
+    const astro = style === 'astro';
+    const dirt = wet ? MUD : style === 'dry' ? SAND : DIRT;
+    const wear = style === 'dry' ? 1.5 : astro ? 0 : 1;
     for (let y = py0; y < py1; y++) {
       for (let x = px0; x < px1; x++) {
         const wx = (x - this.OX) / PPM, wy = (y - this.OY) / (PPM * YS);
         const inField = Math.abs(wx) <= P.hw && Math.abs(wy) <= P.hh;
-        const stripe = Math.floor((wx + 400) / 4) % 2;
-        const band = Math.floor((wy + 400) / 4) % 2;
+        const stripe = mowing(style, wx, wy);
+        const band = astro ? 0 : Math.floor((wy + 400) / 4) % 2;
         let t = 3 + stripe;
         if (!inField) t -= 1;
-        const r = hash(x, y);
+        const r = astro ? 0.5 : hash(x, y);
         if (r < 0.1) t -= 1;
         else if (r > 0.93) t += 1;
+        if (style === 'dry' && vnoise(wx * 0.4, wy * 0.5, 7) > 0.68) t += 1;
         if (band && ((x + y) & 1) === 0 && r < 0.4) t += 1;
         if (tuftNext[x - px0]) {
           t -= 1;
@@ -178,25 +184,45 @@ export class Renderer {
           t += 2;
           tuftNext[x - px0] = 1;
         }
-        let c = GRASS[clamp(t, 0, GRASS.length - 1)];
+        let c = grass[clamp(t, 0, grass.length - 1)];
         // wear patches (goal mouths and centre)
-        for (const [cx, cy, rad, pr] of [[-P.hw + 1.4, 0, 3.4, 0.9], [P.hw - 1.4, 0, 3.4, 0.9], [0, 0, 1.8, 0.5]] as const) {
-          const dd = Math.hypot(wx - cx, (wy - cy) * 1.3) / rad;
-          // clumpy wear: low-frequency mask (2x2 cells) so it reads as patches, not noise
-          if (dd < 1 && hash(x >> 1, y >> 1) < (1 - dd) * (1 - dd) * pr) c = DIRT[clamp(Math.floor((1 - dd) * 3 + hash(x, y * 5)), 0, DIRT.length - 1)];
+        if (wear > 0)
+          for (const [cx, cy, rad, pr] of [[-P.hw + 1.4, 0, 3.4, 0.9], [P.hw - 1.4, 0, 3.4, 0.9], [0, 0, 1.8, 0.5]] as const) {
+            const dd = Math.hypot(wx - cx, (wy - cy) * 1.3) / (rad * (wet ? 1.2 : 1) * (style === 'dry' ? 1.3 : 1));
+            // clumpy wear: low-frequency mask (2x2 cells) so it reads as patches, not noise
+            if (dd < 1 && hash(x >> 1, y >> 1) < (1 - dd) * (1 - dd) * pr * wear) c = dirt[clamp(Math.floor((1 - dd) * 3 + hash(x, y * 5)), 0, dirt.length - 1)];
+          }
+        if (wet) {
+          // darker, soaked turf with puddles reflecting the lights
+          c = [c[0] * 0.82, c[1] * 0.86, c[2] * 0.9 + 6] as RGB;
+          const n = vnoise(wx * 0.32, wy * 0.45, 3) * 0.75 + vnoise(wx * 1.1, wy * 1.4, 9) * 0.25;
+          if (n > 0.7) {
+            const k = Math.min(1, (n - 0.7) * 9);
+            c = [c[0] + (62 - c[0]) * k * 0.7, c[1] + (88 - c[1]) * k * 0.7, c[2] + (122 - c[2]) * k * 0.7] as RGB;
+            if (hash(x * 7, y) < 0.04 * k) c = [168, 196, 226];
+          }
+          c = c.map(Math.round) as RGB;
+        } else if (snowy) {
+          // patchy snow cover, heavier off the field
+          const n = vnoise(wx * 0.45, wy * 0.6, 5) * 0.82 + vnoise(wx * 2.2, wy * 2.6, 11) * 0.12 + hash(x >> 1, y >> 1) * 0.06;
+          if (n > (inField ? 0.5 : 0.3)) c = SNOW[clamp(Math.floor((n - 0.3) * 6 + hash(x, y) * 1.2), 0, SNOW.length - 1)];
         }
         set(x, y, c);
       }
     }
     // ---- lines
-    const lcol = (x: number, y: number) => (hash(x * 3, y * 11) < 0.12 ? LINE_W : LINE);
+    // on snow the lines are swept clear: a band of grass is drawn first, then the paint
+    let sweep = false;
+    const lcol = (x: number, y: number): RGB => (sweep ? grass[3 + (hash(x, y) < 0.3 ? 1 : 0)] : hash(x * 3, y * 11) < 0.12 ? LINE_W : LINE);
     const hline = (x0: number, x1: number, y: number) => {
       const Y = this.WY(y);
-      for (let x = this.WX(x0) - 1; x <= this.WX(x1); x++) for (const yy of [Y - 1, Y]) set(x, yy, lcol(x, yy));
+      const ys = sweep ? [Y - 3, Y - 2, Y - 1, Y, Y + 1, Y + 2] : [Y - 1, Y];
+      for (let x = this.WX(x0) - 1 - (sweep ? 2 : 0); x <= this.WX(x1) + (sweep ? 2 : 0); x++) for (const yy of ys) set(x, yy, lcol(x, yy));
     };
     const vline = (x: number, y0: number, y1: number) => {
       const X = this.WX(x);
-      for (let y = this.WY(y0) - 1; y <= this.WY(y1); y++) for (const xx of [X - 1, X]) set(xx, y, lcol(xx, y));
+      const xs = sweep ? [X - 3, X - 2, X - 1, X, X + 1, X + 2] : [X - 1, X];
+      for (let y = this.WY(y0) - 1 - (sweep ? 2 : 0); y <= this.WY(y1) + (sweep ? 2 : 0); y++) for (const xx of xs) set(xx, y, lcol(xx, y));
     };
     const rect = (x0: number, y0: number, x1: number, y1: number) => {
       hline(x0, x1, y0);
@@ -213,48 +239,58 @@ export class Renderer {
           const f = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) - 1;
           const gr = 2 * Math.sqrt((dx / (rx * rx)) ** 2 + (dy / (ry * ry)) ** 2) || 1;
           const sd = f / gr;
-          if (sd > -1.25 && sd < 0.45 && keep((x - this.OX) / PPM, (y - this.OY) / (PPM * YS))) set(x, y, lcol(x, y));
+          if (sd > (sweep ? -3.25 : -1.25) && sd < (sweep ? 2.45 : 0.45) && keep((x - this.OX) / PPM, (y - this.OY) / (PPM * YS))) set(x, y, lcol(x, y));
         }
     };
     const spot = (x: number, y: number) => {
       const X = this.WX(x), Y = this.WY(y);
       for (const [dx, dy] of [[-1, -1], [0, -1], [-1, 0], [0, 0]]) set(X + dx, Y + dy, LINE);
     };
-    rect(-P.hw, -P.hh, P.hw, P.hh);
-    vline(0, -P.hh, P.hh);
-    ellipse(0, 0, P.centerR, () => true);
-    spot(0, 0);
-    for (const s of [-1, 1]) {
-      const gx = s * P.hw;
-      rect(Math.min(gx, gx - s * P.boxDepth), -P.boxHalf, Math.max(gx, gx - s * P.boxDepth), P.boxHalf);
-      rect(Math.min(gx, gx - s * P.smallDepth), -P.smallHalf, Math.max(gx, gx - s * P.smallDepth), P.smallHalf);
-      const sp = gx - s * P.boxDepth * 0.72;
-      spot(sp, 0);
-      const edge = gx - s * P.boxDepth;
-      ellipse(sp, 0, P.centerR * 0.85, (wx) => (s > 0 ? wx < edge - 0.05 : wx > edge + 0.05));
-      for (const sy of [-1, 1]) ellipse(gx, sy * P.hh, 1, (wx, wy) => Math.abs(wx) <= P.hw + 0.05 && Math.abs(wy) <= P.hh + 0.05);
+    const markings = () => {
+      rect(-P.hw, -P.hh, P.hw, P.hh);
+      vline(0, -P.hh, P.hh);
+      ellipse(0, 0, P.centerR, () => true);
+      for (const s of [-1, 1]) {
+        const gx = s * P.hw;
+        rect(Math.min(gx, gx - s * P.boxDepth), -P.boxHalf, Math.max(gx, gx - s * P.boxDepth), P.boxHalf);
+        rect(Math.min(gx, gx - s * P.smallDepth), -P.smallHalf, Math.max(gx, gx - s * P.smallDepth), P.smallHalf);
+        const sp = gx - s * P.boxDepth * 0.72;
+        const edge = gx - s * P.boxDepth;
+        ellipse(sp, 0, P.centerR * 0.85, (wx) => (s > 0 ? wx < edge - 0.05 : wx > edge + 0.05));
+        for (const sy of [-1, 1]) ellipse(gx, sy * P.hh, 1, (wx, wy) => Math.abs(wx) <= P.hw + 0.05 && Math.abs(wy) <= P.hh + 0.05);
+      }
+    };
+    if (snowy) {
+      sweep = true;
+      markings();
+      sweep = false;
     }
+    markings();
+    spot(0, 0);
+    for (const s of [-1, 1]) spot(s * P.hw - s * P.boxDepth * 0.72, 0);
     g.putImageData(img, px0, py0);
 
-    // subtle floodlight pools on the grass (dithered)
-    g.fillStyle = 'rgba(255,250,210,0.035)';
-    for (let y = py0; y < py1; y += 2) {
-      const wy = (y - this.OY) / (PPM * YS) / P.hh;
-      const w = Math.round(pw * (0.5 - Math.abs(wy) * 0.2));
-      g.fillRect(px0 + (pw - w) / 2, y, w, 1);
+    if (lit) {
+      // subtle floodlight pools on the grass (dithered)
+      g.fillStyle = env.weather === 'night' ? 'rgba(255,250,210,0.06)' : 'rgba(255,250,210,0.035)';
+      for (let y = py0; y < py1; y += 2) {
+        const wy = (y - this.OY) / (PPM * YS) / P.hh;
+        const w = Math.round(pw * (0.5 - Math.abs(wy) * 0.2));
+        g.fillRect(px0 + (pw - w) / 2, y, w, 1);
+      }
     }
 
     // ---- boards
-    g.fillStyle = '#05070d';
+    g.fillStyle = T.board;
     g.fillRect(px0 - 2, py0 - boardH - 1, pw + 4, boardH + 1);
-    g.fillStyle = '#3a4766';
+    g.fillStyle = T.boardEdge;
     g.fillRect(px0 - 2, py0 - boardH - 2, pw + 4, 1);
     this.ledRect = { x0: px0, x1: px1, y: py0 - boardH, h: boardH - 2 };
     for (const s of [-1, 1]) {
       const bx = s > 0 ? px1 + 1 : px0 - 6;
-      g.fillStyle = '#121a2c';
+      g.fillStyle = T.boardSide;
       g.fillRect(bx, py0 - boardH, 5, py1 - py0 + boardH);
-      g.fillStyle = '#3a4766';
+      g.fillStyle = T.boardEdge;
       g.fillRect(bx, py0 - boardH, 5, 1);
       g.fillStyle = s < 0 ? h.primary : a.primary;
       g.fillRect(bx + 2, py0 - boardH + 2, 1, py1 - py0 + boardH - 4);
@@ -269,15 +305,30 @@ export class Renderer {
     fb.width = pw + 4;
     fb.height = 12;
     const fg = fb.getContext('2d')!;
-    fg.fillStyle = '#141b2c';
+    fg.fillStyle = T.front;
     fg.fillRect(0, 0, fb.width, 12);
-    fg.fillStyle = '#3a4766';
+    fg.fillStyle = T.boardEdge;
     fg.fillRect(0, 0, fb.width, 1);
     fg.fillStyle = '#0a0e18';
     fg.fillRect(0, 11, fb.width, 1);
     for (let x = 6; x < fb.width; x += 48) {
-      fg.fillStyle = '#26304a';
+      fg.fillStyle = T.frontRib;
       fg.fillRect(x, 3, 1, 7);
+    }
+    if (env.stadium === 'street') {
+      const tags = ['MAD', 'GOAL!', 'NO RULES', 'STREET', 'BONK'];
+      const cols = ['#ff2fa0', '#b6ff3b', '#3bd9ff', '#ffd23f', '#ff7a1f'];
+      for (let i = 0, x = 30; x < fb.width - 30; x += 90, i++) drawText(fg, tags[i % tags.length], x, 3, { color: cols[i % cols.length], align: 'center', outline: '#120c1c' });
+    } else if (env.stadium === 'neon') {
+      fg.fillStyle = '#ff2fa0';
+      fg.fillRect(0, 1, fb.width, 1);
+    }
+    const mul = this.mulColor();
+    if (mul) {
+      fg.globalCompositeOperation = 'multiply';
+      fg.fillStyle = mul;
+      fg.fillRect(0, 0, fb.width, fb.height);
+      fg.globalCompositeOperation = 'source-over';
     }
     this.frontBoard = { c: fb, x: px0 - 2, y: py1 - 10 };
 
@@ -291,7 +342,10 @@ export class Renderer {
       c.height = H;
       const cg = c.getContext('2d')!;
       cg.drawImage(base, 0, 0);
-      this.drawCrowd(cg, v, h, a, { px0, px1, py0, py1, topY1, botY0, W, H, boardH });
+      const L = { px0, px1, py0, py1, topY1, botY0, W, H, boardH };
+      this.drawCrowd(cg, v, h, a, L);
+      drawStadiumFront(cg, env.stadium, L);
+      this.atmosphere(cg, L);
       this.variants.push(c);
     }
   }
@@ -312,6 +366,15 @@ export class Renderer {
       const skin = SKINS[Math.floor(hash(k, 11) * SKINS.length)];
       const hair = HAIRS[Math.floor(hash(k, 13) * HAIRS.length)];
       const yy = y - up;
+      if (wet && !back && hash(k, 23) < 0.14) {
+        // umbrella
+        g.fillStyle = UMBRELLAS[Math.floor(hash(k, 29) * UMBRELLAS.length)];
+        g.fillRect(x - 3, yy - 7, 7, 1);
+        g.fillRect(x - 2, yy - 8, 5, 1);
+        g.fillStyle = '#120c1c';
+        g.fillRect(x, yy - 6, 1, 2);
+        return;
+      }
       g.fillStyle = css(rp[2]);
       g.fillRect(x - 1, yy - 3, 3, 3);
       g.fillStyle = css(rp[1]);
@@ -337,11 +400,12 @@ export class Renderer {
       }
     };
     let k = 0;
+    const wet = this.m.env.weather === 'rain' || this.m.env.weather === 'storm';
     // top stand rows
     for (let y = L.topY1 - 2; y > 24; y -= 7) {
       for (let x = 3; x < L.W - 3; x += 5) {
         k++;
-        if (hash(k, 1) < 0.07) continue;
+        if (hash(k, 1) > this.T.crowd) continue;
         if (((x - 60) % 170 + 170) % 170 < 7) continue; // aisles
         fan(x + (hash(k, 2) < 0.5 ? 0 : 1), y, k, false);
       }
@@ -352,7 +416,7 @@ export class Renderer {
       for (let x = x0; x < x1; x += 7) {
         for (let y = L.py0 - L.boardH + 6; y < L.py1; y += 6) {
           k++;
-          if (hash(k, 1) < 0.08) continue;
+          if (hash(k, 1) > this.T.crowd - 0.01) continue;
           fan(x + 3, y, k, false);
         }
       }
@@ -361,7 +425,7 @@ export class Renderer {
     for (let y = L.botY0 + 6; y < L.H + 6; y += 7) {
       for (let x = 3; x < L.W - 3; x += 5) {
         k++;
-        if (hash(k, 1) < 0.07) continue;
+        if (hash(k, 1) > this.T.crowd) continue;
         fan(x, y, k, true);
       }
     }
@@ -386,6 +450,67 @@ export class Renderer {
     banner(L.W * 0.36, h);
     banner(L.W * 0.62, a);
     banner(L.W * 0.76, a);
+  }
+
+  /** Multiply tint used to darken/cool the prerendered stadium for the weather. */
+  private mulColor(): string | null {
+    switch (this.m.env.weather) {
+      case 'night': return 'rgb(132,140,180)';
+      case 'rain': return 'rgb(168,176,196)';
+      case 'storm': return 'rgb(132,142,170)';
+      case 'fog': return 'rgb(206,210,216)';
+      case 'snow': return 'rgb(222,228,240)';
+      default: return null;
+    }
+  }
+
+  /** Time-of-day and weather lighting baked into a stadium layer. */
+  private atmosphere(g: CanvasRenderingContext2D, L: { px0: number; px1: number; py0: number; py1: number; W: number; H: number; boardH: number }) {
+    const w = this.m.env.weather;
+    const pw = L.px1 - L.px0, ph = L.py1 - L.py0;
+    g.save();
+    if (w === 'clear' || w === 'wind') {
+      // daylight: lift the stands, warm the turf, roof shadow over the far side of the pitch
+      g.globalCompositeOperation = 'screen';
+      g.fillStyle = 'rgb(38,40,36)';
+      g.fillRect(0, 0, L.W, L.H);
+      g.globalCompositeOperation = 'source-over';
+      g.fillStyle = 'rgba(255,240,200,0.05)';
+      g.fillRect(L.px0, L.py0, pw, ph);
+      g.fillStyle = 'rgba(0,14,34,0.2)';
+      for (let x = L.px0 - 2; x < L.px1 + 2; x++) {
+        const depth = 8 + Math.floor(((x - L.px0) / pw) * 22);
+        g.fillRect(x, L.py0 - L.boardH - 2, 1, depth + L.boardH + 2);
+      }
+    } else {
+      const mul = this.mulColor();
+      if (mul) {
+        g.globalCompositeOperation = 'multiply';
+        g.fillStyle = mul;
+        g.fillRect(0, 0, L.W, L.H);
+      }
+      if (w === 'night' || w === 'storm' || w === 'rain') {
+        // floodlit centre of the pitch
+        g.globalCompositeOperation = 'screen';
+        const cx = L.px0 + pw / 2, cy = L.py0 + ph / 2;
+        const gr = g.createRadialGradient(cx, cy, 0, cx, cy, pw * 0.55);
+        const k = w === 'night' ? 1 : 0.6;
+        gr.addColorStop(0, `rgba(${Math.round(60 * k)},${Math.round(60 * k)},${Math.round(46 * k)},1)`);
+        gr.addColorStop(1, 'rgba(0,0,0,1)');
+        g.fillStyle = gr;
+        g.fillRect(L.px0, L.py0, pw, ph);
+      }
+      if (w === 'snow') {
+        // snow settled on the roof and along the terraces
+        g.globalCompositeOperation = 'source-over';
+        for (let x = 0; x < L.W; x++) {
+          g.fillStyle = hash(x, 77) < 0.5 ? '#f4f8fc' : '#dbe4ef';
+          g.fillRect(x, 0, 1, 1 + Math.floor(hash(x, 78) * 3));
+          if (hash(x, 79) < 0.25) g.fillRect(x, 16, 1, 1);
+        }
+      }
+    }
+    g.restore();
   }
 
   private buildLed(h: TeamDef, a: TeamDef) {
@@ -501,7 +626,7 @@ export class Renderer {
     const m = this.m;
     ctx.imageSmoothingEnabled = false;
     const bx = cam.originX - this.OX, by = cam.originY - this.OY;
-    ctx.fillStyle = '#0a101c';
+    ctx.fillStyle = this.T.bg;
     ctx.fillRect(0, 0, cam.W, cam.H);
 
     // crowd animation frame
@@ -523,6 +648,18 @@ export class Renderer {
     ctx.clip();
     for (let x = L.x0 - off; x < L.x1; x += this.led.width) ctx.drawImage(this.led, bx + x, by + L.y);
     ctx.restore();
+
+    // flickering torches (coliseum)
+    for (const [tx, ty] of this.torches) {
+      const f = Math.floor(time * 12 + tx) % 3;
+      const X = bx + tx, Y = by + ty;
+      ctx.fillStyle = 'rgba(255,150,40,0.18)';
+      ctx.fillRect(X - 4, Y - 6, 9, 9);
+      ctx.fillStyle = '#ff6a1a';
+      ctx.fillRect(X - 1, Y - 2 - (f === 1 ? 1 : 0), 3, 3);
+      ctx.fillStyle = '#ffd25a';
+      ctx.fillRect(X, Y - 3 - f, 1, 3);
+    }
 
     // camera flashes in the crowd
     if (m.excitement > 0.6 && settings.quality === 'high') {
@@ -575,6 +712,7 @@ export class Renderer {
 
     this.drawOverheads(ctx, cam, time);
     m.fx.draw(ctx, cam);
+    this.weather.draw(ctx, cam.W, cam.H, bx, by, time);
     this.drawPost(ctx, cam);
   }
 
@@ -586,7 +724,7 @@ export class Renderer {
     ctx.fillRect(X, Y - 20, 1, 21);
     const t = x > 0 ? this.m.teams[1].def : this.m.teams[0].def;
     const rp = ramp(t.primary);
-    const wave = Math.floor(time * 6 + x) % 3;
+    const wave = Math.floor(time * (6 + this.m.env.windF * 2.5) + x) % 3;
     for (let i = 0; i < 7; i++) {
       const off = Math.round(Math.sin(i * 0.9 + wave * 2.1));
       ctx.fillStyle = css(rp[i < 2 ? 3 : 2]);

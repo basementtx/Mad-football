@@ -1,4 +1,5 @@
 /** Shared DOM helpers for the menu screens. */
+import type { MatchEnv } from '../game/env';
 import { audio } from '../engine/audio';
 import { flagCanvas } from '../pixel/flags';
 import { playerSheet, FRAMES, CELL_W, CELL_H, PlayerLook } from '../pixel/player';
@@ -157,6 +158,8 @@ export function lookFor(kit: TeamDef, l: { skin: string; hair: string; hairStyle
 
 export interface MenuHandlers {
   startMatch: () => void;
+  /** show this venue in the menu backdrop */
+  previewEnv: (env: MatchEnv) => void;
   startLeagueMatch: () => void;
   showLeague: () => void;
   resume: () => void;

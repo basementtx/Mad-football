@@ -2,6 +2,7 @@ import '@fontsource/press-start-2p';
 import '@fontsource/pixelify-sans/400.css';
 import '@fontsource/pixelify-sans/700.css';
 import './ui/style.css';
+import { resolveEnv, homeGroundEnv, MatchEnv, Weather, PitchStyle, Stadium, Choice } from './game/env';
 
 import { Input, Insets } from './engine/input';
 import { audio } from './engine/audio';
@@ -71,11 +72,15 @@ function applyLang() {
   document.querySelector('#rotate p')!.textContent = t().rotate;
 }
 
+/** venue shown behind the menus */
+let demoEnv: MatchEnv | null = null;
+
 function newDemo() {
   const a = Math.floor(Math.random() * TEAMS.length);
   let b = Math.floor(Math.random() * TEAMS.length);
   if (b === a) b = (a + 1) % TEAMS.length;
-  demo = new Game({ home: TEAMS[a], away: TEAMS[b], size: 4, duration: 90, difficulty: 'hard', demo: true }, null);
+  demoEnv ??= resolveEnv('random', 'random', 'random');
+  demo = new Game({ home: TEAMS[a], away: TEAMS[b], size: 4, duration: 90, difficulty: 'hard', demo: true, env: demoEnv }, null);
   // menu backdrop: a calm stadium (players warming up), not a running match
   demo.ambient = true;
   demo.resize(W, H);
@@ -98,7 +103,7 @@ function requestFullscreen() {
 /** 'quick' = friendly from the setup screen, 'league' = current league fixture */
 let matchMode: 'quick' | 'league' = 'quick';
 
-function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: boolean) {
+function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: boolean, env: MatchEnv) {
   requestFullscreen();
   audio.unlock();
   const homeCards = useClub ? lineupCards().filter((c): c is CardData => !!c) : undefined;
@@ -108,6 +113,7 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
       homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
       starId: useClub ? profile.myPlayer : null,
       loadout: profile.equipped,
+      env,
     },
     input,
   );
@@ -122,13 +128,22 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
 const handlers: MenuHandlers = {
   startMatch() {
     matchMode = 'quick';
-    launch(homeDef(lastSetup.home), TEAMS[lastSetup.away], lastSetup.difficulty as Difficulty, lastSetup.home < 0);
+    const env = resolveEnv(lastSetup.weather as Choice<Weather>, lastSetup.pitch as Choice<PitchStyle>, lastSetup.stadium as Choice<Stadium>);
+    launch(homeDef(lastSetup.home), TEAMS[lastSetup.away], lastSetup.difficulty as Difficulty, lastSetup.home < 0, env);
+  },
+  previewEnv(env) {
+    const cur = demo?.match.env;
+    if (cur && cur.weather === env.weather && cur.pitch === env.pitch && cur.stadium === env.stadium) return;
+    demoEnv = env;
+    newDemo();
   },
   startLeagueMatch() {
     const fx = nextFixture();
     if (!fx) return;
     matchMode = 'league';
-    launch(teamById('club'), teamById(fx.opp), leagueDifficulty(), true);
+    // played at the home side's ground (the user's club uses its venue preference)
+    const env = homeGroundEnv(fx.home ? 'club' : fx.opp, { stadium: lastSetup.stadium as Choice<Stadium>, pitch: lastSetup.pitch as Choice<PitchStyle> });
+    launch(teamById('club'), teamById(fx.opp), leagueDifficulty(), true, env);
   },
   showLeague() {
     game = null;
@@ -227,7 +242,7 @@ function frame(now: number) {
 }
 
 if (import.meta.env.DEV) {
-  (window as unknown as { __mf: unknown }).__mf = { get game() { return game; }, get demo() { return demo; } };
+  (window as unknown as { __mf: unknown }).__mf = { get game() { return game; }, get demo() { return demo; }, preview: (e: MatchEnv) => handlers.previewEnv(e) };
 }
 
 async function boot() {

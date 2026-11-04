@@ -9,6 +9,7 @@ import { t } from '../engine/i18n';
 import { runTeamAI, formationSpot } from './ai';
 import type { CardData } from '../meta/cards';
 import { POWER_ID } from '../meta/items';
+import { EnvPhys, envPhys, makeEnv, MatchEnv } from './env';
 
 export type Phase = 'intro' | 'kickoff' | 'play' | 'goal' | 'fulltime' | 'over';
 
@@ -24,6 +25,8 @@ export interface MatchConfig {
   /** id of the user's own created player */
   starId?: string | null;
   loadout?: { power: string; goalfx: string; trail: string };
+  /** weather, pitch style and stadium (default: clear night at the arena) */
+  env?: MatchEnv;
 }
 
 interface Frame {
@@ -63,6 +66,9 @@ export class Match {
   /** where the human's ball would go (for the aim line) */
   aim: { x: number; y: number; kind: 'shot' | 'pass' | 'free' } | null = null;
   goalFlash = 0;
+  env: MatchEnv;
+  /** weather physics modifiers */
+  ep: EnvPhys;
 
   // ---- action replay
   private history: Frame[] = [];
@@ -75,6 +81,10 @@ export class Match {
 
   constructor(public cfg: MatchConfig, public fx: FX) {
     this.pitch = makePitch(cfg.size);
+    this.env = cfg.env ?? makeEnv('clear', 'stripes', 'arena');
+    this.ep = envPhys(this.env);
+    const w = this.env.weather;
+    fx.surface = w === 'rain' || w === 'storm' ? 'wet' : w === 'snow' ? 'snow' : this.env.pitch === 'dry' ? 'dry' : 'grass';
     this.clock = cfg.duration;
     const home = new Team(cfg.home, 0, 1, !cfg.demo, cfg.demo ? DIFF.normal : DIFF.normal);
     const away = new Team(cfg.away, 1, -1, false, DIFF[cfg.difficulty]);
@@ -814,7 +824,7 @@ export class Match {
     if (p.tackleCd > 0 || !p.canAct) return;
     p.setState('slide', PHYS.slideTime);
     p.face = Math.atan2(dy, dx);
-    const sp = PHYS.slideSpeed * (0.9 + p.pace * 0.15);
+    const sp = PHYS.slideSpeed * (0.9 + p.pace * 0.15) * this.ep.slide;
     p.vx = dx * sp;
     p.vy = dy * sp;
     p.tackleCd = 1.0;
@@ -993,10 +1003,11 @@ export class Match {
         if (p.turbo > 0) max *= 1.5;
         if (p.state === 'sad') max *= 0.45;
         if (p.isGK) max *= 0.95;
+        max *= this.ep.speed;
         const tvx = mx * max, tvy = my * max;
         let dvx = tvx - p.vx, dvy = tvy - p.vy;
         const dv = Math.hypot(dvx, dvy);
-        const acc = (hasBall ? 26 : PHYS.accel) * dt;
+        const acc = (hasBall ? 26 : PHYS.accel) * this.ep.grip * dt;
         if (dv > acc) {
           dvx *= acc / dv;
           dvy *= acc / dv;
@@ -1174,20 +1185,25 @@ export class Match {
     b.spin *= Math.exp(-1.2 * dt);
 
     b.vz -= PHYS.gravity * dt;
+    if (b.z > 0.05 && this.env.windF > 0) {
+      // wind pushes the ball while it is in the air
+      b.vx += Math.cos(this.env.windA) * this.env.windF * dt;
+      b.vy += Math.sin(this.env.windA) * this.env.windF * dt;
+    }
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     b.z += b.vz * dt;
     if (b.z <= 0) {
       b.z = 0;
       if (b.vz < -2) {
-        b.vz = -b.vz * PHYS.bounce;
+        b.vz = -b.vz * PHYS.bounce * this.ep.bounce;
         b.vx *= 0.92;
         b.vy *= 0.92;
       } else b.vz = 0;
     }
     const sp = Math.hypot(b.vx, b.vy);
     if (b.z <= 0.02) {
-      const ns = Math.max(0, sp - (2.4 + 0.32 * sp) * dt);
+      const ns = Math.max(0, sp - (2.4 + 0.32 * sp) * this.ep.roll * dt);
       if (sp > 0) {
         b.vx *= ns / sp;
         b.vy *= ns / sp;

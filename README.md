@@ -35,6 +35,10 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **Hafif pas nişan yardımı** (yalnızca ~20° içindeki arkadaşa yönelir) ve **zarif nişan çizgisi**; ikisi de ayarlardan kapatılabilir.
 - **5 zorluk seviyesi** (Kolay → Efsane); ödül çarpanı ×0.6'dan ×3'e çıkar.
 - Kariyer kaydı (G/B/M), altın, maçın yıldızı ve maç istatistikleri.
+- **Hava durumları**: Güneşli (gündüz, çatı gölgesi), Gece (projektörler), Yağmurlu (su birikintileri, şemsiyeli taraftarlar, kaygan zemin: top kayar, kaymalar uzar), Fırtına (şimşek, gök gürültüsü, sert rüzgar), Karlı (karla kaplı zemin, süpürülmüş çizgiler, ağır top, yavaş koşu), Sisli (sürüklenen sis katmanları), Rüzgarlı (uçuşan yapraklar, havadaki topu savuran rüzgar ve skor tabelasının yanında rüzgar göstergesi). Yağmur ve rüzgar sesleri de sentezleniyor.
+- **6 saha deseni**: Çizgili, Damalı, Çapraz, Halkalı, Kurak (sararmış çim, daha fazla toprak) ve Suni Çim (topu biraz daha hızlı ve sektiren zemin).
+- **5 stadyum**: Arena, Eski Tribün (ahşap çatı, görüşü kapatan direkler, köşe projektör kuleleri), Sokak Kafesi (tel örgü, grafiti, şehir silueti, seyrek seyirci), Kolezyum (kumtaşı kemerler, titreyen meşaleler) ve Neon Kubbe (neon şeritler).
+- Hızlı maçta zorluk seçiminden sonra **Saha & Hava** ekranında stadyum, çim ve hava seçilir (ya da hepsi rastgele); seçim menü arka planında canlı önizlenir. Lig maçları ev sahibi takımın stadyumunda, o takıma özgü havalarla oynanır.
 - İngilizce (varsayılan) ve Türkçe arayüz; dil, ayarlardan ya da ana menüdeki piksel bayrak düğmesinden değiştirilebilir.
 
 ## Kontroller
@@ -68,7 +72,7 @@ npm run dev
 
 **3. Kendi telefonunda (aynı Wi-Fi):** `npm run dev` çıktısındaki `Network: http://192.168.x.x:5173` adresini telefonun tarayıcısında aç. Kodu kaydettiğin anda telefonda yenilenir.
 
-**4. Denge testi:** `npm run sim -- normal 4` komutu 20 maçı yapay zekâya karşı yapay zekâ olarak arka planda oynatır; maç başına gol, yere serme, şut ve kurtarış ortalamalarını yazar.
+**4. Denge testi:** `npm run sim -- normal 4` komutu (isteğe bağlı üçüncü parametre hava durumu: `rain`, `snow`, `wind`…) 20 maçı yapay zekâya karşı yapay zekâ olarak arka planda oynatır; maç başına gol, yere serme, şut ve kurtarış ortalamalarını yazar.
 
 ## Geliştirme
 
@@ -111,4 +115,3 @@ Oyun aynı zamanda bir PWA: mobil tarayıcıda "Ana ekrana ekle" ile tam ekran v
 - Turnuva / lig modu
 - Karakter özelleştirme ve altınla açılan formalar, kramponlar, gol sevinçleri
 - Özel yetenekler (dash, süper kafa, sismik kayma) ve yetenek seçimi
-- Hava ve gece/gündüz stadyumları

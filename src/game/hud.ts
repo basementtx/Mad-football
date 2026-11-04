@@ -73,6 +73,27 @@ function drawScoreboard(ctx: CanvasRenderingContext2D, m: Match, W: number, top:
   panel(ctx, Math.round(W / 2 - cw / 2), y + hh + 2, cw, 11, '#0d121f', '#1f2840', '#06080f');
   const urgent = c <= 10 && m.phase === 'play' && Math.floor(m.time * 4) % 2 === 0;
   drawText(ctx, `${mm}:${ss.toString().padStart(2, '0')}`, W / 2, y + hh + 4, { color: urgent ? '#ff5a4a' : '#ffffff', outline: null, align: 'center' });
+  const env = m.env;
+  if (env.windF > 0.3) {
+    // wind gauge next to the clock: arrow length grows with strength
+    const wx = Math.round(W / 2 + cw / 2 + 4), wy = y + hh + 2;
+    panel(ctx, wx, wy, 13, 11, '#0d121f', '#1f2840', '#06080f');
+    const cx = wx + 6, cy = wy + 5;
+    const len = 2 + Math.min(3, Math.round(env.windF / 1.4));
+    const ux = Math.cos(env.windA), uy = Math.sin(env.windA) * 0.75;
+    ctx.fillStyle = '#7fd3ff';
+    for (let i = -len; i <= len; i++) ctx.fillRect(Math.round(cx + ux * i), Math.round(cy + uy * i), 1, 1);
+    ctx.fillStyle = '#ffffff';
+    const hx = cx + ux * len, hy = cy + uy * len;
+    ctx.fillRect(Math.round(hx - ux * 1.5 - uy * 1.5), Math.round(hy - uy * 1.5 + ux * 1.5), 1, 1);
+    ctx.fillRect(Math.round(hx - ux * 1.5 + uy * 1.5), Math.round(hy - uy * 1.5 - ux * 1.5), 1, 1);
+    ctx.fillRect(Math.round(hx), Math.round(hy), 1, 1);
+  }
+  if (m.phase === 'intro' || m.phase === 'kickoff') {
+    const L = t();
+    const label = `${L.stadiumNames[env.stadium]} - ${L.weatherNames[env.weather]}`.toUpperCase();
+    drawText(ctx, label, W / 2, y + hh + 17, { color: '#cfd8ea', align: 'center' });
+  }
 }
 
 function drawMinimap(ctx: CanvasRenderingContext2D, m: Match, W: number, ins: Input['insets']) {

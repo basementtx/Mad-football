@@ -92,6 +92,15 @@ const tr = {
   outcomes: { promoted: 'ÜST LİGE ÇIKTIN!', relegated: 'KÜME DÜŞTÜN', stayed: 'LİGDE KALDIN', champions: 'ŞAMPİYON!' } as Record<string, string>,
   seasonEnd: 'SEZON SONU', finished: 'Bitirdiğin sıra', nextSeason: 'YENİ SEZON', continueBtn: 'DEVAM', vsHome: 'İç saha', vsAway: 'Deplasman',
   passAssist: 'Pas Nişan Yardımı', aimLine: 'Nişan Çizgisi', leagueSub: 'Haftalık maçlar, puan tablosu',
+  venue: 'SAHA & HAVA', stadium: 'Stadyum', pitchStyle: 'Çim', weather: 'Hava', random: 'Rastgele',
+  weatherNames: { clear: 'Güneşli', night: 'Gece', rain: 'Yağmurlu', storm: 'Fırtına', snow: 'Karlı', fog: 'Sisli', wind: 'Rüzgarlı' } as Record<string, string>,
+  weatherDesc: {
+    clear: 'Gün ışığında kusursuz zemin.', night: 'Projektörler altında gece maçı.', rain: 'Kaygan zemin: top kayar, kaymalar uzar.',
+    storm: 'Çok kaygan, şimşekler ve sert rüzgar!', snow: 'Ağır top, yavaş koşu, karlı zemin.', fog: 'Görüş kısıtlı, dikkatli oyna.',
+    wind: 'Rüzgar havadaki topu savurur.', random: 'Her maç farklı bir sürpriz.',
+  } as Record<string, string>,
+  pitchNames: { stripes: 'Çizgili', checker: 'Damalı', diagonal: 'Çapraz', rings: 'Halkalı', dry: 'Kurak', astro: 'Suni Çim' } as Record<string, string>,
+  stadiumNames: { arena: 'Arena', retro: 'Eski Tribün', street: 'Sokak Kafesi', coliseum: 'Kolezyum', neon: 'Neon Kubbe' } as Record<string, string>,
 };
 
 type Dict = typeof tr;
@@ -188,6 +197,15 @@ const en: Dict = {
   outcomes: { promoted: 'PROMOTED!', relegated: 'RELEGATED', stayed: 'SURVIVED', champions: 'CHAMPIONS!' } as Record<string, string>,
   seasonEnd: 'SEASON OVER', finished: 'Finished', nextSeason: 'NEXT SEASON', continueBtn: 'CONTINUE', vsHome: 'Home', vsAway: 'Away',
   passAssist: 'Pass Aim Assist', aimLine: 'Aim Line', leagueSub: 'Weekly fixtures, league table',
+  venue: 'VENUE & WEATHER', stadium: 'Stadium', pitchStyle: 'Pitch', weather: 'Weather', random: 'Random',
+  weatherNames: { clear: 'Sunny', night: 'Night', rain: 'Rain', storm: 'Storm', snow: 'Snow', fog: 'Fog', wind: 'Windy' } as Record<string, string>,
+  weatherDesc: {
+    clear: 'Perfect conditions in daylight.', night: 'Under the floodlights.', rain: 'Slick turf: the ball skids, slides go further.',
+    storm: 'Very slick, lightning and strong gusts!', snow: 'Heavy ball, slower legs, snowy turf.', fog: 'Low visibility, keep your head up.',
+    wind: 'Wind bends every high ball.', random: 'A surprise every match.',
+  } as Record<string, string>,
+  pitchNames: { stripes: 'Stripes', checker: 'Checkered', diagonal: 'Diagonal', rings: 'Rings', dry: 'Dry', astro: 'Astroturf' } as Record<string, string>,
+  stadiumNames: { arena: 'Arena', retro: 'Old Ground', street: 'Street Cage', coliseum: 'Coliseum', neon: 'Neon Dome' } as Record<string, string>,
 };
 
 const DICTS: Record<Lang, Dict> = { en, tr };

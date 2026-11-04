@@ -14,6 +14,11 @@ class AudioEngine {
   private crowdLevel = 0.25;
   private crowdTarget = 0.25;
   private started = false;
+  private rainGain: GainNode | null = null;
+  private windGain: GainNode | null = null;
+  private windFilter: BiquadFilterNode | null = null;
+  private rainTarget = 0;
+  private windTarget = 0;
   private lastPlay: { [k: string]: number } = {};
 
   unlock() {
@@ -93,6 +98,42 @@ class AudioEngine {
     src.start();
   }
 
+  private startWeather() {
+    const ctx = this.ctx!;
+    const mk = (type: BiquadFilterType, freq: number, q: number, rate: number) => {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      src.loop = true;
+      src.playbackRate.value = rate;
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      f.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(f).connect(g).connect(this.master);
+      src.start(0, Math.random() * 2);
+      return { f, g };
+    };
+    this.rainGain = mk('highpass', 2400, 0.4, 1.7).g;
+    const w = mk('bandpass', 380, 1.4, 0.6);
+    this.windGain = w.g;
+    this.windFilter = w.f;
+  }
+
+  /** Ambient weather loops: rain hiss and wind howl, 0..1 each. */
+  setWeather(rain: number, wind: number) {
+    this.rainTarget = rain;
+    this.windTarget = wind;
+  }
+
+  thunder() {
+    if (!this.ready) return;
+    const t = this.ctx!.currentTime + 0.15 + Math.random() * 0.5;
+    this.noiseBurst(t, 2.2, 'lowpass', 160, 0.7, 0.55, 0.03, 0.5);
+    this.noiseBurst(t + 0.05, 0.6, 'lowpass', 600, 0.5, 0.3, 0.01, 0.8);
+  }
+
   /** 0..1 excitement of the crowd. */
   setCrowd(level: number) {
     this.crowdTarget = level;
@@ -104,6 +145,15 @@ class AudioEngine {
     const g = 0.06 + this.crowdLevel * 0.22;
     this.crowdGain.gain.setTargetAtTime(g, this.ctx.currentTime, 0.1);
     this.crowdFilter.frequency.setTargetAtTime(480 + this.crowdLevel * 500, this.ctx.currentTime, 0.2);
+    if (!this.rainGain && (this.rainTarget > 0 || this.windTarget > 0)) this.startWeather();
+    if (this.rainGain && this.windGain && this.windFilter) {
+      const now = this.ctx.currentTime;
+      this.rainGain.gain.setTargetAtTime(this.rainTarget * 0.16, now, 0.5);
+      // gusty wind
+      const gust = 0.6 + 0.4 * Math.sin(now * 0.7) * Math.sin(now * 0.31 + 1);
+      this.windGain.gain.setTargetAtTime(this.windTarget * 0.22 * gust, now, 0.3);
+      this.windFilter.frequency.setTargetAtTime(300 + gust * 260, now, 0.3);
+    }
   }
 
   private env(g: GainNode, t: number, peak: number, attack: number, decay: number) {
