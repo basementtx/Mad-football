@@ -466,7 +466,7 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
     for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) b.set(x + i, y + j, r, tone, 6);
   };
   // face, drawn with HD detail: eye white + pupil, brows, mouth
-  // three-quarter face: both eyes show, the near one bigger. Eye styles are tiny
+  // side-profile face: one eye. Eye styles are tiny
   // bitmaps on the HD grid: l lid, w white, i iris, p pupil, s sparkle
   const U = 1 / (SS * HEAD_K); // one HD pixel in head-local units
   const STYLE = EYE_BITMAPS[look.eyes ?? 0] ?? EYE_BITMAPS[0];
@@ -482,19 +482,16 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
   };
   const eye = (oy = 0, closed = false) => {
     if (closed) {
-      for (const [ex, w] of [[1.5, 3], [3.4, 2]] as const) for (let i = 0; i < w; i++) dot(ex - 0.35 + i * 0.4, -0.1 + oy, R_EYE, 2, 1);
+      for (const [ex, w] of [[2.6, 3]] as const) for (let i = 0; i < w; i++) dot(ex - 0.35 + i * 0.4, -0.1 + oy, R_EYE, 2, 1);
       return;
     }
-    paint(STYLE, 1.0, -0.95 + oy);
-    // far eye: the front half of the same eye, narrower
-    paint(STYLE.map((r) => r.slice(Math.max(0, r.length - 2))), 3.05, -0.9 + oy);
+    // side profile: only the near eye shows, a little behind the nose
+    paint(STYLE, 2.15, -0.95 + oy);
   };
   const brow = (tilt: number) => {
-    dot(0.9, -1.85 - tilt * 0.3, R_HAIR, 0, 1);
-    dot(1.45, -2.0, R_HAIR, 0, 1);
-    dot(2.0, -1.9 + tilt * 0.3, R_HAIR, 0, 1);
-    dot(3.05, -1.8 + tilt * 0.3, R_HAIR, 0, 1);
-    dot(3.55, -1.85, R_HAIR, 0, 1);
+    dot(2.05, -1.85 - tilt * 0.3, R_HAIR, 0, 1);
+    dot(2.6, -2.0, R_HAIR, 0, 1);
+    dot(3.15, -1.9 + tilt * 0.35, R_HAIR, 0, 1);
   };
   switch (J.face) {
     case 'ko':
