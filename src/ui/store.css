@@ -175,3 +175,5 @@
 #ui .motm .mvp-name { animation: m-rise .5s var(--e-out) 1.5s backwards; }
 #ui .motm .mvp-line { display: flex; gap: 10px; font-weight: 700; animation: m-rise .5s var(--e-out) 1.6s backwards; }
 #ui .motm .mvp-line b { font-family: var(--display); font-size: 16px; color: var(--ink); }
+#ui .eye-crop { display: block; position: relative; width: 40px; height: 20px; overflow: hidden; }
+#ui .eye-crop .eye-ic { position: absolute; left: -20px; top: -16px; width: 80px; height: 75px; image-rendering: pixelated; }

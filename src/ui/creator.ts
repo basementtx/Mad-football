@@ -2,8 +2,8 @@
 import { t } from '../engine/i18n';
 import { audio } from '../engine/audio';
 import { profile, saveProfile, cardById, clubTeamDef, saveMyPlayer } from '../meta/profile';
-import { CardData, Pos, SKINS, HAIRS, HAIR_STYLES, FACES, STAT_KEYS, StatKey, uid, overall } from '../meta/cards';
-import { DYES, CosKind } from '../meta/cosmetics';
+import { CardData, Pos, SKINS, HAIRS, HAIR_STYLES, FACES, EYE_STYLES, EYE_COLORS, STAT_KEYS, StatKey, uid, overall } from '../meta/cards';
+import { DYES, EYE_COLS, CosKind } from '../meta/cosmetics';
 import { lockTag, isLocked, askUnlock } from './unlock';
 import { portraitSource } from './common';
 import { setScreen, bind, esc, paintTag, paintAll, spriteSource, lookFor, ui, MenuHandlers } from './common';
@@ -44,6 +44,8 @@ export function showCreator(h: MenuHandlers, first: boolean) {
           <div class="ce-row"><span>${L.skin}</span><div class="swatches">${SKINS.map((c) => `<button class="sw ${d.look.skin === c ? 'on' : ''}" data-skin="${c}" style="--c:${c}"></button>`).join('')}</div></div>
           <div class="ce-row"><span>${L.hairStyle}</span><div class="opts" id="cr-hair"></div></div>
           <div class="ce-row"><span>${L.faceShape}</span><div class="opts" id="cr-face"></div></div>
+          <div class="ce-row"><span>${L.eyeStyle}</span><div class="opts" id="cr-eyes"></div></div>
+          <div class="ce-row"><span>${L.eyeColor}</span><div class="swatches" id="cr-eyecol"></div></div>
           <div class="ce-row"><span>${L.hairColor}</span><div class="swatches" id="cr-dye"></div></div>
           <div class="ce-row"><span>${L.beard}</span><button class="toggle ${d.look.beard ? 'on' : ''}" data-act="beard"><i></i></button></div>
           <div class="ce-row stats-head"><span>${L.pointsLeft}</span><b id="cr-pts"></b></div>
@@ -63,6 +65,11 @@ export function showCreator(h: MenuHandlers, first: boolean) {
     const faces = document.getElementById('cr-face')!;
     faces.innerHTML = Array.from({ length: FACES }, (_, i) => `<button class="opt-c ${(d.look.face ?? 0) === i ? 'on' : ''} ${isLocked('face', i) ? 'locked' : ''}" data-fc="${i}">${paintTag(portraitSource(lookFor(club, { ...d.look, face: i })), 'face-ic')}${lockTag('face', i)}</button>`).join('');
     paintAll(faces);
+    const eyesEl = document.getElementById('cr-eyes')!;
+    eyesEl.innerHTML = Array.from({ length: EYE_STYLES }, (_, i) => `<button class="opt-c ${(d.look.eyes ?? 0) === i ? 'on' : ''} ${isLocked('eyes', i) ? 'locked' : ''}" data-ey="${i}"><span class="eye-crop">${paintTag(portraitSource(lookFor(club, { ...d.look, eyes: i })), 'eye-ic')}</span>${lockTag('eyes', i)}</button>`).join('');
+    paintAll(eyesEl);
+    const eyeCols = document.getElementById('cr-eyecol')!;
+    eyeCols.innerHTML = EYE_COLS.map((c) => `<button class="sw ${(d.look.eyeColor ?? EYE_COLORS[0]) === c ? 'on' : ''} ${isLocked('eyecol', c) ? 'locked' : ''}" data-ec="${c}" style="--c:${c}">${lockTag('eyecol', c)}</button>`).join('');
     const dyes = document.getElementById('cr-dye')!;
     dyes.innerHTML = DYES.map((c) => `<button class="sw ${d.look.hair === c ? 'on' : ''} ${isLocked('dye', c) ? 'locked' : ''}" data-hc="${c}" style="--c:${c}">${lockTag('dye', c)}</button>`).join('');
     // try a look on; locked ones open the unlock sheet and revert on cancel
@@ -74,6 +81,8 @@ export function showCreator(h: MenuHandlers, first: boolean) {
     };
     bind('[data-hs]', (b) => { const prev = d.look.hairStyle; const v = Number(b.dataset.hs); tryOn('hair', v, () => (d.look.hairStyle = v), () => (d.look.hairStyle = prev)); }, hairs);
     bind('[data-fc]', (b) => { const prev = d.look.face ?? 0; const v = Number(b.dataset.fc); tryOn('face', v, () => (d.look.face = v), () => (d.look.face = prev)); }, faces);
+    bind('[data-ey]', (b) => { const prev = d.look.eyes ?? 0; const v = Number(b.dataset.ey); tryOn('eyes', v, () => (d.look.eyes = v), () => (d.look.eyes = prev)); }, eyesEl);
+    bind('[data-ec]', (b) => { const prev = d.look.eyeColor; const v = b.dataset.ec!; tryOn('eyecol', v, () => (d.look.eyeColor = v), () => (d.look.eyeColor = prev)); }, eyeCols);
     bind('[data-hc]', (b) => { const prev = d.look.hair; const v = b.dataset.hc!; tryOn('dye', v, () => (d.look.hair = v), () => (d.look.hair = prev)); }, dyes);
     const left = CREATOR_POINTS - spent();
     document.getElementById('cr-pts')!.textContent = String(left);
@@ -112,6 +121,8 @@ export function showCreator(h: MenuHandlers, first: boolean) {
   bind('[data-act=save]', () => {
     if (isLocked('hair', d.look.hairStyle)) d.look.hairStyle = 0;
     if (isLocked('face', d.look.face ?? 0)) d.look.face = 0;
+    if (isLocked('eyes', d.look.eyes ?? 0)) d.look.eyes = 0;
+    if (d.look.eyeColor && isLocked('eyecol', d.look.eyeColor)) d.look.eyeColor = EYE_COLORS[0];
     if (isLocked('dye', d.look.hair)) d.look.hair = HAIRS[1];
     d.name = d.name.trim() || 'Mad Striker';
     saveMyPlayer(d);

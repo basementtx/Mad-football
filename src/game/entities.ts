@@ -204,6 +204,8 @@ export class Player {
   hair = pick(HAIR_COLORS);
   hairStyle = randInt(0, 11);
   faceShape = randInt(0, 4);
+  eyes = randInt(0, 6);
+  eyeColor = ['#5a3e2e', '#2a1e18', '#8a6a2a', '#3f8a4a', '#3f7ad8', '#7a8aa0'][randInt(0, 5)];
   beard = Math.random() < 0.25;
   build = 0.92 + Math.random() * 0.16;
 
@@ -240,6 +242,8 @@ export class Player {
     this.hair = c.look.hair;
     this.hairStyle = c.look.hairStyle;
     this.faceShape = c.look.face ?? 0;
+    this.eyes = c.look.eyes ?? 0;
+    if (c.look.eyeColor) this.eyeColor = c.look.eyeColor;
     this.beard = c.look.beard;
     this.number = c.number;
   }

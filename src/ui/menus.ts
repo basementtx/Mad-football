@@ -318,7 +318,7 @@ function cardOf(p: Player): CardData {
   return {
     id: 'motm', name: p.name, number: p.number, pos,
     stats: { pac: v(p.pace), sho: v(p.power), pas: v(p.skill), dri: v(p.skill * 0.6 + p.pace * 0.4), def: v(p.tackle), phy: v(p.power * 0.5 + p.tackle * 0.5) },
-    look: { skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard, face: p.faceShape },
+    look: { skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard, face: p.faceShape, eyes: p.eyes, eyeColor: p.eyeColor },
   };
 }
 

@@ -12,7 +12,16 @@ export const PORTRAIT_H = 30;
 const cache = new Map<string, HTMLCanvasElement>();
 const WHITE: RGB = [246, 244, 238];
 const EYE: RGB = [24, 20, 34];
-const IRIS: RGB = [84, 62, 46];
+/** front eye bitmaps (right eye; the left one is mirrored), 6x5, per eye style */
+const PORTRAIT_EYES: string[][] = [
+  ['.llll.', 'lwsiil', 'wwippw', 'wwiiiw', '.wwww.'], // round
+  ['......', '.lllll', 'lwsipw', '.wiiw.', '......'], // almond
+  ['.llll.', 'lsiisl', 'wiippw', 'wiippw', '.wiiw.'], // big
+  ['......', '......', 'llllll', 'wwsipw', '.wwww.'], // sleepy
+  ['....ll', '.llll.', 'lwsipw', '.wiiw.', '......'], // sharp
+  ['......', '..pp..', '..pp..', '......', '......'], // dot
+  ['l.l.l.', 'llllll', 'lwsiil', 'wwippw', '.wiiw.'], // lashes
+];
 const MOUTH: RGB = [150, 52, 60];
 
 function portraitBase(look: PlayerLook): HTMLCanvasElement {
@@ -256,7 +265,7 @@ const hdCache = new Map<string, HTMLCanvasElement>();
  * sparkle, expressive brows, a smile and rosy cheeks.
  */
 export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
-  const key = `${look.kit.id}|${look.kit.primary}|${look.kit.secondary}|${look.kit.pattern}|${look.isGK}|${look.skin}|${look.hair}|${look.hairStyle}|${look.beard}|${look.face ?? 0}`;
+  const key = `${look.kit.id}|${look.kit.primary}|${look.kit.secondary}|${look.kit.pattern}|${look.isGK}|${look.skin}|${look.hair}|${look.hairStyle}|${look.beard}|${look.face ?? 0}|${look.eyes ?? 0}|${look.eyeColor ?? ''}`;
   const hit = hdCache.get(key);
   if (hit) return hit;
   const src = portraitBase(look);
@@ -317,18 +326,18 @@ export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
       area.data[o] = tone[0]; area.data[o + 1] = tone[1]; area.data[o + 2] = tone[2];
     }
   g.putImageData(area, 18, 16);
+  const IR = ramp(look.eyeColor ?? '#5a3e2e');
+  const bmp = PORTRAIT_EYES[look.eyes ?? 0] ?? PORTRAIT_EYES[0];
   for (const s of [-1, 1]) {
     const ex = s < 0 ? 22 : 34; // left edge of a 6-px eye
-    px(ex, 20, WHITE, 6, 4);
-    px(ex + 1, 19, WHITE, 4, 1);
-    px(ex + (s < 0 ? 2 : 1), 20, IRIS, 3, 4);
-    px(ex + (s < 0 ? 3 : 2), 21, EYE, 2, 2);
-    px(ex + (s < 0 ? 2 : 1), 20, WHITE, 1, 1);
-    // upper lid
-    px(ex, 19, EYE, 1, 1);
-    px(ex + 5, 19, EYE, 1, 1);
-    px(ex + 1, 18, EYE, 4, 1);
-    px(ex, 24, mix(SK[1], EYE, 0.2), 6, 1);
+    bmp.forEach((row, j) => {
+      for (let i = 0; i < 6; i++) {
+        const ch = (s < 0 ? row[5 - i] : row[i]) ?? '.';
+        if (ch === '.') continue;
+        const col = ch === 'l' || ch === 'p' ? EYE : ch === 'i' ? IR[j >= 3 ? 1 : 2] : WHITE;
+        px(ex + i, 19 + j, col, 1, 1);
+      }
+    });
     // brow, a little raised and tilted out
     const bc = mix(HR[0], SK[1], 0.1);
     px(ex + 1, 15, bc, 4, 1);

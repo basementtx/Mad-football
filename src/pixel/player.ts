@@ -24,6 +24,9 @@ export interface PlayerLook {
   beard: boolean;
   /** face / head shape (0 = classic) */
   face?: number;
+  /** eye style and iris colour */
+  eyes?: number;
+  eyeColor?: string;
 }
 
 // ------------------------------------------------------------------ poses
@@ -150,7 +153,7 @@ function buildPose(p: PoseP, isGK: boolean): Joints {
 
 // ------------------------------------------------------------------ raster
 
-const R_JER = 0, R_JER2 = 1, R_SHORTS = 2, R_SOCK = 3, R_SKIN = 4, R_HAIR = 5, R_BOOT = 6, R_WHITE = 7, R_EYE = 8, R_MOUTH = 9, R_ACC = 10;
+const R_JER = 0, R_JER2 = 1, R_SHORTS = 2, R_SOCK = 3, R_SKIN = 4, R_HAIR = 5, R_BOOT = 6, R_WHITE = 7, R_EYE = 8, R_MOUTH = 9, R_ACC = 10, R_IRIS = 11;
 const BOOT_ACCENTS = ['#ff4d3d', '#ffd23f', '#3bd9ff', '#5ff0a4', '#ff3fa4', '#ff8a1f', '#f4f4f4'];
 
 class Buf {
@@ -172,6 +175,17 @@ class Buf {
 
 const LX = 0.55, LY = -0.83; // key light from above, in front of the player (lights the face)
 const RIM: RGB = [196, 226, 255];
+
+/** near-eye bitmaps (facing right) per eye style */
+const EYE_BITMAPS: string[][] = [
+  ['llll', 'wsip', 'wiip', '.ww.'], // round
+  ['.lll', 'wsip', 'llll'], // almond
+  ['.ll.', 'lsil', 'wiip', 'wiip', '.ww.'], // big
+  ['....', 'llll', 'wiip', '.ww.'], // sleepy
+  ['l...', '.lll', 'wsip', '.wi.'], // sharp
+  ['....', '.pp.', '.pp.'], // dot
+  ['l.ll', 'llll', 'wsip', 'wiip', '.ww.'], // lashes
+];
 
 function toneFor(nx: number, ny: number, depth: number) {
   if (depth < 0.32) return 2;
@@ -222,7 +236,7 @@ export interface BuiltSheet {
 const sheetCache = new Map<string, BuiltSheet>();
 
 export function lookKey(l: PlayerLook) {
-  return `${l.kit.id}|${l.kit.primary}|${l.kit.secondary}|${l.kit.shorts}|${l.kit.socks}|${l.kit.pattern}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}|${l.face ?? 0}`;
+  return `${l.kit.id}|${l.kit.primary}|${l.kit.secondary}|${l.kit.shorts}|${l.kit.socks}|${l.kit.pattern}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}|${l.face ?? 0}|${l.eyes ?? 0}|${l.eyeColor ?? ''}`;
 }
 
 export function playerSheet(look: PlayerLook): BuiltSheet {
@@ -241,6 +255,7 @@ export function playerSheet(look: PlayerLook): BuiltSheet {
   ramps[R_WHITE] = ramp('#eef0f5');
   ramps[R_EYE] = ramp('#16121e');
   ramps[R_MOUTH] = ramp('#8a2030');
+  ramps[R_IRIS] = ramp(look.eyeColor ?? '#5a3e2e');
   // boot colour: each player picks his own (stable per look)
   let hsh = 0;
   for (const ch of look.skin + look.hair + look.hairStyle + (look.face ?? 0)) hsh = (hsh * 31 + ch.charCodeAt(0)) | 0;
@@ -431,24 +446,28 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
     for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) b.set(x + i, y + j, r, tone, 6);
   };
   // face, drawn with HD detail: eye white + pupil, brows, mouth
-  // three-quarter face: both eyes show, the near one bigger
+  // three-quarter face: both eyes show, the near one bigger. Eye styles are tiny
+  // bitmaps on the HD grid: l lid, w white, i iris, p pupil, s sparkle
+  const U = 1 / (SS * HEAD_K); // one HD pixel in head-local units
+  const STYLE = EYE_BITMAPS[look.eyes ?? 0] ?? EYE_BITMAPS[0];
+  const paint = (rows: string[], ox: number, oy: number) => {
+    rows.forEach((row, j) => {
+      for (let i = 0; i < row.length; i++) {
+        const ch = row[i];
+        if (ch === '.') continue;
+        const [r, t] = ch === 'l' || ch === 'p' ? [R_EYE, ch === 'p' ? 1 : 2] : ch === 'i' ? [R_IRIS, j >= 2 ? 1 : 2] : [R_WHITE, 3];
+        dot(ox + i * U, oy + j * U, r, t, 1);
+      }
+    });
+  };
   const eye = (oy = 0, closed = false) => {
     if (closed) {
       for (const [ex, w] of [[2.3, 3], [0.2, 2]] as const) for (let i = 0; i < w; i++) dot(ex - 0.35 + i * 0.4, -0.1 + oy, R_EYE, 2, 1);
       return;
     }
-    // near eye: 2x3 HD white with a 1x2 pupil and a sparkle
-    dot(1.85, -0.85 + oy, R_WHITE, 3, 2);
-    dot(1.85, -0.2 + oy, R_WHITE, 3, 2);
-    dot(2.25, -0.75 + oy, R_EYE, 2, 1);
-    dot(2.25, -0.3 + oy, R_EYE, 2, 1);
-    dot(2.25, 0.15 + oy, R_EYE, 2, 1);
-    dot(1.85, -0.75 + oy, R_WHITE, 3, 1);
-    // far eye, a little smaller, toward the back of the face
-    dot(0.15, -0.7 + oy, R_WHITE, 3, 1);
-    dot(0.15, -0.25 + oy, R_WHITE, 3, 1);
-    dot(0.5, -0.7 + oy, R_EYE, 2, 1);
-    dot(0.5, -0.25 + oy, R_EYE, 2, 1);
+    paint(STYLE, 1.55, -1.25 + oy);
+    // far eye: the front half of the same eye, narrower
+    paint(STYLE.map((r) => r.slice(Math.max(0, r.length - 2))), 0.1, -1.15 + oy);
   };
   const brow = (tilt: number) => {
     dot(1.6, -1.75 - tilt * 0.35, R_HAIR, 0, 1);

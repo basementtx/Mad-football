@@ -5,12 +5,12 @@
  */
 import { ITEMS, Item, ItemRarity, itemById } from './items';
 import { profile, saveProfile, spendCoins, addCopy } from './profile';
-import { HAIRS, HAIRS_EXTRA, HAIR_STYLES, FACES } from './cards';
+import { HAIRS, HAIRS_EXTRA, HAIR_STYLES, FACES, EYE_STYLES, EYE_COLORS, EYE_COLORS_EXTRA } from './cards';
 import { CREST_SHAPES, ICON_IDS } from '../pixel/crest';
 import { settings } from '../engine/storage';
 import { pick } from '../engine/math';
 
-export type CosKind = 'pattern' | 'hair' | 'dye' | 'face' | 'shape' | 'icon';
+export type CosKind = 'pattern' | 'hair' | 'dye' | 'face' | 'shape' | 'icon' | 'eyes' | 'eyecol';
 export interface Cosmetic {
   id: string; // kind:value
   kind: CosKind;
@@ -34,10 +34,13 @@ for (let h = 7; h < HAIR_STYLES; h++) add('hair', h, RAR(h, ['rare', 'common', '
 HAIRS_EXTRA.forEach((c, i) => add('dye', c, RAR(i, ['common', 'rare', 'rare', 'epic', 'epic', 'rare'])));
 for (let f = 1; f < FACES; f++) add('face', f, RAR(f, ['common', 'common', 'rare', 'rare']));
 for (let s = 5; s < CREST_SHAPES; s++) add('shape', s, RAR(s, ['rare', 'common', 'epic', 'rare', 'legendary']));
+for (let e = 3; e < EYE_STYLES; e++) add('eyes', e, RAR(e, ['rare', 'common', 'rare', 'epic']));
+EYE_COLORS_EXTRA.forEach((c, i) => add('eyecol', c, RAR(i, ['rare', 'epic', 'legendary', 'epic'])));
 ICON_IDS.filter((i) => !FREE_ICONS.includes(i)).forEach((ic, i) => add('icon', ic, RAR(i, ['common', 'rare', 'common', 'epic', 'rare', 'epic', 'legendary', 'rare'])));
 
 export const PATTERNS = ALL_PATTERNS;
 export const DYES = [...HAIRS, ...HAIRS_EXTRA];
+export const EYE_COLS = [...EYE_COLORS, ...EYE_COLORS_EXTRA];
 export const cosById = (id: string) => COSMETICS.find((c) => c.id === id);
 export const cosFor = (kind: CosKind, value: string | number) => cosById(`${kind}:${value}`);
 
@@ -54,6 +57,8 @@ const NAMES: Record<CosKind, { en: string; tr: string }> = {
   face: { en: 'Face', tr: 'Yüz' },
   shape: { en: 'Crest shape', tr: 'Arma şekli' },
   icon: { en: 'Crest icon', tr: 'Arma simgesi' },
+  eyes: { en: 'Eyes', tr: 'Gözler' },
+  eyecol: { en: 'Eye colour', tr: 'Göz rengi' },
 };
 const VALUE_NAMES: Record<string, { en: string; tr: string }> = {
   'pattern:pinstripe': { en: 'Pinstripe', tr: 'İnce Çizgi' }, 'pattern:checker': { en: 'Checkerboard', tr: 'Dama' },
@@ -65,6 +70,8 @@ const VALUE_NAMES: Record<string, { en: string; tr: string }> = {
   'face:3': { en: 'Long Face', tr: 'Uzun Yüz' }, 'face:4': { en: 'Sharp Chin', tr: 'Sivri Çene' },
   'shape:5': { en: 'Octagon', tr: 'Sekizgen' }, 'shape:6': { en: 'Castle', tr: 'Kale' }, 'shape:7': { en: 'Round Shield', tr: 'Yuvarlak Kalkan' },
   'shape:8': { en: 'Sunburst', tr: 'Güneş' }, 'shape:9': { en: 'Pennant', tr: 'Flama' },
+  'eyes:3': { en: 'Sleepy Eyes', tr: 'Uykulu Gözler' }, 'eyes:4': { en: 'Sharp Eyes', tr: 'Keskin Gözler' }, 'eyes:5': { en: 'Dot Eyes', tr: 'Nokta Gözler' }, 'eyes:6': { en: 'Long Lashes', tr: 'Uzun Kirpikler' },
+  'eyecol:#8a4ad8': { en: 'Violet Eyes', tr: 'Mor Gözler' }, 'eyecol:#d83a3a': { en: 'Red Eyes', tr: 'Kırmızı Gözler' }, 'eyecol:#ffd23f': { en: 'Golden Eyes', tr: 'Altın Gözler' }, 'eyecol:#5fe8ff': { en: 'Ice Eyes', tr: 'Buz Gözler' },
   'dye:#f4f1e8': { en: 'Platinum', tr: 'Platin' }, 'dye:#ff7a1a': { en: 'Orange', tr: 'Turuncu' }, 'dye:#ff3fa4': { en: 'Pink', tr: 'Pembe' },
   'dye:#8a5cff': { en: 'Violet', tr: 'Mor' }, 'dye:#3f8cff': { en: 'Electric Blue', tr: 'Elektrik Mavisi' }, 'dye:#21c48a': { en: 'Mint', tr: 'Nane' },
 };

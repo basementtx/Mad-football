@@ -50,6 +50,8 @@ function offerArt(o: StoreOffer) {
     case 'hair': return paintTag(portraitSource(lookFor(club, { ...base, hairStyle: Number(c.value) })), 'so-face');
     case 'face': return paintTag(portraitSource(lookFor(club, { ...base, face: Number(c.value) })), 'so-face');
     case 'dye': return paintTag(portraitSource(lookFor(club, { ...base, hair: c.value })), 'so-face');
+    case 'eyes': return paintTag(portraitSource(lookFor(club, { ...base, eyes: Number(c.value) })), 'so-face');
+    case 'eyecol': return paintTag(portraitSource(lookFor(club, { ...base, eyeColor: c.value })), 'so-face');
     case 'shape': return crestTag({ ...club, crest: { ...club.crest, shape: Number(c.value) } }, 'so-crest');
     case 'icon': return crestTag({ ...club, crest: { ...club.crest, icon: c.value } }, 'so-crest');
   }
