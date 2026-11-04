@@ -1,0 +1,122 @@
+/* ===================================================================
+   3D crates (CSS 3D, pixel-art textures) + the opening sequence
+   =================================================================== */
+.c3d { --d: calc(var(--s) * 0.74); --hb: calc(var(--s) * 0.6); --hl: calc(var(--s) * 0.2);
+  --glow: #ffd27a; position: relative; flex: none; width: var(--s); height: calc(var(--hb) + var(--hl)); perspective: calc(var(--s) * 6); perspective-origin: 50% 20%; }
+.c3d.k-premium { --glow: #7fc8ff; }
+.c3d.k-legend { --glow: #ffd23f; }
+.c3d-float, .c3d-rot, .c3d-body, .c3d-lid { position: absolute; transform-style: preserve-3d; }
+.c3d-float { inset: 0; animation: c3d-bob 3.2s ease-in-out infinite; }
+.c3d-rot { inset: 0; transform: rotateX(-20deg) rotateY(-26deg); animation: c3d-turn 7s ease-in-out infinite alternate; }
+@keyframes c3d-bob { 50% { transform: translate3d(0, -6%, 0); } }
+@keyframes c3d-turn { from { transform: rotateX(-22deg) rotateY(-30deg); } to { transform: rotateX(-15deg) rotateY(30deg); } }
+.c3d-body { left: 0; top: var(--hl); width: var(--s); height: var(--hb); }
+.c3d-lid { left: 0; top: 0; width: var(--s); height: var(--hl); transform-origin: 50% 100% calc(var(--d) / -2); transition: transform .55s cubic-bezier(.34, 1.56, .64, 1); }
+.c3d .f { position: absolute; display: block; background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated; backface-visibility: hidden; }
+.c3d .f-front, .c3d .l-front { inset: 0; transform: translateZ(calc(var(--d) / 2)); }
+.c3d .f-back, .c3d .l-back { inset: 0; transform: rotateY(180deg) translateZ(calc(var(--d) / 2)); filter: brightness(.55); }
+.c3d .f-left, .c3d .f-right, .c3d .l-left, .c3d .l-right { top: 0; height: 100%; width: var(--d); left: calc((var(--s) - var(--d)) / 2); }
+.c3d .f-right, .c3d .l-right { transform: rotateY(90deg) translateZ(calc(var(--s) / 2)); filter: brightness(.7); }
+.c3d .f-left, .c3d .l-left { transform: rotateY(-90deg) translateZ(calc(var(--s) / 2)); filter: brightness(.86); }
+.c3d .f-bottom { left: 0; width: 100%; height: var(--d); top: calc(var(--hb) - var(--d) / 2); transform: rotateX(-90deg); filter: brightness(.35); }
+.c3d .f-in { left: 0; width: 100%; height: var(--d); top: calc(var(--d) / -2); transform: rotateX(90deg) translateZ(-2px); backface-visibility: visible; }
+.c3d .f-in::after { content: ''; position: absolute; inset: 0; background: radial-gradient(closest-side, var(--glow), transparent); opacity: var(--inglow, 0); transition: opacity .3s; }
+.c3d .l-top { left: 0; width: 100%; height: var(--d); top: calc(var(--d) / -2); transform: rotateX(90deg); filter: brightness(1.12); }
+.c3d .l-under { left: 0; width: 100%; height: var(--d); top: calc(var(--hl) - var(--d) / 2); transform: rotateX(-90deg); backface-visibility: visible; filter: brightness(.6); }
+/* light pouring out of the open crate */
+.c3d-light { position: absolute; left: 8%; width: 84%; bottom: 100%; height: calc(var(--s) * 2.4); transform-origin: 50% 100%; transform: scaleY(0); opacity: 0; pointer-events: none;
+  background: linear-gradient(to top, #fff 0%, var(--glow) 18%, color-mix(in srgb, var(--glow) 40%, transparent) 55%, transparent 100%);
+  clip-path: polygon(14% 100%, 86% 100%, 100% 0, 0 0); transition: transform .5s cubic-bezier(.16, 1, .3, 1), opacity .3s; }
+.c3d-aura { position: absolute; left: 50%; top: 55%; width: 190%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--glow) 55%, transparent) 0%, transparent 62%); opacity: .45; animation: c3d-aura 2.6s ease-in-out infinite; }
+@keyframes c3d-aura { 50% { opacity: .7; transform: translate(-50%, -50%) scale(1.1); } }
+.c3d-shadow { position: absolute; left: 12%; right: 12%; bottom: -10%; height: 16%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,0.55), transparent); animation: c3d-shadow 3.2s ease-in-out infinite; }
+@keyframes c3d-shadow { 50% { transform: scale(.82); opacity: .7; } }
+/* legend crates sparkle */
+.c3d.k-legend .c3d-aura { background: radial-gradient(circle, rgba(255,210,63,0.6) 0%, rgba(255,63,164,0.28) 38%, transparent 62%); opacity: .7; }
+
+/* peek on hover / touch in the shop */
+@media (hover: hover) {
+  .crate-card:hover .c3d-lid, .tile:hover .c3d-lid { transform: rotateX(22deg); }
+  .crate-card:hover .c3d, .tile:hover .c3d { --inglow: 1; }
+  .crate-card:hover .c3d-light, .tile:hover .c3d-light { opacity: .65; transform: scaleY(.45); }
+}
+
+/* slots in the menus */
+#ui .crate-card .c3d { margin: 10px 0 14px; }
+#ui .tile .c3d { margin-top: 4%; }
+
+/* ---------------------------------------------------------------- opening sequence */
+#ui .opening { overflow: hidden; }
+#ui .opening.shake { animation: op-shake .5s cubic-bezier(.36,.07,.19,.97); }
+@keyframes op-shake { 10%, 90% { transform: translate3d(-2px, 1px, 0); } 20%, 80% { transform: translate3d(4px, -2px, 0); } 30%, 50%, 70% { transform: translate3d(-8px, 3px, 0); } 40%, 60% { transform: translate3d(8px, -3px, 0); } }
+#ui .open-crate { position: relative; z-index: 1; animation: c3d-drop 1s cubic-bezier(.3, .7, .4, 1) both; }
+@keyframes c3d-drop {
+  0% { transform: translateY(-110vh) scale(.9); }
+  55% { transform: translateY(0) scale(1.12, .84); }
+  68% { transform: translateY(-5%) scale(.95, 1.06); }
+  82% { transform: translateY(0) scale(1.03, .97); }
+  100% { transform: none; }
+}
+#ui .open-crate .c3d-rot { animation-duration: 4s; }
+#ui .open-stage .c3d { --glow: var(--og, #ffd27a); }
+#ui .open-dust { position: absolute; left: 50%; top: 50%; width: 0; height: 0; z-index: 0; }
+#ui .open-ring { position: absolute; left: 50%; top: 50%; width: 60vmin; height: 60vmin; margin: -30vmin 0 0 -30vmin; border-radius: 50%; border: 6px solid var(--og); opacity: 0; pointer-events: none; z-index: 3; }
+#ui .burst .open-ring { animation: op-ring .8s cubic-bezier(.16, 1, .3, 1); }
+@keyframes op-ring { 0% { transform: scale(.1); opacity: 1; border-width: 24px; } 100% { transform: scale(2.4); opacity: 0; border-width: 2px; } }
+
+/* build-up: three escalating hits */
+#ui .open-stage.hit .open-crate .c3d-float { animation: op-hit .32s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes op-hit { 0% { transform: scale(1); } 25% { transform: scale(1.14, .86) translateY(4%); } 60% { transform: scale(.94, 1.08) translateY(-6%); } 100% { transform: scale(1); } }
+#ui .charge1 .c3d { --inglow: .5; }
+#ui .charge1 .c3d-lid { transform: rotateX(8deg); }
+#ui .charge1 .c3d-light { opacity: .4; transform: scaleY(.25); }
+#ui .charge2 .c3d { --inglow: .8; }
+#ui .charge2 .c3d-lid { transform: rotateX(16deg); }
+#ui .charge2 .c3d-light { opacity: .65; transform: scaleY(.45); }
+#ui .charge2 .c3d-rot { animation: op-wobble .14s ease-in-out infinite alternate; }
+#ui .charge3 .c3d { --inglow: 1; }
+#ui .charge3 .c3d-lid { transform: rotateX(26deg); }
+#ui .charge3 .c3d-light { opacity: .9; transform: scaleY(.75); }
+#ui .charge3 .c3d-rot { animation: op-wobble .07s ease-in-out infinite alternate; }
+#ui .charge3 .c3d-aura { opacity: 1; transform: translate(-50%, -50%) scale(1.5); }
+@keyframes op-wobble { from { transform: rotateX(-18deg) rotateY(-6deg) rotateZ(-2deg); } to { transform: rotateX(-18deg) rotateY(6deg) rotateZ(2deg); } }
+#ui .charge1 .tap-start, #ui .burst .tap-start { visibility: hidden; }
+
+/* burst: lid flies off, a pillar of light, the crate settles low */
+#ui .burst .c3d-lid { transition: none; animation: op-lid .9s cubic-bezier(.2, .7, .4, 1) forwards; }
+@keyframes op-lid { 0% { transform: rotateX(26deg); } 30% { transform: translate3d(0, -140%, 0) rotateX(120deg); opacity: 1; } 100% { transform: translate3d(60%, -420%, -200px) rotateX(300deg) rotateZ(40deg); opacity: 0; } }
+#ui .burst .c3d { --inglow: 1; }
+#ui .burst .c3d-light { opacity: 1; transform: scaleY(1.6); transition-duration: .35s; }
+#ui .burst .c3d-rot { animation: none; transform: rotateX(-24deg) rotateY(0deg); transition: transform .5s; }
+#ui .burst .c3d-aura { opacity: 1; transform: translate(-50%, -50%) scale(2.2); }
+#ui .burst .open-crate { animation: op-settle 1s cubic-bezier(.5, 0, .2, 1) .35s forwards; }
+@keyframes op-settle { from { transform: none; } to { transform: translateY(30vh) scale(.62); } }
+#ui .opening.revealed .open-crate { animation: none; transform: translateY(30vh) scale(.62); }
+
+/* rewards rise out of the crate */
+#ui .opening .rewards { z-index: 4; }
+#ui .opening .rcard { animation: op-fly .75s cubic-bezier(.2, .9, .3, 1.12) both; animation-delay: calc(var(--i) * 0.1s); }
+#ui .opening .rcard.flipped { animation: op-fly .75s cubic-bezier(.2, .9, .3, 1.12) both, pop-big .45s cubic-bezier(.3, 1.5, .5, 1) .35s; animation-delay: calc(var(--i) * 0.1s), .05s; }
+@keyframes op-fly {
+  0% { transform: translate(var(--fx, 0), var(--fy, 30vh)) scale(.12) rotate(-20deg); opacity: 0; }
+  12% { opacity: 1; }
+  70% { transform: translate(0, -14px) scale(1.06) rotate(2deg); }
+  100% { transform: none; opacity: 1; }
+}
+#ui .opening .rc-back { background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--lc) 35%, #232c46), #141a2a 70%); }
+#ui .opening .rcard.flipped::before { content: ''; position: absolute; left: 50%; top: 50%; width: 260%; aspect-ratio: 1; transform: translate(-50%, -50%); z-index: -1; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--lc) 40%, transparent) 0 8deg, transparent 8deg 22deg);
+  -webkit-mask: radial-gradient(circle, #000 10%, transparent 60%); mask: radial-gradient(circle, #000 10%, transparent 60%); animation: m-spin2 10s linear infinite, m-fade .5s ease-out; }
+#ui .opening .rcard.lv0.flipped::before { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .c3d *, .c3d { animation: none !important; transition: none !important; }
+}
+#ui .open-crate { margin-bottom: 7vh; }
+#ui .open-beam { position: absolute; left: 50%; bottom: 50%; width: min(36vh, 240px); height: 120vh; transform: translateX(-50%) scaleY(0); transform-origin: 50% 100%; z-index: 0; pointer-events: none; opacity: 0;
+  background: linear-gradient(to top, #fff 0%, var(--og) 14%, color-mix(in srgb, var(--og) 45%, transparent) 45%, transparent 85%);
+  clip-path: polygon(30% 100%, 70% 100%, 100% 0, 0 0); filter: blur(2px); }
+#ui .charge3 .open-beam { opacity: .35; transform: translateX(-50%) scaleY(.25); transition: transform .3s, opacity .3s; }
+#ui .burst .open-beam { animation: op-beam 1.6s cubic-bezier(.16, 1, .3, 1) forwards; }
+@keyframes op-beam { 0% { opacity: 1; transform: translateX(-50%) scaleY(.2) scaleX(.6); } 25% { opacity: 1; transform: translateX(-50%) scaleY(1) scaleX(1.1); } 100% { opacity: .55; transform: translate(-50%, 30vh) scaleY(.9) scaleX(.8); } }
+#ui .opening.crate-gone .open-crate, #ui .opening.crate-gone .open-beam { opacity: 0; transition: opacity .6s; }

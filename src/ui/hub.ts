@@ -6,7 +6,7 @@ import { audio } from '../engine/audio';
 import { profile, clubTeamDef, clubOverall, cardById, freeCrateReady } from '../meta/profile';
 import { itemById, itemName } from '../meta/items';
 import { itemIcon } from '../pixel/icons';
-import { setScreen, bind, esc, paintTag, logoSource, flagTag, crestTag, coinsPill, crateTag, spriteSource, portraitSource, lookFor, MenuHandlers } from './common';
+import { setScreen, bind, esc, paintTag, logoSource, flagTag, crestTag, coinsPill, spriteSource, portraitSource, lookFor, MenuHandlers } from './common';
 import { cardHTML } from './cards';
 import { showSetup, showSettings, showHowTo } from './menus';
 import { showClubEditor, showSquad } from './club';
@@ -14,6 +14,7 @@ import { showCreator } from './creator';
 import { showShop } from './shop';
 import { showCollection } from './collection';
 import { showMarket } from './market';
+import { crate3D } from './crate3d';
 import { tickStore, newStoreOffers } from '../meta/cosmetics';
 import { market, tickMarket } from '../meta/market';
 import { TEAMS } from '../game/teams';
@@ -81,7 +82,7 @@ export function showHub(h: MenuHandlers) {
           <div class="tile-label">${me ? L.myPlayer : L.createPlayer}</div>
         </button>
         <button class="tile ${free || newStoreOffers() ? 'has-badge' : ''}" data-act="shop">
-          <div class="tile-art">${crateTag('premium', 'crate-md')}</div>
+          <div class="tile-art">${crate3D('premium', 'min(112px, 82cqh)')}</div>
           <div class="tile-label">${L.shop}</div>
           <small>${L.storeSub}</small>
           ${free ? `<div class="badge">${L.free}!</div>` : newStoreOffers() ? '<div class="badge">NEW</div>' : ''}

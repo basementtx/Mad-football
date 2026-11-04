@@ -5,8 +5,8 @@ import { CRATES, CrateDef, openCrate, Reward } from '../meta/crates';
 import { profile, saveProfile, spendCoins, freeCrateReady, FREE_CRATE_EVERY, clubTeamDef, tierOf } from '../meta/profile';
 import { ROMAN } from '../meta/items';
 import { rarityOf } from '../meta/cards';
-import { crateCanvases } from '../pixel/crate';
-import { setScreen, bind, paintTag, paintAll, coinsPill, coinTag, crateTag, toast, ui, MenuHandlers } from './common';
+import { crate3D } from './crate3d';
+import { setScreen, bind, paintTag, paintAll, coinsPill, coinTag, toast, ui, MenuHandlers } from './common';
 import { cardHTML, itemHTML } from './cards';
 import { showHub } from './hub';
 import { showCollection } from './collection';
@@ -108,7 +108,7 @@ export function showShop(h: MenuHandlers, tab: 'crates' | 'store' = shopTab) {
           const isFree = (c.id === 'basic' && freeBasic) || (c.id === 'premium' && starter);
           return `<div class="crate-card cr-${c.id}">
             <div class="crate-name">${L.crateNames[c.id]}</div>
-            ${crateTag(c.id, 'crate-lg')}
+            ${crate3D(c.id, 'clamp(96px, 26vh, 150px)')}
             <div class="crate-desc">${L.crateDesc[c.id]}</div>
             <button class="btn ${isFree ? 'btn-primary' : 'btn-ghost'} buy" data-crate="${c.id}">${isFree ? L.free + '!' : `${coinTag()} ${c.price}`}</button>
             ${c.id === 'basic' && !freeBasic ? `<div class="crate-timer">${L.freeIn} ${fmtTime(profile.freeCrateAt - Date.now())}</div>` : ''}
@@ -198,19 +198,16 @@ function showOpening(h: MenuHandlers, def: CrateDef) {
   const L = t();
   const rewards = openCrate(def);
   const best = Math.max(...rewards.map(levelOf));
-  const { body, lid } = crateCanvases(def.id);
   setScreen(
     'screen-open',
-    `<div class="opening cr-${def.id}" style="--glow:${LV_COLOR[best]}">
+    `<div class="opening cr-${def.id}" style="--glow:${LV_COLOR[0]};--og:${LV_COLOR[0]}">
       <div class="open-flash"></div>
       <div class="open-stage" data-act="open">
         <div class="rays"></div>
         <div class="glow-orb"></div>
-        <div class="crate-big">
-          ${paintTag(() => lid, 'crate-lid')}
-          <div class="crate-seam"></div>
-          ${paintTag(() => body, 'crate-body')}
-        </div>
+        <div class="open-ring"></div>
+        <div class="open-beam"></div>
+        <div class="open-crate">${crate3D(def.id, 'min(46vh, 300px)')}</div>
         <div class="spark-host" id="spark-host"></div>
         <div class="tap-start">${L.tapToOpen}</div>
       </div>
@@ -219,32 +216,49 @@ function showOpening(h: MenuHandlers, def: CrateDef) {
     </div>`,
   );
   const root = document.querySelector<HTMLElement>('.opening')!;
+  const host = document.getElementById('spark-host')!;
+  // landing: dust puff + thud
+  setTimeout(() => {
+    if (!host.isConnected) return;
+    sparks(host, ['#d8c9a0', '#b7a57c', '#ffffff'], 18, 150);
+    audio.hit(0.6);
+    vibrate(30);
+  }, 560);
   let opened = false;
+  // the glow climbs the rarity ladder with every hit, up to the best reward (walk-out style tease)
+  const setGlow = (lv: number) => {
+    root.style.setProperty('--glow', LV_COLOR[lv]);
+    root.style.setProperty('--og', LV_COLOR[lv]);
+  };
   bind('[data-act=open]', (stage) => {
     if (opened) return;
     opened = true;
-    const host = document.getElementById('spark-host')!;
-    // build-up: shaking grows, the seam starts to glow in the colour of the best reward
-    stage.classList.add('charge1');
-    audio.whoosh();
-    vibrate(20);
-    const ticks = [0, 260, 480, 660, 800, 920];
-    ticks.forEach((ms, i) => setTimeout(() => {
-      audio.countdown(i === ticks.length - 1);
-      if (i === 2) { stage.classList.add('charge2'); vibrate(30); }
-      if (i === 4) { stage.classList.add('charge3'); vibrate(40); sparks(host, [LV_COLOR[best], '#ffffff'], 8, 90); }
+    const hits = [0, 420, 800];
+    hits.forEach((ms, i) => setTimeout(() => {
+      stage.classList.remove('hit');
+      void stage.offsetWidth;
+      stage.classList.add('hit', 'charge' + (i + 1));
+      setGlow(Math.min(best, i + (best >= 3 && i === 2 ? 1 : 0)));
+      audio.countdown(false);
+      audio.hit(0.4 + i * 0.2);
+      vibrate(20 + i * 20);
+      sparks(host, [root.style.getPropertyValue('--og') || '#ffffff', '#ffffff'], 8 + i * 6, 90 + i * 30);
     }, ms));
     setTimeout(() => {
+      setGlow(best);
       stage.classList.add('burst');
-      root.classList.add('flash');
+      root.classList.add('flash', 'shake');
+      audio.countdown(true);
       audio.power();
-      audio.hit(0.8);
+      audio.hit(0.9);
       if (best >= 2) audio.horn();
       audio.cheer(0.4 + best * 0.2);
-      vibrate(best >= 2 ? [60, 30, 120] : 80);
-      sparks(host, [LV_COLOR[best], '#ffffff', '#ffe14d'], 26 + best * 10, 200 + best * 30);
-      setTimeout(() => revealAll(h, rewards), 380);
-    }, 1150);
+      vibrate(best >= 2 ? [60, 30, 140] : 90);
+      sparks(host, [LV_COLOR[best], '#ffffff', '#ffe14d'], 34 + best * 12, 230 + best * 40);
+      setTimeout(() => sparks(host, [LV_COLOR[best], '#ffffff'], 20 + best * 8, 320), 160);
+      setTimeout(() => { root.classList.add('revealed'); revealAll(h, rewards); }, 620);
+      setTimeout(() => root.classList.add('crate-gone'), 1700);
+    }, 1200);
   });
 }
 
@@ -276,6 +290,16 @@ function revealAll(h: MenuHandlers, rewards: Reward[]) {
     .join('');
   paintAll(wrap);
   const cards = [...wrap.querySelectorAll<HTMLElement>('.rcard')];
+  const crate = document.querySelector<HTMLElement>('.open-crate .c3d');
+  if (crate) {
+    const cr = crate.getBoundingClientRect();
+    const cx = cr.left + cr.width / 2, cy = cr.top + cr.height * 0.3;
+    for (const c of cards) {
+      const r = c.getBoundingClientRect();
+      c.style.setProperty('--fx', `${Math.round(cx - (r.left + r.width / 2))}px`);
+      c.style.setProperty('--fy', `${Math.round(cy - (r.top + r.height / 2))}px`);
+    }
+  }
   let next = 0;
   const flip = (i: number) => {
     const el = cards[i];
