@@ -1,0 +1,91 @@
+/* ===================================================================
+   Fit layer — loaded last.
+   Keeps every menu inside the visible screen on short / narrow phones:
+   card rows size themselves from the room they actually have
+   (container queries), side columns scroll instead of spilling out,
+   and full-screen effects cover the whole screen.
+   =================================================================== */
+
+/* ---------------------------------------------------------------- squad */
+#ui .squad { min-height: 0; gap: clamp(4px, 1.6vh, 10px); }
+#ui .squad > .panel-head, #ui .squad > .chem-bar, #ui .squad > .sec-label, #ui .squad > .reserves { flex: none; }
+/* the lineup takes the room that is left; its cards scale into it */
+#ui .squad > .lineup { flex: 1 1 0; min-height: 0; container-type: size; align-items: center; gap: clamp(6px, 1.6vw, 14px); }
+/* 46px = slot padding + chemistry dots + "out of position" line */
+#ui .lineup { --lw: clamp(52px, min(calc((100cqh - 46px) / 1.42), calc(100cqw / 5 - 22px)), 136px); }
+#ui .lineup .pcard { --w: var(--lw); }
+#ui .lineup .empty-slot { width: var(--lw); height: calc(var(--lw) * 1.42); }
+#ui .lineup .slot { padding: 4px; }
+/* the slot number sits on the chemistry row, left of the dots, instead of a row of its own */
+#ui .lineup .slot-n { top: calc(var(--lw) * 1.42 + 7px); bottom: auto; left: 4px; transform: none; }
+#ui .lineup .slot .chem-dots { padding: 0 0 0 calc(var(--lw) * 0.18); min-height: 18px; }
+#ui .lineup .slot:has(.empty-slot) .slot-n { top: auto; bottom: -6px; left: 50%; transform: translateX(-50%); }
+#ui .reserves { --w: clamp(44px, 12.5vh, 70px); overflow-y: hidden; padding: 8px 6px 6px; }
+#ui .reserves .pcard.sm { --w: inherit; }
+
+/* ---------------------------------------------------------------- league */
+#ui .league { min-height: 0; }
+#ui .league > .panel-head { flex: none; }
+#ui .lg-side { min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; padding: 0 8px 8px 0; }
+#ui .lg-side > * { flex: none; }
+
+/* ---------------------------------------------------------------- generic safety: long screens scroll, never spill */
+#ui .shop, #ui .collection, #ui .editor, #ui .missions, #ui .market { min-height: 0; max-height: 100%; }
+
+/* ---------------------------------------------------------------- crate opening: rays cover the whole screen */
+#ui.screen-open { overflow: hidden; }
+#ui .opening { overflow: visible; }
+/* a square big enough to cover any screen from its centre while it spins
+   (radius 80vmax > half the diagonal of any viewport) */
+#ui .burst .rays { width: 160vmax; height: 160vmax; margin: -80vmax 0 0 -80vmax; }
+
+/* ---------------------------------------------------------------- hub: league tile players fit the tile */
+#ui .hub-grid .tile-play .tile-sprite, #ui .hub-grid .tile-play .tile-sprite2 { width: auto; height: min(110px, 100cqh); aspect-ratio: 40 / 38; }
+#ui .hub-grid .tile-play .tile-sprite2 { margin-left: calc(min(110px, 100cqh) * -0.44); }
+
+/* ---------------------------------------------------------------- squad: number + "out of position" never collide */
+#ui .lineup .slot .chem-dots { min-height: 22px; }
+#ui .lineup .chem-dots em { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 5px; }
+
+/* ---------------------------------------------------------------- career */
+/* long club names end in "…" instead of running under the numbers */
+#ui .ct-tr .tn { display: block; }
+#ui .ct-tr .tn > * { display: inline-block; vertical-align: middle; margin-right: 4px; }
+/* the colour stripe holds the crest; the name starts after it */
+#ui .cl-club { background: linear-gradient(120deg, var(--c) 0 72px, var(--paper) 72px) !important; }
+#ui .cl-club > div { min-width: 0; }
+#ui .cl-club b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ===================================================================
+   Performance: same look, cheaper to draw
+   =================================================================== */
+/* card shine sweep: the stripe used to move with background-position, which
+   repaints every card on every frame. The identical gradient now sits on a
+   3x-wide strip that slides with a transform, so the GPU just moves it.
+   (background-position 150% -> -50% on a 300% image = translateX -100% -> 33.333%) */
+.pc-shine { background: none !important; animation: none !important; will-change: auto; overflow: hidden; }
+.pc-shine::before { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 300%; pointer-events: none;
+  background: linear-gradient(110deg, transparent 42%, rgba(255,255,255,0.18) 42% 46%, transparent 46%);
+  animation: shine-x 4s cubic-bezier(.45,0,.25,1) infinite; will-change: transform; }
+.r-gold .pc-shine::before, .r-hero .pc-shine::before, .r-legend .pc-shine::before, .custom .pc-shine::before {
+  background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,0.38) 40% 45%, transparent 45% 48%, rgba(255,255,255,0.2) 48% 49%, transparent 49%);
+  animation-duration: 2.6s; }
+@keyframes shine-x { from { transform: translateX(-100%); } to { transform: translateX(33.333%); } }
+
+/* LEAGUE tile "breathing" glow: animating a 34px-blurred box-shadow repaints the
+   whole tile every frame. The resting shadow stays on the tile and the peak glow
+   lives on a halo behind it that only fades in and out (opacity = GPU only).
+   The halo is an absolutely positioned grid child, so it takes the tile's cell
+   without moving any other tile. */
+#ui .hub-grid { position: relative; }
+#ui .hub-grid::before { content: ''; position: absolute; inset: 0; grid-area: 1 / 1 / 2 / 2; pointer-events: none; z-index: 0; opacity: 0;
+  box-shadow: 0 0 0 12px rgba(250,204,21,0.08), 0 0 34px 6px rgba(250,204,21,0.35);
+  animation: m-halo 3.2s ease-in-out infinite .8s; will-change: opacity; }
+@keyframes m-halo { 50% { opacity: 1; } }
+#ui .tile-play { animation: none; box-shadow: 0 0 0 6px rgba(250,204,21,0.22), 8px 10px 0 rgba(21,23,28,0.45); }
+#ui.enter .tile-play { animation: m-rise .7s var(--e-out) backwards; }
+#ui .hub-grid:has(.tile-play:hover)::before { animation-play-state: paused; }
+/* its sheen: same gradient, slid with a transform instead of background-position
+   (260% image, 130% -> -40%  =  translateX -80% -> 24.615% on a 260%-wide strip) */
+#ui .tile-play .tl-sheen { right: auto; width: 260%; background-size: 100% 100%; animation: m-sheen-x 5s var(--e-soft) infinite 1.2s; will-change: transform; transform: translateX(-80%); }
+@keyframes m-sheen-x { 0% { transform: translateX(-80%); } 30%, 100% { transform: translateX(24.615%); } }

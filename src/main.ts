@@ -41,6 +41,7 @@ import { showCareer } from './ui/career/home';
 import { career } from './career/state';
 import { careerHudStart, careerHudStop, careerHudTick } from './ui/career/hud';
 import './ui/career/career.css';
+import './ui/fit.css';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 let ctx = canvas.getContext('2d', { alpha: false })!;
