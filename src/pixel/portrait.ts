@@ -12,8 +12,10 @@ export const PORTRAIT_H = 30;
 const cache = new Map<string, HTMLCanvasElement>();
 const WHITE: RGB = [246, 244, 238];
 const EYE: RGB = [24, 20, 34];
+const IRIS: RGB = [84, 62, 46];
+const MOUTH: RGB = [150, 52, 60];
 
-export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
+function portraitBase(look: PlayerLook): HTMLCanvasElement {
   const key = `${look.kit.id}|${look.kit.primary}|${look.kit.secondary}|${look.kit.pattern}|${look.isGK}|${look.skin}|${look.hair}|${look.hairStyle}|${look.beard}|${look.face ?? 0}`;
   const hit = cache.get(key);
   if (hit) return hit;
@@ -241,5 +243,109 @@ export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
     }
   g.putImageData(img, 0, 0);
   cache.set(key, c);
+  return c;
+}
+
+// ------------------------------------------------------------------ HD version
+
+const hdCache = new Map<string, HTMLCanvasElement>();
+
+/**
+ * HD headshot: the pixel portrait upscaled with Scale2x (smooth diagonals, no
+ * blur), then the face re-drawn at full density - big eyes with an iris and a
+ * sparkle, expressive brows, a smile and rosy cheeks.
+ */
+export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
+  const key = `${look.kit.id}|${look.kit.primary}|${look.kit.secondary}|${look.kit.pattern}|${look.isGK}|${look.skin}|${look.hair}|${look.hairStyle}|${look.beard}|${look.face ?? 0}`;
+  const hit = hdCache.get(key);
+  if (hit) return hit;
+  const src = portraitBase(look);
+  const W = src.width, H = src.height;
+  const sd = src.getContext('2d')!.getImageData(0, 0, W, H).data;
+  const at = (x: number, y: number) => {
+    x = Math.max(0, Math.min(W - 1, x));
+    y = Math.max(0, Math.min(H - 1, y));
+    return (y * W + x) * 4;
+  };
+  const same = (i: number, j: number) => sd[i] === sd[j] && sd[i + 1] === sd[j + 1] && sd[i + 2] === sd[j + 2] && sd[i + 3] === sd[j + 3];
+  const c = document.createElement('canvas');
+  c.width = W * 2;
+  c.height = H * 2;
+  const g = c.getContext('2d')!;
+  const out = g.createImageData(W * 2, H * 2);
+  const od = out.data;
+  const put = (x: number, y: number, i: number) => {
+    const o = (y * W * 2 + x) * 4;
+    od[o] = sd[i]; od[o + 1] = sd[i + 1]; od[o + 2] = sd[i + 2]; od[o + 3] = sd[i + 3];
+  };
+  // Scale2x / EPX
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const P = at(x, y), A = at(x, y - 1), B = at(x + 1, y), C = at(x - 1, y), D = at(x, y + 1);
+      let e0 = P, e1 = P, e2 = P, e3 = P;
+      if (!same(C, B) && !same(A, D)) {
+        if (same(C, A)) e0 = A;
+        if (same(A, B)) e1 = B;
+        if (same(D, C)) e2 = C;
+        if (same(B, D)) e3 = D;
+      }
+      put(x * 2, y * 2, e0);
+      put(x * 2 + 1, y * 2, e1);
+      put(x * 2, y * 2 + 1, e2);
+      put(x * 2 + 1, y * 2 + 1, e3);
+    }
+  g.putImageData(out, 0, 0);
+
+  // ---- HD face
+  const SK = ramp(look.skin);
+  const HR = ramp(look.hair);
+  const px = (x: number, y: number, col: RGB, w = 1, h = 1) => {
+    g.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+    g.fillRect(x, y, w, h);
+  };
+  const cx = 31; // HD centre column (between the two middle pixels)
+  // repaint the eye area with skin, keeping any hair that falls over it
+  const isHair = (r: number, gg: number, bb: number) => HR.some((h) => Math.abs(h[0] - r) + Math.abs(h[1] - gg) + Math.abs(h[2] - bb) < 6);
+  const area = g.getImageData(18, 16, 28, 10);
+  for (let y = 0; y < 10; y++)
+    for (let x = 0; x < 28; x++) {
+      const o = (y * 28 + x) * 4;
+      const ax = x + 18;
+      const inEye = (ax >= 21 && ax <= 28) || (ax >= 33 && ax <= 40);
+      if (!inEye || area.data[o + 3] === 0 || isHair(area.data[o], area.data[o + 1], area.data[o + 2])) continue;
+      const tone = SK[ax > cx + 6 ? 1 : 2];
+      area.data[o] = tone[0]; area.data[o + 1] = tone[1]; area.data[o + 2] = tone[2];
+    }
+  g.putImageData(area, 18, 16);
+  for (const s of [-1, 1]) {
+    const ex = s < 0 ? 22 : 34; // left edge of a 6-px eye
+    px(ex, 20, WHITE, 6, 4);
+    px(ex + 1, 19, WHITE, 4, 1);
+    px(ex + (s < 0 ? 2 : 1), 20, IRIS, 3, 4);
+    px(ex + (s < 0 ? 3 : 2), 21, EYE, 2, 2);
+    px(ex + (s < 0 ? 2 : 1), 20, WHITE, 1, 1);
+    // upper lid
+    px(ex, 19, EYE, 1, 1);
+    px(ex + 5, 19, EYE, 1, 1);
+    px(ex + 1, 18, EYE, 4, 1);
+    px(ex, 24, mix(SK[1], EYE, 0.2), 6, 1);
+    // brow, a little raised and tilted out
+    const bc = mix(HR[0], SK[1], 0.1);
+    px(ex + 1, 15, bc, 4, 1);
+    px(ex, 16, bc, 1, 1);
+    px(ex + 5, 16, bc, 1, 1);
+  }
+  // cheeks
+  px(cx - 10, 27, mix(SK[2], [235, 120, 120], 0.35), 3, 2);
+  px(cx + 8, 27, mix(SK[2], [235, 120, 120], 0.35), 3, 2);
+  // smile (skip under a beard: the beard pass already darkened it)
+  if (!look.beard) {
+    px(cx - 4, 30, SK[2], 9, 2);
+    px(cx - 3, 31, MOUTH, 7, 1);
+    px(cx - 4, 30, MOUTH, 1, 1);
+    px(cx + 4, 30, MOUTH, 1, 1);
+    px(cx - 2, 32, mix(MOUTH, SK[1], 0.5), 5, 1);
+  }
+  hdCache.set(key, c);
   return c;
 }

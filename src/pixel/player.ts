@@ -88,7 +88,10 @@ interface Joints {
   face: NonNullable<PoseP['face']>;
 }
 
-const THIGH = 5.6, SHIN = 5.6, TORSO = 8.6, NECK = 4.6, UARM = 4.3, FARM = 3.9;
+/** chibi proportions: a big head on a compact, sturdy body */
+const THIGH = 4.4, SHIN = 4.3, TORSO = 7.2, NECK = 5.4, UARM = 3.5, FARM = 3.1;
+export const HEAD_R = 5.9;
+const HEAD_K = HEAD_R / 4.45;
 
 function buildPose(p: PoseP, isGK: boolean): Joints {
   const lean = p.lean ?? 0;
@@ -131,7 +134,7 @@ function buildPose(p: PoseP, isGK: boolean): Joints {
     J.headAng += rot;
   }
   // ground align: lowest point touches the ground line, centre horizontally for lying poses
-  const lows = [J.ff[1] + 1.2, J.bf[1] + 1.2, J.head[1] + 4.2, J.hip[1] + 3.3, J.neck[1] + 3.2, J.fh[1] + 1.2, J.bh[1] + 1.2];
+  const lows = [J.ff[1] + 1.2, J.bf[1] + 1.2, J.head[1] + HEAD_R - 0.2, J.hip[1] + 3.3, J.neck[1] + 3.2, J.fh[1] + 1.2, J.bh[1] + 1.2];
   const low = Math.max(...lows);
   let dx = ANCHOR_X;
   if (rot) {
@@ -287,28 +290,28 @@ function drawBody(b: Buf, J: Joints, look: PlayerLook) {
   const arm = (s: V, e: V, h: V, layer: number, back: boolean) => {
     const shift = back ? -1 : 0;
     // short sleeve with a cuff in the second colour (keepers: long sleeves)
-    capsule(b, s, e, 1.8, layer, (u) => (!gk && u > 0.72 ? R_JER2 : R_JER), shift, 1.5);
-    capsule(b, e, h, 1.4, layer, () => (gk ? R_JER : R_SKIN), shift, 1.15);
-    capsule(b, h, h, gk ? 2.0 : 1.4, layer, (_u, v) => (gk ? (v > 0.4 ? R_ACC : R_WHITE) : R_SKIN), shift);
+    capsule(b, s, e, 1.75, layer, (u) => (!gk && u > 0.7 ? R_JER2 : R_JER), shift, 1.5);
+    capsule(b, e, h, 1.35, layer, () => (gk ? R_JER : R_SKIN), shift, 1.25);
+    capsule(b, h, h, gk ? 2.1 : 1.65, layer, (_u, v) => (gk ? (v > 0.4 ? R_ACC : R_WHITE) : R_SKIN), shift);
   };
   const leg = (k: V, f: V, layer: number, back: boolean) => {
     const shift = back ? -1 : 0;
     // thigh: shorts with a side stripe, then the knee
-    capsule(b, J.hip, k, 2.15, layer, (u, v) => (u < 0.45 ? (Math.abs(v) < 0.2 && !gk ? R_JER2 : R_SHORTS) : R_SKIN), shift, 1.65);
+    capsule(b, J.hip, k, 2.3, layer, (u, v) => (u < 0.45 ? (Math.abs(v) < 0.2 && !gk ? R_JER2 : R_SHORTS) : R_SKIN), shift, 1.65);
     // shin: a strong calf, sock with two hoops at the top
-    capsule(b, k, f, 1.8, layer, (u) => (u < 0.16 ? R_SKIN : u < 0.23 ? R_JER2 : u < 0.28 ? R_SOCK : u < 0.33 ? R_JER2 : R_SOCK), shift, 1.3);
+    capsule(b, k, f, 1.85, layer, (u) => (u < 0.14 ? R_SKIN : u < 0.24 ? R_JER2 : u < 0.31 ? R_SOCK : u < 0.39 ? R_JER2 : R_SOCK), shift, 1.45);
     // boot points forward, perpendicular to the shin: dark upper, coloured stripe and sole, studs
     const sx = f[0] - k[0], sy = f[1] - k[1];
     const sl = Math.hypot(sx, sy) || 1;
     const fx = sy / sl, fy = -sx / sl;
-    capsule(b, [f[0] - fx * 0.4, f[1] - fy * 0.4], [f[0] + fx * 2.3, f[1] + fy * 2.3], 1.4, layer, (u, v) => (v > 0.55 ? R_ACC : u > 0.3 && u < 0.62 && Math.abs(v + 0.05) < 0.22 ? R_ACC : R_BOOT), shift, 1.15);
+    capsule(b, [f[0] - fx * 0.5, f[1] - fy * 0.5], [f[0] + fx * 2.2, f[1] + fy * 2.2], 1.6, layer, (u, v) => (v > 0.55 ? R_ACC : u > 0.3 && u < 0.62 && Math.abs(v + 0.05) < 0.22 ? R_ACC : R_BOOT), shift, 1.15);
   };
 
   arm(J.bs, J.be, J.bh, 1, true);
   leg(J.bk, J.bf, 2, true);
 
   // torso with kit pattern in local (u along body, v across: +front)
-  capsule(b, J.hip, J.neck, 3.5, 3, (u, v) => {
+  capsule(b, J.hip, J.neck, 4.0, 3, (u, v) => {
     if (u > 0.9 && Math.abs(v) < 0.6) return R_JER2; // collar
     if (u > 0.86 && v > 0.55) return R_JER2; // collar tip at the front
     switch (pattern) {
@@ -326,12 +329,12 @@ function drawBody(b: Buf, J: Joints, look: PlayerLook) {
       case 'gk': return Math.abs(u - 0.55) < 0.08 ? R_JER2 : R_JER;
       default: return u < 0.12 ? R_JER2 : R_JER;
     }
-  }, 0, 4.05);
+  }, 0, 4.5);
   // shorts
   const ax = J.neck[0] - J.hip[0], ay = J.neck[1] - J.hip[1];
   const al = Math.hypot(ax, ay) || 1;
   const ux = ax / al, uy = ay / al;
-  capsule(b, [J.hip[0] + ux * 0.9, J.hip[1] + uy * 0.9], [J.hip[0] - ux * 0.7, J.hip[1] - uy * 0.7], 3.6, 4, (u, v) => (u > 0.9 ? R_JER2 : Math.abs(v) < 0.14 && u < 0.6 && !gk ? R_JER2 : R_SHORTS));
+  capsule(b, [J.hip[0] + ux * 0.9, J.hip[1] + uy * 0.9], [J.hip[0] - ux * 0.7, J.hip[1] - uy * 0.7], 4.1, 4, (u, v) => (u > 0.9 ? R_JER2 : Math.abs(v) < 0.14 && u < 0.6 && !gk ? R_JER2 : R_SHORTS));
 
   leg(J.fk, J.ff, 5, false);
 
@@ -351,10 +354,10 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
     switch (st) {
       case 0: return inHead && (ly < -1.6 || (lx < -1.6 && ly < 1.4));
       case 1: return inHead && (ly < -2.5 || (lx < -2.7 && ly < 0.2));
-      case 2: return Math.hypot(lx + 0.9, ly + 1.2) < 5.4 && (!inHead || ly < -1.6 || lx < -1.8);
+      case 2: return Math.hypot(lx + 0.7, ly + 1.0) < 5.0 && (!inHead || ly < -1.6 || lx < -1.8);
       case 3: return (Math.abs(lx + 0.3) < 1.4 && ly < -2.2 && ly > -6.6) || (inHead && lx < -2.8 && ly < 0);
       case 4: return false;
-      case 5: return (inHead && (ly < -1.5 || (lx < -1.4 && ly < 2))) || (!inHead && lx < -2 && lx > -6 && ly > -3 && ly < 5.5 && Math.hypot(lx + 3, ly - 1) < 4.4);
+      case 5: return (inHead && (ly < -1.5 || (lx < -1.4 && ly < 2))) || (!inHead && lx < -1.5 && ly > -2.5 && ly < 4.2 && Math.hypot(lx + 2.2, (ly - 0.6) * 0.8) < 3.6);
       case 6: {
         if (inHead) return ly < -1.9 || (lx < -2.4 && ly < 0.5);
         const ang = Math.atan2(ly, lx);
@@ -380,14 +383,17 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
       default: return d <= R;
     }
   };
-  const minX = Math.floor((hx - 8) * SS), maxX = Math.ceil((hx + 8) * SS), minY = Math.floor((hy - 8) * SS), maxY = Math.ceil((hy + 8) * SS);
+  // the head is designed at radius 4.45 and drawn scaled up to HEAD_R
+  const E = 8 * HEAD_K;
+  const minX = Math.floor((hx - E) * SS), maxX = Math.ceil((hx + E) * SS), minY = Math.floor((hy - E) * SS), maxY = Math.ceil((hy + E) * SS);
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
-      const dx = (x + 0.5) / SS - hx, dy = (y + 0.5) / SS - hy;
+      const dx = ((x + 0.5) / SS - hx) / HEAD_K, dy = ((y + 0.5) / SS - hy) / HEAD_K;
       const lx = dx * ca - dy * sa, ly = dx * sa + dy * ca;
       const d = Math.hypot(dx, dy);
       const inHead = headIn(lx, ly, d);
-      const nose = lx > 3.4 && lx < 4.9 && ly > -0.2 && ly < 1.4;
+      // a small button nose (chibi), not a long profile nose
+      const nose = Math.hypot(lx - 4.25, ly - 0.75) < 0.55;
       let col = -1, tone = 2;
       if (hairAt(lx, ly, inHead)) {
         col = R_HAIR;
@@ -415,6 +421,8 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
   // face features (in local coords -> pixel)
   const P = (lx: number, ly: number): [number, number] => {
     const c2 = Math.cos(J.headAng), s2 = Math.sin(J.headAng);
+    lx *= HEAD_K;
+    ly *= HEAD_K;
     return [Math.floor((hx + lx * c2 - ly * s2) * SS), Math.floor((hy + lx * s2 + ly * c2) * SS)];
   };
   /** a face feature: one game pixel (SS x SS HD pixels), or a finer `size` */
@@ -423,22 +431,31 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
     for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) b.set(x + i, y + j, r, tone, 6);
   };
   // face, drawn with HD detail: eye white + pupil, brows, mouth
+  // three-quarter face: both eyes show, the near one bigger
   const eye = (oy = 0, closed = false) => {
     if (closed) {
-      dot(1.5, -0.2 + oy, R_EYE, 2, 1); dot(2.0, -0.2 + oy, R_EYE, 2, 1); dot(2.5, -0.2 + oy, R_EYE, 2, 1);
+      for (const [ex, w] of [[2.3, 3], [0.2, 2]] as const) for (let i = 0; i < w; i++) dot(ex - 0.35 + i * 0.4, -0.1 + oy, R_EYE, 2, 1);
       return;
     }
-    dot(1.4, -0.6 + oy, R_WHITE, 3, 2);
-    dot(2.4, -0.6 + oy, R_WHITE, 3, 1);
-    dot(2.4, -0.1 + oy, R_WHITE, 2, 1);
-    dot(2.0, -0.6 + oy, R_EYE, 2, 1);
-    dot(2.0, -0.1 + oy, R_EYE, 2, 1);
+    // near eye: 2x3 HD white with a 1x2 pupil and a sparkle
+    dot(1.85, -0.85 + oy, R_WHITE, 3, 2);
+    dot(1.85, -0.2 + oy, R_WHITE, 3, 2);
+    dot(2.25, -0.75 + oy, R_EYE, 2, 1);
+    dot(2.25, -0.3 + oy, R_EYE, 2, 1);
+    dot(2.25, 0.15 + oy, R_EYE, 2, 1);
+    dot(1.85, -0.75 + oy, R_WHITE, 3, 1);
+    // far eye, a little smaller, toward the back of the face
+    dot(0.15, -0.7 + oy, R_WHITE, 3, 1);
+    dot(0.15, -0.25 + oy, R_WHITE, 3, 1);
+    dot(0.5, -0.7 + oy, R_EYE, 2, 1);
+    dot(0.5, -0.25 + oy, R_EYE, 2, 1);
   };
   const brow = (tilt: number) => {
-    dot(1.2, -1.6 - tilt * 0.4, R_HAIR, 0, 1);
-    dot(1.7, -1.7, R_HAIR, 0, 1);
-    dot(2.2, -1.7 + tilt * 0.4, R_HAIR, 0, 1);
-    dot(2.7, -1.6 + tilt * 0.6, R_HAIR, 0, 1);
+    dot(1.6, -1.75 - tilt * 0.35, R_HAIR, 0, 1);
+    dot(2.0, -1.85, R_HAIR, 0, 1);
+    dot(2.4, -1.8 + tilt * 0.35, R_HAIR, 0, 1);
+    dot(0.05, -1.6 + tilt * 0.3, R_HAIR, 0, 1);
+    dot(0.45, -1.7, R_HAIR, 0, 1);
   };
   switch (J.face) {
     case 'ko':
@@ -464,11 +481,10 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
       break;
     default:
       eye(); brow(0);
-      dot(2.5, 2.1, R_MOUTH, 1, 1); dot(3.0, 2.0, R_MOUTH, 1, 1);
+      dot(1.7, 2.0, R_MOUTH, 1, 1); dot(2.1, 2.2, R_MOUTH, 1, 1); dot(2.5, 2.0, R_MOUTH, 1, 1);
   }
   // cheek catching the light, and the ear's inner shadow
-  if (J.face !== 'ko') dot(1.0, 1.0, R_SKIN, 3, 1);
-  dot(-0.8, 0.3, R_SKIN, 0, 1);
+  if (J.face !== 'ko') { dot(2.9, 1.1, R_MOUTH, 3, 1); dot(-0.2, 1.0, R_MOUTH, 3, 1); }
 }
 
 function finalize(b: Buf, ramps: RGB[][], img: ImageData) {
