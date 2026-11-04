@@ -4,7 +4,7 @@ import { PPM, YS } from './camera';
 import type { Pitch, Player, MysteryBox, Bomb, Bullet } from './entities';
 import { tierColors } from '../meta/items';
 import type { TeamDef } from './teams';
-import { playerSheet, FRAMES, CELL_W, CELL_H, ANCHOR_X, ANCHOR_Y, PlayerLook } from '../pixel/player';
+import { playerSheet, FRAMES, CELL_W, CELL_H, ANCHOR_X, ANCHOR_Y, SS, PlayerLook } from '../pixel/player';
 import { ballFrame, shadow, ring, arrow, BALL_SIZE } from '../pixel/props';
 import { ramp, css, RGB } from '../pixel/palette';
 import { drawText, measure, textCanvas } from '../pixel/font';
@@ -736,7 +736,7 @@ export class Renderer {
     if (p.state === 'spin') left = Math.floor(p.stateT / 0.06) % 2 === 0 ? !left : left;
     const flash = p.state === 'down' && p.stateT < 0.1;
     const row = (left ? 1 : 0) + (flash ? 2 : 0);
-    ctx.drawImage(sheet, fi * CELL_W, row * CELL_H, CELL_W, CELL_H, x - ANCHOR_X, y - ANCHOR_Y, CELL_W, CELL_H);
+    ctx.drawImage(sheet, fi * CELL_W * SS, row * CELL_H * SS, CELL_W * SS, CELL_H * SS, x - ANCHOR_X, y - ANCHOR_Y, CELL_W, CELL_H);
     if (p.frozen > 0) {
       // ice block around the frozen player
       const lying = p.state === 'down' || p.state === 'recover';

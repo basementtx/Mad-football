@@ -9,6 +9,9 @@ import { ramp, RGB, OUTLINE, mix } from './palette';
 
 export const CELL_W = 40;
 export const CELL_H = 38;
+/** sprites are rasterized at this density (HD pixels); CELL_* stay in game pixels */
+export const SS = 2;
+const PW = CELL_W * SS, PH = CELL_H * SS;
 export const ANCHOR_X = 20;
 export const ANCHOR_Y = 35;
 
@@ -144,26 +147,28 @@ function buildPose(p: PoseP, isGK: boolean): Joints {
 
 // ------------------------------------------------------------------ raster
 
-const R_JER = 0, R_JER2 = 1, R_SHORTS = 2, R_SOCK = 3, R_SKIN = 4, R_HAIR = 5, R_BOOT = 6, R_WHITE = 7, R_EYE = 8, R_MOUTH = 9;
+const R_JER = 0, R_JER2 = 1, R_SHORTS = 2, R_SOCK = 3, R_SKIN = 4, R_HAIR = 5, R_BOOT = 6, R_WHITE = 7, R_EYE = 8, R_MOUTH = 9, R_ACC = 10;
+const BOOT_ACCENTS = ['#ff4d3d', '#ffd23f', '#3bd9ff', '#5ff0a4', '#ff3fa4', '#ff8a1f', '#f4f4f4'];
 
 class Buf {
-  ramp = new Int8Array(CELL_W * CELL_H).fill(-1);
-  tone = new Uint8Array(CELL_W * CELL_H);
-  layer = new Uint8Array(CELL_W * CELL_H);
+  ramp = new Int8Array(PW * PH).fill(-1);
+  tone = new Uint8Array(PW * PH);
+  layer = new Uint8Array(PW * PH);
   set(x: number, y: number, r: number, tone: number, layer: number) {
-    if (x < 0 || y < 0 || x >= CELL_W || y >= CELL_H) return;
-    const i = y * CELL_W + x;
+    if (x < 0 || y < 0 || x >= PW || y >= PH) return;
+    const i = y * PW + x;
     this.ramp[i] = r;
     this.tone[i] = tone;
     this.layer[i] = layer;
   }
   get(x: number, y: number) {
-    if (x < 0 || y < 0 || x >= CELL_W || y >= CELL_H) return -1;
-    return this.ramp[y * CELL_W + x];
+    if (x < 0 || y < 0 || x >= PW || y >= PH) return -1;
+    return this.ramp[y * PW + x];
   }
 }
 
-const LX = -0.6, LY = -0.8; // light from the top-left
+const LX = 0.55, LY = -0.83; // key light from above, in front of the player (lights the face)
+const RIM: RGB = [196, 226, 255];
 
 function toneFor(nx: number, ny: number, depth: number) {
   if (depth < 0.32) return 2;
@@ -175,9 +180,14 @@ function toneFor(nx: number, ny: number, depth: number) {
 }
 
 /** Rasterize a capsule; colour(u, v) returns ramp index or -1 to skip. */
-function capsule(b: Buf, a: V, c: V, r: number, layer: number, colour: (u: number, v: number) => number, toneShift = 0) {
-  const minX = Math.floor(Math.min(a[0], c[0]) - r - 1), maxX = Math.ceil(Math.max(a[0], c[0]) + r + 1);
-  const minY = Math.floor(Math.min(a[1], c[1]) - r - 1), maxY = Math.ceil(Math.max(a[1], c[1]) + r + 1);
+function capsule(b: Buf, a0: V, c0: V, r0: number, layer: number, colour: (u: number, v: number) => number, toneShift = 0, r1 = r0) {
+  // geometry comes in game pixels, rasterized at SS density
+  const a: V = [a0[0] * SS, a0[1] * SS], c: V = [c0[0] * SS, c0[1] * SS];
+  r0 *= SS;
+  r1 *= SS;
+  const rm = Math.max(r0, r1);
+  const minX = Math.floor(Math.min(a[0], c[0]) - rm - 1), maxX = Math.ceil(Math.max(a[0], c[0]) + rm + 1);
+  const minY = Math.floor(Math.min(a[1], c[1]) - rm - 1), maxY = Math.ceil(Math.max(a[1], c[1]) + rm + 1);
   const dx = c[0] - a[0], dy = c[1] - a[1];
   const l2 = dx * dx + dy * dy || 1e-6;
   const len = Math.sqrt(l2);
@@ -190,6 +200,7 @@ function capsule(b: Buf, a: V, c: V, r: number, layer: number, colour: (u: numbe
       const qx = a[0] + dx * t, qy = a[1] + dy * t;
       const ex = cx - qx, ey = cy - qy;
       const d = Math.sqrt(ex * ex + ey * ey);
+      const r = r0 + (r1 - r0) * t;
       if (d > r) continue;
       const v = (ex * px_ + ey * py_) / r;
       const col = colour(t, v);
@@ -227,33 +238,37 @@ export function playerSheet(look: PlayerLook): BuiltSheet {
   ramps[R_WHITE] = ramp('#eef0f5');
   ramps[R_EYE] = ramp('#16121e');
   ramps[R_MOUTH] = ramp('#8a2030');
+  // boot colour: each player picks his own (stable per look)
+  let hsh = 0;
+  for (const ch of look.skin + look.hair + look.hairStyle + (look.face ?? 0)) hsh = (hsh * 31 + ch.charCodeAt(0)) | 0;
+  ramps[R_ACC] = ramp(look.isGK ? '#5ff0a4' : BOOT_ACCENTS[Math.abs(hsh) % BOOT_ACCENTS.length]);
 
   const c = document.createElement('canvas');
-  c.width = CELL_W * FRAME_COUNT;
-  c.height = CELL_H * 4;
+  c.width = PW * FRAME_COUNT;
+  c.height = PH * 4;
   const g = c.getContext('2d')!;
-  const img = g.createImageData(CELL_W, CELL_H);
+  const img = g.createImageData(PW, PH);
 
   POSES.forEach(([, pose], fi) => {
     const J = buildPose(pose, look.isGK);
     const b = new Buf();
     drawBody(b, J, look);
     finalize(b, ramps, img);
-    g.putImageData(img, fi * CELL_W, 0);
+    g.putImageData(img, fi * PW, 0);
   });
   // mirrored row
   g.save();
   g.translate(c.width, 0);
   g.scale(-1, 1);
   for (let fi = 0; fi < FRAME_COUNT; fi++) {
-    g.drawImage(c, fi * CELL_W, 0, CELL_W, CELL_H, c.width - (fi + 1) * CELL_W, CELL_H, CELL_W, CELL_H);
+    g.drawImage(c, fi * PW, 0, PW, PH, c.width - (fi + 1) * PW, PH, PW, PH);
   }
   g.restore();
   // white flash rows
-  g.drawImage(c, 0, 0, c.width, CELL_H * 2, 0, CELL_H * 2, c.width, CELL_H * 2);
+  g.drawImage(c, 0, 0, c.width, PH * 2, 0, PH * 2, c.width, PH * 2);
   g.globalCompositeOperation = 'source-atop';
   g.fillStyle = '#ffffff';
-  g.fillRect(0, CELL_H * 2, c.width, CELL_H * 2);
+  g.fillRect(0, PH * 2, c.width, PH * 2);
   g.globalCompositeOperation = 'source-over';
   const built = { canvas: c };
   sheetCache.set(key, built);
@@ -271,27 +286,31 @@ function drawBody(b: Buf, J: Joints, look: PlayerLook) {
   // layers: 1 back arm, 2 back leg, 3 torso, 4 shorts, 5 front leg, 6 neck/head, 7 front arm
   const arm = (s: V, e: V, h: V, layer: number, back: boolean) => {
     const shift = back ? -1 : 0;
-    capsule(b, s, e, 1.45, layer, () => R_JER, shift);
-    capsule(b, e, h, 1.3, layer, () => (gk ? R_JER : R_SKIN), shift);
-    capsule(b, h, h, gk ? 1.75 : 1.25, layer, () => (gk ? R_WHITE : R_SKIN), shift);
+    // short sleeve with a cuff in the second colour (keepers: long sleeves)
+    capsule(b, s, e, 1.8, layer, (u) => (!gk && u > 0.72 ? R_JER2 : R_JER), shift, 1.5);
+    capsule(b, e, h, 1.4, layer, () => (gk ? R_JER : R_SKIN), shift, 1.15);
+    capsule(b, h, h, gk ? 2.0 : 1.4, layer, (_u, v) => (gk ? (v > 0.4 ? R_ACC : R_WHITE) : R_SKIN), shift);
   };
   const leg = (k: V, f: V, layer: number, back: boolean) => {
     const shift = back ? -1 : 0;
-    capsule(b, J.hip, k, 1.75, layer, (u) => (u < 0.42 ? R_SHORTS : R_SKIN), shift);
-    capsule(b, k, f, 1.6, layer, (u) => (u < 0.18 ? R_SKIN : u < 0.32 ? R_JER2 : R_SOCK), shift);
-    // boot points forward, perpendicular to the shin
+    // thigh: shorts with a side stripe, then the knee
+    capsule(b, J.hip, k, 2.15, layer, (u, v) => (u < 0.45 ? (Math.abs(v) < 0.2 && !gk ? R_JER2 : R_SHORTS) : R_SKIN), shift, 1.65);
+    // shin: a strong calf, sock with two hoops at the top
+    capsule(b, k, f, 1.8, layer, (u) => (u < 0.16 ? R_SKIN : u < 0.23 ? R_JER2 : u < 0.28 ? R_SOCK : u < 0.33 ? R_JER2 : R_SOCK), shift, 1.3);
+    // boot points forward, perpendicular to the shin: dark upper, coloured stripe and sole, studs
     const sx = f[0] - k[0], sy = f[1] - k[1];
     const sl = Math.hypot(sx, sy) || 1;
     const fx = sy / sl, fy = -sx / sl;
-    capsule(b, [f[0] - fx * 0.3, f[1] - fy * 0.3], [f[0] + fx * 2.1, f[1] + fy * 2.1], 1.25, layer, (u) => (u > 0.7 ? R_WHITE : R_BOOT), shift);
+    capsule(b, [f[0] - fx * 0.4, f[1] - fy * 0.4], [f[0] + fx * 2.3, f[1] + fy * 2.3], 1.4, layer, (u, v) => (v > 0.55 ? R_ACC : u > 0.3 && u < 0.62 && Math.abs(v + 0.05) < 0.22 ? R_ACC : R_BOOT), shift, 1.15);
   };
 
   arm(J.bs, J.be, J.bh, 1, true);
   leg(J.bk, J.bf, 2, true);
 
   // torso with kit pattern in local (u along body, v across: +front)
-  capsule(b, J.hip, J.neck, 3.35, 3, (u, v) => {
+  capsule(b, J.hip, J.neck, 3.5, 3, (u, v) => {
     if (u > 0.9 && Math.abs(v) < 0.6) return R_JER2; // collar
+    if (u > 0.86 && v > 0.55) return R_JER2; // collar tip at the front
     switch (pattern) {
       case 'stripes': return Math.floor((v + 1) * 3.2) % 2 ? R_JER2 : R_JER;
       case 'hoops': return Math.floor(u * 6) % 2 ? R_JER2 : R_JER;
@@ -307,17 +326,17 @@ function drawBody(b: Buf, J: Joints, look: PlayerLook) {
       case 'gk': return Math.abs(u - 0.55) < 0.08 ? R_JER2 : R_JER;
       default: return u < 0.12 ? R_JER2 : R_JER;
     }
-  });
+  }, 0, 4.05);
   // shorts
   const ax = J.neck[0] - J.hip[0], ay = J.neck[1] - J.hip[1];
   const al = Math.hypot(ax, ay) || 1;
   const ux = ax / al, uy = ay / al;
-  capsule(b, [J.hip[0] + ux * 0.9, J.hip[1] + uy * 0.9], [J.hip[0] - ux * 0.6, J.hip[1] - uy * 0.6], 3.45, 4, (u) => (u > 0.92 ? R_JER2 : R_SHORTS));
+  capsule(b, [J.hip[0] + ux * 0.9, J.hip[1] + uy * 0.9], [J.hip[0] - ux * 0.7, J.hip[1] - uy * 0.7], 3.6, 4, (u, v) => (u > 0.9 ? R_JER2 : Math.abs(v) < 0.14 && u < 0.6 && !gk ? R_JER2 : R_SHORTS));
 
   leg(J.fk, J.ff, 5, false);
 
   // neck
-  capsule(b, J.neck, [J.neck[0] + (J.head[0] - J.neck[0]) * 0.5, J.neck[1] + (J.head[1] - J.neck[1]) * 0.5], 1.5, 6, () => R_SKIN, -1);
+  capsule(b, J.neck, [J.neck[0] + (J.head[0] - J.neck[0]) * 0.5, J.neck[1] + (J.head[1] - J.neck[1]) * 0.5], 1.85, 6, () => R_SKIN, -1);
   drawHead(b, J, look);
 
   arm(J.fs, J.fe, J.fh, 7, false);
@@ -326,7 +345,7 @@ function drawBody(b: Buf, J: Joints, look: PlayerLook) {
 function drawHead(b: Buf, J: Joints, look: PlayerLook) {
   const [hx, hy] = J.head;
   const ca = Math.cos(-J.headAng), sa = Math.sin(-J.headAng);
-  const R = 4.15;
+  const R = 4.45;
   const st = look.hairStyle;
   const hairAt = (lx: number, ly: number, inHead: boolean): boolean => {
     switch (st) {
@@ -361,10 +380,10 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
       default: return d <= R;
     }
   };
-  const minX = Math.floor(hx - 8), maxX = Math.ceil(hx + 8), minY = Math.floor(hy - 8), maxY = Math.ceil(hy + 8);
+  const minX = Math.floor((hx - 8) * SS), maxX = Math.ceil((hx + 8) * SS), minY = Math.floor((hy - 8) * SS), maxY = Math.ceil((hy + 8) * SS);
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
-      const dx = x + 0.5 - hx, dy = y + 0.5 - hy;
+      const dx = (x + 0.5) / SS - hx, dy = (y + 0.5) / SS - hy;
       const lx = dx * ca - dy * sa, ly = dx * sa + dy * ca;
       const d = Math.hypot(dx, dy);
       const inHead = headIn(lx, ly, d);
@@ -373,6 +392,8 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
       if (hairAt(lx, ly, inHead)) {
         col = R_HAIR;
         tone = toneFor(d > 0 ? dx / d : 0, d > 0 ? dy / d : 0, Math.min(1, d / 5));
+        // glossy strands catching the light
+        if (tone === 2 && ly < -0.8 && ((x - (y >> 1)) & 3) === 0) tone = 3;
       } else if (inHead || nose) {
         col = R_SKIN;
         tone = toneFor(d > 0 ? dx / d : 0, d > 0 ? dy / d : 0, d / R);
@@ -394,39 +415,64 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
   // face features (in local coords -> pixel)
   const P = (lx: number, ly: number): [number, number] => {
     const c2 = Math.cos(J.headAng), s2 = Math.sin(J.headAng);
-    return [Math.floor(hx + lx * c2 - ly * s2), Math.floor(hy + lx * s2 + ly * c2)];
+    return [Math.floor((hx + lx * c2 - ly * s2) * SS), Math.floor((hy + lx * s2 + ly * c2) * SS)];
   };
-  const dot = (lx: number, ly: number, r: number, tone = 2) => {
+  /** a face feature: one game pixel (SS x SS HD pixels), or a finer `size` */
+  const dot = (lx: number, ly: number, r: number, tone = 2, size = SS) => {
     const [x, y] = P(lx, ly);
-    b.set(x, y, r, tone, 6);
+    for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) b.set(x + i, y + j, r, tone, 6);
   };
-  // eye white for readability (not when knocked out)
-  if (J.face !== 'ko') dot(1.4, -0.3, R_WHITE, 3);
+  // face, drawn with HD detail: eye white + pupil, brows, mouth
+  const eye = (oy = 0, closed = false) => {
+    if (closed) {
+      dot(1.5, -0.2 + oy, R_EYE, 2, 1); dot(2.0, -0.2 + oy, R_EYE, 2, 1); dot(2.5, -0.2 + oy, R_EYE, 2, 1);
+      return;
+    }
+    dot(1.4, -0.6 + oy, R_WHITE, 3, 2);
+    dot(2.4, -0.6 + oy, R_WHITE, 3, 1);
+    dot(2.4, -0.1 + oy, R_WHITE, 2, 1);
+    dot(2.0, -0.6 + oy, R_EYE, 2, 1);
+    dot(2.0, -0.1 + oy, R_EYE, 2, 1);
+  };
+  const brow = (tilt: number) => {
+    dot(1.2, -1.6 - tilt * 0.4, R_HAIR, 0, 1);
+    dot(1.7, -1.7, R_HAIR, 0, 1);
+    dot(2.2, -1.7 + tilt * 0.4, R_HAIR, 0, 1);
+    dot(2.7, -1.6 + tilt * 0.6, R_HAIR, 0, 1);
+  };
   switch (J.face) {
     case 'ko':
-      dot(1.6, -0.8, R_EYE); dot(2.6, 0.2, R_EYE); dot(2.6, -0.8, R_EYE); dot(1.6, 0.2, R_EYE);
-      dot(2.2, 2.4, R_MOUTH);
+      dot(1.5, -0.9, R_EYE, 2, 1); dot(2.5, 0.1, R_EYE, 2, 1); dot(2.5, -0.9, R_EYE, 2, 1); dot(1.5, 0.1, R_EYE, 2, 1); dot(2.0, -0.4, R_EYE, 2, 1);
+      dot(2.3, 2.2, R_MOUTH, 1, 2);
       break;
     case 'happy':
-      dot(2.1, -0.3, R_EYE); dot(1.8, 2.0, R_MOUTH); dot(2.8, 2.0, R_MOUTH); dot(2.8, 2.9, R_MOUTH, 1);
+      eye(0.1, true); brow(-0.3);
+      dot(1.8, 1.8, R_MOUTH, 1, 1); dot(2.3, 2.2, R_MOUTH, 0, 1); dot(2.8, 2.3, R_MOUTH, 0, 1); dot(3.3, 2.0, R_MOUTH, 1, 1);
+      dot(2.5, 2.7, R_WHITE, 3, 1);
       break;
     case 'shout':
-      dot(2.1, -0.4, R_EYE); dot(1.5, -1.5, R_HAIR, 0); dot(2.6, -1.2, R_HAIR, 0);
-      dot(2.6, 1.8, R_MOUTH, 0); dot(2.6, 2.7, R_MOUTH, 0); dot(3.3, 2.2, R_MOUTH, 0);
+      eye(); brow(1);
+      dot(2.3, 1.7, R_MOUTH, 0, 2); dot(2.8, 2.2, R_MOUTH, 0, 2); dot(2.6, 1.7, R_WHITE, 3, 1);
       break;
     case 'angry':
-      dot(2.1, -0.3, R_EYE); dot(1.5, -1.4, R_HAIR, 0); dot(2.6, -1.1, R_HAIR, 0);
+      eye(); brow(1.3);
+      dot(2.4, 2.1, R_MOUTH, 1, 1); dot(2.9, 2.1, R_MOUTH, 1, 1);
       break;
     case 'sad':
-      dot(2.1, 0, R_EYE); dot(1.5, -0.9, R_HAIR, 0); dot(2.6, -1.3, R_HAIR, 0); dot(2.4, 2.4, R_MOUTH, 1);
+      eye(0.3); brow(-1);
+      dot(2.3, 2.4, R_MOUTH, 1, 1); dot(2.8, 2.2, R_MOUTH, 1, 1);
       break;
     default:
-      dot(2.1, -0.3, R_EYE); dot(2.1, -1.4, R_HAIR, 0);
+      eye(); brow(0);
+      dot(2.5, 2.1, R_MOUTH, 1, 1); dot(3.0, 2.0, R_MOUTH, 1, 1);
   }
+  // cheek catching the light, and the ear's inner shadow
+  if (J.face !== 'ko') dot(1.0, 1.0, R_SKIN, 3, 1);
+  dot(-0.8, 0.3, R_SKIN, 0, 1);
 }
 
 function finalize(b: Buf, ramps: RGB[][], img: ImageData) {
-  const W = CELL_W, H = CELL_H;
+  const W = PW, H = PH;
   // inner contours: front parts darken the edge of what is behind them
   const tone = b.tone.slice();
   for (let y = 0; y < H; y++) {
@@ -451,7 +497,10 @@ function finalize(b: Buf, ramps: RGB[][], img: ImageData) {
     const r = b.ramp[i];
     const o = i * 4;
     if (r >= 0) {
-      const c = ramps[r][tone[i]];
+      let c = ramps[r][tone[i]];
+      // cool rim light on the shadow-side silhouette: gives the body volume
+      const x = i % W, y = (i / W) | 0;
+      if (b.get(x - 1, y) < 0 && b.get(x + 1, y) >= 0 && tone[i] < 3) c = mix(c, RIM, 0.3);
       d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
     } else {
       // outline if any 4-neighbour is filled

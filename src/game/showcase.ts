@@ -33,9 +33,11 @@ export class Showcase {
   private readonly period: number;
 
   constructor(private canvas: HTMLCanvasElement, private item: Item, club: TeamDef, cards?: CardData[]) {
-    canvas.width = SHOW_W;
-    canvas.height = SHOW_H;
+    canvas.width = SHOW_W * 2;
+    canvas.height = SHOW_H * 2;
     this.ctx = canvas.getContext('2d', { alpha: false })!;
+    this.ctx.setTransform(2, 0, 0, 2, 0, 0);
+    this.ctx.imageSmoothingEnabled = false;
     const away = TEAMS.find((tm) => tm.primary !== club.primary) ?? TEAMS[1];
     this.match = new Match(
       {

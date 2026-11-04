@@ -1,7 +1,7 @@
 /** Shared DOM helpers for the menu screens. */
 import { audio } from '../engine/audio';
 import { flagCanvas } from '../pixel/flags';
-import { playerSheet, FRAMES, CELL_W, CELL_H, PlayerLook } from '../pixel/player';
+import { playerSheet, FRAMES, CELL_W, CELL_H, SS, PlayerLook } from '../pixel/player';
 import { textCanvas } from '../pixel/font';
 import { portraitCanvas } from '../pixel/portrait';
 import { crestCanvas } from '../pixel/crest';
@@ -76,16 +76,16 @@ export function spriteSource(look: PlayerLook, frame: string, left = false, glow
   return () => {
     const sheet = playerSheet(look).canvas;
     const c = document.createElement('canvas');
-    c.width = CELL_W;
-    c.height = CELL_H;
+    c.width = CELL_W * SS;
+    c.height = CELL_H * SS;
     const g = c.getContext('2d')!;
     if (glow) {
       const rp = ramp(look.kit.primary);
       g.fillStyle = css(rp[1], 0.6);
-      g.fillRect(9, 34, 22, 2);
-      g.fillRect(12, 33, 16, 4);
+      g.fillRect(9 * SS, 34 * SS, 22 * SS, 2 * SS);
+      g.fillRect(12 * SS, 33 * SS, 16 * SS, 4 * SS);
     }
-    g.drawImage(sheet, FRAMES[frame] * CELL_W, (left ? 1 : 0) * CELL_H, CELL_W, CELL_H, 0, 0, CELL_W, CELL_H);
+    g.drawImage(sheet, FRAMES[frame] * CELL_W * SS, (left ? 1 : 0) * CELL_H * SS, CELL_W * SS, CELL_H * SS, 0, 0, CELL_W * SS, CELL_H * SS);
     return c;
   };
 }

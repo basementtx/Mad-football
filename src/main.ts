@@ -58,18 +58,24 @@ function readInsets(): Insets {
  * Pixel-perfect display: the game renders into a low-res virtual framebuffer
  * (~232 px tall) that is scaled up by an integer factor with nearest-neighbour.
  */
+const HD = 2;
+
 function resize() {
   const cssW = window.innerWidth, cssH = window.innerHeight;
   const dpr = window.devicePixelRatio || 1;
   const devW = Math.round(cssW * dpr), devH = Math.round(cssH * dpr);
-  const px = Math.max(1, Math.round(devH / (232 / settings.zoom)));
+  // the framebuffer has 2 HD pixels per game pixel: the world keeps its chunky
+  // look (drawn scaled 2x) while sprites are rasterized at the full density
+  const hp = Math.max(1, Math.round(devH / (464 / settings.zoom)));
+  const px = hp * 2;
   W = Math.ceil(devW / px);
   H = Math.ceil(devH / px);
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width = W * HD;
+  canvas.height = H * HD;
   canvas.style.width = (W * px) / dpr + 'px';
   canvas.style.height = (H * px) / dpr + 'px';
   ctx = canvas.getContext('2d', { alpha: false })!;
+  ctx.setTransform(HD, 0, 0, HD, 0, 0);
   ctx.imageSmoothingEnabled = false;
   const k = px / dpr; // css px per virtual px
   input.k = k;
