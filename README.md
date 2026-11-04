@@ -55,6 +55,10 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **Hafif pas nişan yardımı** (yalnızca ~20° içindeki arkadaşa yönelir) ve **zarif nişan çizgisi**; ikisi de ayarlardan kapatılabilir.
 - **5 zorluk seviyesi** (Kolay → Efsane); ödül çarpanı ×0.6'dan ×3'e çıkar.
 - Kariyer kaydı (G/B/M), altın, maçın yıldızı ve maç istatistikleri.
+- **Hava durumları**: Güneşli (gündüz, çatı gölgesi), Gece (projektörler), Yağmurlu (su birikintileri, şemsiyeli taraftarlar, kaygan zemin: top kayar, kaymalar uzar), Fırtına (şimşek, gök gürültüsü, sert rüzgar), Karlı (karla kaplı zemin, süpürülmüş çizgiler, ağır top, yavaş koşu), Sisli (sürüklenen sis katmanları), Rüzgarlı (uçuşan yapraklar, havadaki topu savuran rüzgar ve skor tabelasının yanında rüzgar göstergesi). Yağmur ve rüzgar sesleri de sentezleniyor.
+- **6 saha deseni**: Çizgili, Damalı, Çapraz, Halkalı, Kurak (sararmış çim, daha fazla toprak) ve Suni Çim (topu biraz daha hızlı ve sektiren zemin).
+- **5 stadyum**: Arena, Eski Tribün (ahşap çatı, görüşü kapatan direkler, köşe projektör kuleleri), Sokak Kafesi (tel örgü, grafiti, şehir silueti, seyrek seyirci), Kolezyum (kumtaşı kemerler, titreyen meşaleler) ve Neon Kubbe (neon şeritler).
+- Hızlı maçta zorluk seçiminden sonra **Saha & Hava** ekranında stadyum, çim ve hava seçilir (ya da hepsi rastgele); seçim menü arka planında canlı önizlenir. Lig maçları ev sahibi takımın stadyumunda, o takıma özgü havalarla oynanır.
 - İngilizce (varsayılan) ve Türkçe arayüz; dil, ayarlardan ya da ana menüdeki piksel bayrak düğmesinden değiştirilebilir.
 
 ## Kontroller
@@ -90,7 +94,7 @@ npm run dev
 
 **3. Kendi telefonunda (aynı Wi-Fi):** `npm run dev` çıktısındaki `Network: http://192.168.x.x:5173` adresini telefonun tarayıcısında aç. Kodu kaydettiğin anda telefonda yenilenir.
 
-**4. Denge testi:** `npm run sim -- normal 4` komutu 20 maçı yapay zekâya karşı yapay zekâ olarak arka planda oynatır; maç başına gol, yere serme, şut, kurtarış ve kullanılan eşya ortalamalarını yazar. `npm run smoke -- normal` ise senaryolu bir "insan" oyuncuyla kaleci kontrolünü, tutma süresini, eşya kullanımını, falsoyu ve rakip presini test eder.
+**4. Denge testi:** `npm run sim -- normal 4` komutu (isteğe bağlı üçüncü parametre hava durumu: `rain`, `snow`, `wind`…) 20 maçı yapay zekâya karşı yapay zekâ olarak arka planda oynatır; maç başına gol, yere serme, şut, kurtarış ve kullanılan eşya ortalamalarını yazar. `npm run smoke -- normal` ise senaryolu bir "insan" oyuncuyla kaleci kontrolünü, tutma süresini, eşya kullanımını, falsoyu ve rakip presini test eder.
 
 **5. Kariyer testi:** `npm run career -- 10 FWD` bir kariyeri 10 sezon boyunca rastgele kararlarla arka planda oynatır (transferler, pazarlık, gönderiler, DM'ler, yetenekler) ve her sezonun özetini yazar; dünya tutarlılığını da kontrol eder. `npm run career-match` ise "sadece kendi oyuncun" modunda kontrolün hiç kaymadığını ve topu istediğinde takım arkadaşlarının ne sıklıkla pas verdiğini ölçer.
 
@@ -138,4 +142,3 @@ Oyun aynı zamanda bir PWA: mobil tarayıcıda "Ana ekrana ekle" ile tam ekran v
 - Online 1v1 / 2v2 (WebSocket ya da WebRTC)
 - Turnuva / lig modu
 - Karakter özelleştirme ve altınla açılan formalar, kramponlar, gol sevinçleri
-- Hava ve gece/gündüz stadyumları

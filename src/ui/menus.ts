@@ -13,6 +13,8 @@ import { showHub } from './hub';
 import { cardHTML } from './cards';
 import type { CardData, Pos } from '../meta/cards';
 import { vibrate } from '../engine/audio';
+import { WEATHERS, PITCHES, STADIUMS, makeEnv, Weather, PitchStyle, Stadium } from '../game/env';
+import { THEMES, GRASS } from '../game/stadium';
 
 export type { MenuHandlers };
 
@@ -137,7 +139,7 @@ export function showDifficulty(h: MenuHandlers) {
           </button>`).join('')}
       </div>
       <div class="options">
-        <button class="btn btn-primary btn-start" data-act="start">${L.start} ▶</button>
+        <button class="btn btn-primary btn-start" data-act="next">${L.next} ▶</button>
       </div>
     </div>`,
   );
@@ -148,7 +150,85 @@ export function showDifficulty(h: MenuHandlers) {
     audio.click();
     showDifficulty(h);
   });
+  bind('[data-act=next]', () => { audio.select(); showVenue(h); });
+}
+
+// ------------------------------------------------------------------ match setup (step 3: venue & weather)
+
+const WEATHER_ICON: Record<string, string> = { clear: '☀️', night: '🌙', rain: '🌧️', storm: '⛈️', snow: '❄️', fog: '☁️', wind: '💨', random: '🎲' };
+
+const rgb = (c: number[]) => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+function pitchSwatch(p: PitchStyle): string {
+  const g = GRASS[p];
+  const a = rgb(g[3]), b = rgb(g[4]);
+  switch (p) {
+    case 'checker': return `background: conic-gradient(${a} 25%, ${b} 0 50%, ${a} 0 75%, ${b} 0) 0 0 / 12px 12px`;
+    case 'diagonal': return `background: repeating-linear-gradient(45deg, ${a} 0 5px, ${b} 5px 10px)`;
+    case 'rings': return `background: repeating-radial-gradient(circle at 50% 50%, ${a} 0 5px, ${b} 5px 10px)`;
+    case 'astro': return `background: repeating-linear-gradient(90deg, ${a} 0 3px, ${b} 3px 6px)`;
+    case 'dry': return `background: repeating-linear-gradient(90deg, ${a} 0 9px, ${b} 9px 18px)`;
+    default: return `background: repeating-linear-gradient(90deg, ${a} 0 6px, ${b} 6px 12px)`;
+  }
+}
+
+function stadiumSwatch(s: Stadium): string {
+  const T = THEMES[s];
+  return `background: linear-gradient(180deg, ${T.roof} 0 22%, ${T.roofEdge} 22% 28%, ${T.seat} 28% 46%, ${T.step} 46% 50%, ${T.seat} 50% 68%, ${T.step} 68% 72%, ${T.board} 72% 80%, ${rgb(GRASS.stripes[4])} 80%)`;
+}
+
+export function showVenue(h: MenuHandlers) {
+  const L = t();
+  const home = homeDef(lastSetup.home), away = TEAMS[lastSetup.away];
+  const preview = () => {
+    // concrete choice → show it behind the menu; random → keep a default look
+    const w = (lastSetup.weather === 'random' ? 'clear' : lastSetup.weather) as Weather;
+    const p = (lastSetup.pitch === 'random' ? 'stripes' : lastSetup.pitch) as PitchStyle;
+    const st = (lastSetup.stadium === 'random' ? 'arena' : lastSetup.stadium) as Stadium;
+    h.previewEnv(makeEnv(w, p, st));
+  };
+  const chip = (key: string, id: string, label: string, swatch: string, icon = '') => `
+    <button class="venue-chip ${(lastSetup as unknown as Record<string, string>)[key] === id ? 'on' : ''}" data-venue="${key}" data-id="${id}">
+      <i class="sw" style="${swatch}">${icon}</i><span>${esc(label)}</span>
+    </button>`;
+  const rnd = (key: string) => chip(key, 'random', L.random, 'background:#26304a', '?');
+  setScreen(
+    'screen-venue',
+    `<div class="setup-wrap venue-wrap">
+      <div class="setup-head">
+        <button class="btn btn-ghost btn-sm" data-act="back">‹ ${L.back}</button>
+        <div class="setup-title">${L.venue}</div>
+        <div class="vs-mini">${crestTag(home, 'crest-sm')}<span>${esc(home.short)}</span><b>VS</b><span>${esc(away.short)}</span>${crestTag(away, 'crest-sm')}</div>
+      </div>
+      <div class="venue-body">
+        <div class="venue-group">
+          <div class="opt-label">${L.stadium}</div>
+          <div class="venue-chips">${STADIUMS.map((x) => chip('stadium', x, L.stadiumNames[x], stadiumSwatch(x))).join('')}${rnd('stadium')}</div>
+        </div>
+        <div class="venue-group">
+          <div class="opt-label">${L.pitchStyle}</div>
+          <div class="venue-chips">${PITCHES.map((x) => chip('pitch', x, L.pitchNames[x], pitchSwatch(x))).join('')}${rnd('pitch')}</div>
+        </div>
+        <div class="venue-group">
+          <div class="opt-label">${L.weather}</div>
+          <div class="venue-chips">${[...WEATHERS, 'random'].map((x) => chip('weather', x, x === 'random' ? L.random : L.weatherNames[x], 'background:#1b2236', WEATHER_ICON[x])).join('')}</div>
+          <div class="venue-desc">${WEATHER_ICON[lastSetup.weather] ?? ''} ${esc(L.weatherDesc[lastSetup.weather] ?? '')}</div>
+        </div>
+      </div>
+      <div class="options">
+        <button class="btn btn-primary btn-start" data-act="start">${L.start} ▶</button>
+      </div>
+    </div>`,
+  );
+  bind('[data-act=back]', () => { audio.click(); showDifficulty(h); });
+  bind('[data-venue]', (el) => {
+    (lastSetup as unknown as Record<string, string>)[el.dataset.venue!] = el.dataset.id!;
+    saveSetup();
+    audio.click();
+    showVenue(h);
+  });
   bind('[data-act=start]', () => { audio.select(); h.startMatch(); });
+  preview();
 }
 
 function statBar(label: string, v: number) {

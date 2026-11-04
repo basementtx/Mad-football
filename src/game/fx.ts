@@ -46,6 +46,8 @@ export class FX {
   flash = 0;
   flashColor = '#fff';
   timeScale = 1;
+  /** ground the match is played on (changes tackle spray) */
+  surface: 'grass' | 'wet' | 'snow' | 'dry' = 'grass';
   private slowT = 0;
   private slowScale = 1;
   private timers: { t: number; fn: () => void }[] = [];
@@ -114,6 +116,19 @@ export class FX {
   }
 
   dust(x: number, y: number, n = 6, vx = 0, vy = 0) {
+    if (this.surface === 'wet') {
+      this.emit('spark', x, y, 0.05, { n: Math.ceil(n * 1.2), speed: 3, up: 3.5, life: 0.45, size: 0.18, colors: ['#cfe6ff', '#9cc4ee', '#ffffff'], g: 18, vx: vx * 0.35, vy: vy * 0.35 });
+      this.emit('grass', x, y, 0.05, { n: Math.ceil(n * 0.5), speed: 2.5, up: 3, life: 0.6, size: 0.1, colors: ['#2a6a34', '#3b2a1a', '#4f3a22'], vx: vx * 0.3, vy: vy * 0.3 });
+      return;
+    }
+    if (this.surface === 'snow') {
+      this.emit('snow', x, y, 0.05, { n: Math.ceil(n * 1.4), speed: 2.2, up: 3, life: 0.8, size: 0.25, colors: ['#ffffff', '#e4eefa', '#c9d8ea'], g: 10, vx: vx * 0.3, vy: vy * 0.3 });
+      return;
+    }
+    if (this.surface === 'dry') {
+      this.emit('dust', x, y, 0.05, { n: n * 2, speed: 2, up: 1, life: 1, size: 0.45, color: 'rgba(214,186,130,0.6)', vx: vx * 0.3, vy: vy * 0.3 });
+      return;
+    }
     this.emit('dust', x, y, 0.05, { n, speed: 1.6, up: 0.8, life: 0.7, size: 0.35, color: 'rgba(215,200,160,0.55)', vx: vx * 0.3, vy: vy * 0.3 });
     this.emit('grass', x, y, 0.05, { n: Math.ceil(n * 0.8), speed: 2.5, up: 3.5, life: 0.6, size: 0.1, colors: ['#3ea84a', '#2f8b3a', '#5bc764'], vx: vx * 0.3, vy: vy * 0.3 });
   }

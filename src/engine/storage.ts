@@ -93,7 +93,12 @@ export const record: Record = load('mf.record', DEFAULT_RECORD);
 export const saveSettings = () => save('mf.settings', settings);
 export const saveRecord = () => save('mf.record', record);
 
-export const lastSetup = load('mf.setup', { home: -1, away: 1, size: 4, duration: 180, difficulty: 'normal' as string, v: 3 });
+export const lastSetup = load('mf.setup', {
+  home: -1, away: 1, size: 4, duration: 180, difficulty: 'normal' as string,
+  /** venue choices: an id or 'random' (see game/env.ts) */
+  weather: 'random' as string, pitch: 'random' as string, stadium: 'random' as string,
+  v: 3,
+});
 // v0.3: home side defaults to the user's own club
 if ((lastSetup.v ?? 0) < 3) {
   lastSetup.home = -1;

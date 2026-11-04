@@ -104,6 +104,15 @@ const tr = {
   unlockFor: 'AÇ', faceShape: 'Yüz şekli', eyeStyle: 'Gözler', eyeColor: 'Göz rengi', shop: 'MAĞAZA', storeTab: 'GÜNÜN FIRSATLARI', cratesTab: 'KASALAR', storeSub: 'Kasalar, fırsatlar, kramponlar',
   newOffersIn: 'Yeni teklifler', flashDeal: 'FLAŞ FIRSAT', featured: 'ÖNE ÇIKAN', buy: 'AL', bought: 'ALINDI', soldOut: 'BİTTİ', ownedTag: 'SENDE',
   refreshStore: 'YENİLE', editControls: 'KONTROL DÜZENİ', editControlsHint: 'Sürükleyip bırak · boyut için seç ve −/+', resetLayout: 'SIFIRLA', controlsLayout: 'Kontrol düzeni', custom: 'ÖZEL', edit: 'DÜZENLE', training: 'ANTRENMAN', trainingSub: 'Serbest çalışma', trainTeam: 'TAKIMLA', trainKeeper: 'KALECİYE KARŞI', trainTeamDesc: 'Bütün takımınla sahaya çık: pas, kombinasyon ve şut çalış. Karşıda sadece kaleci var, süre yok.', trainKeeperDesc: 'Oyuncun ile kaleci karşı karşıya. Her golden sonra top yeniden sende. Şut, falso ve eşya çalış.', preview: 'ÖNİZLE', previewTap: 'Önizlemek için dokun', unlockedToast: 'Kilit açıldı!', boughtToast: 'Satın alındı!', upgradeCopy: '+1 kopya', look: 'Görünüm',
+  venue: 'SAHA & HAVA', stadium: 'Stadyum', pitchStyle: 'Çim', weather: 'Hava', random: 'Rastgele',
+  weatherNames: { clear: 'Güneşli', night: 'Gece', rain: 'Yağmurlu', storm: 'Fırtına', snow: 'Karlı', fog: 'Sisli', wind: 'Rüzgarlı' } as Record<string, string>,
+  weatherDesc: {
+    clear: 'Gün ışığında kusursuz zemin.', night: 'Projektörler altında gece maçı.', rain: 'Kaygan zemin: top kayar, kaymalar uzar.',
+    storm: 'Çok kaygan, şimşekler ve sert rüzgar!', snow: 'Ağır top, yavaş koşu, karlı zemin.', fog: 'Görüş kısıtlı, dikkatli oyna.',
+    wind: 'Rüzgar havadaki topu savurur.', random: 'Her maç farklı bir sürpriz.',
+  } as Record<string, string>,
+  pitchNames: { stripes: 'Çizgili', checker: 'Damalı', diagonal: 'Çapraz', rings: 'Halkalı', dry: 'Kurak', astro: 'Suni Çim' } as Record<string, string>,
+  stadiumNames: { arena: 'Arena', retro: 'Eski Tribün', street: 'Sokak Kafesi', coliseum: 'Kolezyum', neon: 'Neon Kubbe' } as Record<string, string>,
 };
 
 type Dict = typeof tr;
@@ -212,6 +221,15 @@ const en: Dict = {
   unlockFor: 'UNLOCK', faceShape: 'Face shape', eyeStyle: 'Eyes', eyeColor: 'Eye colour', shop: 'SHOP', storeTab: 'DAILY DEALS', cratesTab: 'CRATES', storeSub: 'Crates, deals, boots',
   newOffersIn: 'New offers in', flashDeal: 'FLASH DEAL', featured: 'FEATURED', buy: 'BUY', bought: 'BOUGHT', soldOut: 'GONE', ownedTag: 'OWNED',
   refreshStore: 'REFRESH', editControls: 'CONTROL LAYOUT', editControlsHint: 'Drag and drop · select one and use −/+ to resize', resetLayout: 'RESET', controlsLayout: 'Control layout', custom: 'CUSTOM', edit: 'EDIT', training: 'TRAINING', trainingSub: 'Free practice', trainTeam: 'WITH THE TEAM', trainKeeper: '1 VS KEEPER', trainTeamDesc: 'Take your whole team out: practise passing, combos and finishing. Only a keeper to beat, no clock.', trainKeeperDesc: 'Your player against the keeper. The ball comes back to you after every goal. Practise shots, curlers and items.', preview: 'PREVIEW', previewTap: 'Tap to preview', unlockedToast: 'Unlocked!', boughtToast: 'Purchased!', upgradeCopy: '+1 copy', look: 'Look',
+  venue: 'VENUE & WEATHER', stadium: 'Stadium', pitchStyle: 'Pitch', weather: 'Weather', random: 'Random',
+  weatherNames: { clear: 'Sunny', night: 'Night', rain: 'Rain', storm: 'Storm', snow: 'Snow', fog: 'Fog', wind: 'Windy' } as Record<string, string>,
+  weatherDesc: {
+    clear: 'Perfect conditions in daylight.', night: 'Under the floodlights.', rain: 'Slick turf: the ball skids, slides go further.',
+    storm: 'Very slick, lightning and strong gusts!', snow: 'Heavy ball, slower legs, snowy turf.', fog: 'Low visibility, keep your head up.',
+    wind: 'Wind bends every high ball.', random: 'A surprise every match.',
+  } as Record<string, string>,
+  pitchNames: { stripes: 'Stripes', checker: 'Checkered', diagonal: 'Diagonal', rings: 'Rings', dry: 'Dry', astro: 'Astroturf' } as Record<string, string>,
+  stadiumNames: { arena: 'Arena', retro: 'Old Ground', street: 'Street Cage', coliseum: 'Coliseum', neon: 'Neon Dome' } as Record<string, string>,
 };
 
 const DICTS: Record<Lang, Dict> = { en, tr };

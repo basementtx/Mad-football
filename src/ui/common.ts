@@ -1,4 +1,5 @@
 /** Shared DOM helpers for the menu screens. */
+import type { MatchEnv } from '../game/env';
 import { audio } from '../engine/audio';
 import { flagCanvas } from '../pixel/flags';
 import { playerSheet, FRAMES, CELL_W, CELL_H, SS, PlayerLook } from '../pixel/player';
@@ -159,6 +160,8 @@ export interface MenuHandlers {
   /** career: run a match with a prepared config; onEnd gets the finished match */
   playCareer: (cfg: import('../game/match').MatchConfig, onEnd: (m: import('../game/match').Match) => void) => void;
   showCareer: () => void;
+  /** show this venue in the menu backdrop */
+  previewEnv: (env: MatchEnv) => void;
   startLeagueMatch: () => void;
   startTraining: (mode: 'team' | 'keeper') => void;
   showLeague: () => void;
