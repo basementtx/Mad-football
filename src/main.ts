@@ -11,6 +11,7 @@ import '@fontsource/roboto-condensed/400.css';
 import './ui/style.css';
 import './ui/dossier.css';
 import './ui/motion.css';
+import './ui/store.css';
 import { installMotion } from './ui/motion';
 import { initUpdater } from './engine/update';
 

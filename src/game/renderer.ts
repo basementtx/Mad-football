@@ -50,7 +50,7 @@ export class Renderer {
   constructor(private m: Match) {
     this.P = m.pitch;
     for (const p of m.all) {
-      const look: PlayerLook = { kit: p.team.def, isGK: p.isGK, skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard };
+      const look: PlayerLook = { kit: p.team.def, isGK: p.isGK, skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard, face: p.faceShape };
       this.looks.set(p, look);
       playerSheet(look);
     }

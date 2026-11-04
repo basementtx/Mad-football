@@ -14,7 +14,7 @@ const WHITE: RGB = [246, 244, 238];
 const EYE: RGB = [24, 20, 34];
 
 export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
-  const key = `${look.kit.id}|${look.kit.primary}|${look.kit.secondary}|${look.kit.pattern}|${look.isGK}|${look.skin}|${look.hair}|${look.hairStyle}|${look.beard}`;
+  const key = `${look.kit.id}|${look.kit.primary}|${look.kit.secondary}|${look.kit.pattern}|${look.isGK}|${look.skin}|${look.hair}|${look.hairStyle}|${look.beard}|${look.face ?? 0}`;
   const hit = cache.get(key);
   if (hit) return hit;
 
@@ -52,6 +52,12 @@ export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
         case 'sash': sec = Math.abs(dx + (y - 24) * 1.1) < 2.2; break;
         case 'chevron': sec = Math.abs(y - 25 - Math.abs(dx) * 0.55) < 1.1; break;
         case 'gk': sec = Math.abs(y - 26) < 0.6; break;
+        case 'pinstripe': sec = Math.floor((dx + 16) / 2) % 3 === 0; break;
+        case 'checker': sec = (Math.floor((dx + 16) / 3) + Math.floor((y - 20) / 3)) % 2 === 0; break;
+        case 'band': sec = Math.abs(dx) < 3; break;
+        case 'yoke': sec = y < 23; break;
+        case 'diagonal': sec = dx + (y - 25) * 1.2 > 0; break;
+        case 'zigzag': sec = Math.abs(y - 25 - (Math.abs(((dx + 16) / 2) % 2 - 1) - 0.5) * 2.4) < 0.9; break;
       }
       const r = sec ? J2 : J1;
       let f = -u * 0.9 + 0.15 - t * 0.3;
@@ -99,6 +105,17 @@ export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
       }
   }
 
+  if (st === 10) {
+    // dreads: hanging locks around the head down to the shoulders
+    for (let y = 2; y < 24; y++)
+      for (let x = 0; x < W; x++) {
+        const dx = Math.abs(x + 0.5 - cx), dy = y + 0.5 - hy;
+        const crown = dy < 2 && (dx / 7.4) ** 2 + ((dy + 0.6) / 8.4) ** 2 < 1;
+        const locks = dy >= 0 && dy < 12 && dx > 4.6 && dx < 8 && x % 2 === 0;
+        if (crown || locks) set(x, y, shade(HR, -(x - cx) / 7 - 0.1 - (dy > 6 ? 0.4 : 0) + (y % 3 === 0 ? 0.4 : 0)));
+      }
+  }
+
   // ---------------------------------------------------------------- ears + head
   for (const ex of [cx - 6.6, cx + 6.6]) {
     for (let y = 9; y < 14; y++)
@@ -106,11 +123,17 @@ export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
         if (Math.hypot(x + 0.5 - ex, (y + 0.5 - 11.4) * 0.7) < 1.45) set(x, y, ex < cx ? SK[2] : SK[1]);
       }
   }
+  const fs = look.face ?? 0;
   const inHead = (x: number, y: number) => {
     const dx = x + 0.5 - cx, dy = y + 0.5 - hy;
-    // slightly narrower jaw
-    const rx = dy > 2 ? 6.1 - (dy - 2) * 0.55 : 6.1;
-    return (dx / rx) ** 2 + (dy / 7.1) ** 2 < 1;
+    let rx = 6.1, ry = 7.1, jaw = 0.55, from = 2;
+    if (fs === 1) { rx = 6.6; jaw = 0.25; ry = 7; } // round
+    else if (fs === 2) { rx = 6.4; jaw = 1.1; from = 4.4; ry = 7.2; } // square jaw
+    else if (fs === 3) { rx = 5.6; ry = 7.7; jaw = 0.45; } // long
+    else if (fs === 4) { rx = 6.3; jaw = 0.95; from = 1; } // heart / pointed chin
+    if (dy > from) rx -= (dy - from) * jaw;
+    if (fs === 2 && dy > 0 && dy < 5.6) return Math.abs(dx) < rx && dy < 6.6;
+    return rx > 0 && (dx / rx) ** 2 + (dy / ry) ** 2 < 1;
   };
   for (let y = 2; y < 19; y++)
     for (let x = 0; x < W; x++) {
@@ -174,6 +197,11 @@ export function portraitCanvas(look: PlayerLook): HTMLCanvasElement {
         case 2: hair = edge && dy < -2.6; break;
         case 3: hair = (Math.abs(dx) < 1.7 && dy < -3 && dy > -10.5) || (head && dy < -4.4 && ((x + y) & 1) === 0); break;
         case 4: hair = false; break;
+        case 7: hair = (edge && dy < -3.4 + (dx > 1.2 ? 0.8 : 0)) || Math.hypot(dx, dy + 9.4) < 2.7; break;
+        case 8: hair = Math.hypot(dx / 7.5, dy / 8.7) < 1 && dy < -2.6 && ((x * 3 + y * 5) % 4 !== 0 || dy < -5); break;
+        case 9: hair = (edge && (dy < -3.4 || (Math.abs(dx) > 5 && dy < 1))) || (head && dy < -1.4 - Math.max(0, dx) * 0.35 && dx < 3.5); break;
+        case 10: hair = edge && (dy < -3.2 || (Math.abs(dx) > 4.8 && dy < 4)) && (x % 2 === 0 || dy < -4.5); break;
+        case 11: hair = (Math.abs(dx) < 6.2 && dy < -3.3 && dy > -10.2) || (edge && Math.abs(dx) > 5 && dy < -0.5); break;
         case 5: hair = edge && (dy < -3.2 || (Math.abs(dx) > 4.8 && dy < 3)); break;
         case 6: {
           if (edge && dy < -3.4) hair = true;

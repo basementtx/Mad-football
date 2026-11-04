@@ -10,9 +10,12 @@ import { setScreen, bind, esc, paintTag, paintAll, crestTag, spriteSource, lookF
 import { cardHTML } from './cards';
 import { showHub } from './hub';
 import { showCreator } from './creator';
+import { PATTERNS as ALL_PATTERNS, cosName, cosFor } from '../meta/cosmetics';
+import { lockTag, isLocked, askUnlock } from './unlock';
 
 export const SWATCHES = ['#e23a2e', '#ff7a1a', '#ffd23f', '#b6ff3b', '#21a85a', '#14b8a6', '#7fd3ff', '#2f7bff', '#13215e', '#6b3fd6', '#ff2fa0', '#ffffff', '#c8d0e0', '#6c7480', '#1b1b1f', '#7a3b12'];
-const PATTERNS: KitPattern[] = ['solid', 'stripes', 'hoops', 'half', 'sash', 'chevron'];
+const FREE_PATTERNS: KitPattern[] = ['solid', 'stripes', 'hoops', 'half', 'sash', 'chevron'];
+const PATTERNS = ALL_PATTERNS as KitPattern[];
 
 function randomClub(): Club {
   const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
@@ -25,8 +28,8 @@ function randomClub(): Club {
     short: first.slice(0, 3).toUpperCase(),
     primary, secondary, shorts: secondary, socks: primary,
     gk: '#ffcc2a',
-    pattern: pick(PATTERNS),
-    crest: { shape: Math.floor(Math.random() * CREST_SHAPES), icon: pick(ICON_IDS) },
+    pattern: pick(FREE_PATTERNS),
+    crest: { shape: Math.floor(Math.random() * 5), icon: pick(ICON_IDS.slice(0, 10)) },
   };
 }
 
@@ -56,7 +59,7 @@ export function showClubEditor(h: MenuHandlers, first: boolean) {
           <div class="ce-row"><label for="ce-name">${L.clubName}</label><input id="ce-name" maxlength="18" value="${esc(d.name)}"></div>
           <div class="ce-row"><label for="ce-short">${L.shortName}</label><input id="ce-short" maxlength="3" value="${esc(d.short)}" class="short-in"></div>
           ${swatchRow('primary')}${swatchRow('secondary')}${swatchRow('shorts')}${swatchRow('socks')}
-          <div class="ce-row"><span>${L.pattern}</span><div class="opts" id="ce-pat">${PATTERNS.map((p) => `<button class="opt-b ${d.pattern === p ? 'on' : ''}" data-pat="${p}">${p.toUpperCase()}</button>`).join('')}</div></div>
+          <div class="ce-row"><span>${L.pattern}</span><div class="opts" id="ce-pat">${PATTERNS.map((p) => `<button class="opt-b ${d.pattern === p ? 'on' : ''} ${isLocked('pattern', p) ? 'locked' : ''}" data-pat="${p}">${(cosFor('pattern', p) ? cosName(cosFor('pattern', p)!) : p).toUpperCase()}${lockTag('pattern', p)}</button>`).join('')}</div></div>
           <div class="ce-row"><span>${L.crestShape}</span><div class="opts" id="ce-shape"></div></div>
           <div class="ce-row"><span>${L.crestIcon}</span><div class="opts" id="ce-icon"></div></div>
         </div>
@@ -71,13 +74,26 @@ export function showClubEditor(h: MenuHandlers, first: boolean) {
       <div class="ce-name">${esc(d.name || '...')} <small>${esc(d.short)}</small></div>`;
     paintAll(el);
     const shapes = document.getElementById('ce-shape')!;
-    shapes.innerHTML = Array.from({ length: CREST_SHAPES }, (_, i) => `<button class="opt-c ${d.crest.shape === i ? 'on' : ''}" data-shape="${i}">${paintTag(() => crestCanvas({ shape: i, icon: d.crest.icon }, d.primary, d.secondary), 'crest-sm')}</button>`).join('');
+    shapes.innerHTML = Array.from({ length: CREST_SHAPES }, (_, i) => `<button class="opt-c ${d.crest.shape === i ? 'on' : ''} ${isLocked('shape', i) ? 'locked' : ''}" data-shape="${i}">${paintTag(() => crestCanvas({ shape: i, icon: d.crest.icon }, d.primary, d.secondary), 'crest-sm')}${lockTag('shape', i)}</button>`).join('');
     const icons = document.getElementById('ce-icon')!;
-    icons.innerHTML = ICON_IDS.map((ic) => `<button class="opt-c ${d.crest.icon === ic ? 'on' : ''}" data-icon="${ic}">${paintTag(() => crestCanvas({ shape: d.crest.shape, icon: ic }, d.primary, d.secondary), 'crest-sm')}</button>`).join('');
+    icons.innerHTML = ICON_IDS.map((ic) => `<button class="opt-c ${d.crest.icon === ic ? 'on' : ''} ${isLocked('icon', ic) ? 'locked' : ''}" data-icon="${ic}">${paintTag(() => crestCanvas({ shape: d.crest.shape, icon: ic }, d.primary, d.secondary), 'crest-sm')}${lockTag('icon', ic)}</button>`).join('');
     paintAll(shapes);
     paintAll(icons);
-    bind('[data-shape]', (b) => { d.crest.shape = Number(b.dataset.shape); audio.click(); renderPreview(); }, shapes);
-    bind('[data-icon]', (b) => { d.crest.icon = b.dataset.icon!; audio.click(); renderPreview(); }, icons);
+    const crestPrev = () => crestTag(asTeam(d), 'crest-xl');
+    bind('[data-shape]', (b) => {
+      const prev = d.crest.shape;
+      d.crest.shape = Number(b.dataset.shape);
+      audio.click();
+      renderPreview();
+      if (isLocked('shape', d.crest.shape)) askUnlock('shape', d.crest.shape, crestPrev(), renderPreview, () => { d.crest.shape = prev; renderPreview(); });
+    }, shapes);
+    bind('[data-icon]', (b) => {
+      const prev = d.crest.icon;
+      d.crest.icon = b.dataset.icon!;
+      audio.click();
+      renderPreview();
+      if (isLocked('icon', d.crest.icon)) askUnlock('icon', d.crest.icon, crestPrev(), renderPreview, () => { d.crest.icon = prev; renderPreview(); });
+    }, icons);
   };
   renderPreview();
   const nameIn = document.getElementById('ce-name') as HTMLInputElement;
@@ -108,14 +124,32 @@ export function showClubEditor(h: MenuHandlers, first: boolean) {
     audio.click();
     renderPreview();
   });
-  bind('[data-pat]', (b) => {
-    d.pattern = b.dataset.pat as KitPattern;
-    ui().querySelectorAll('[data-pat]').forEach((x) => x.classList.toggle('on', x === b));
-    audio.click();
+  const setPat = (p: KitPattern) => {
+    d.pattern = p;
+    ui().querySelectorAll<HTMLElement>('[data-pat]').forEach((x) => {
+      x.classList.toggle('on', x.dataset.pat === p);
+      x.classList.toggle('locked', isLocked('pattern', x.dataset.pat!));
+      x.querySelector('.lk')?.remove();
+      x.insertAdjacentHTML('beforeend', lockTag('pattern', x.dataset.pat!));
+    });
     renderPreview();
+  };
+  bind('[data-pat]', (b) => {
+    const prev = d.pattern;
+    const p = b.dataset.pat as KitPattern;
+    audio.click();
+    setPat(p);
+    if (isLocked('pattern', p)) {
+      const team = asTeam(d);
+      askUnlock('pattern', p, `<div class="ce-kits">${paintTag(spriteSource(lookFor(team, { skin: '#e5b48f', hair: '#3b2416', hairStyle: 0, beard: false }), 'idle0'), 'kit')}${paintTag(spriteSource(lookFor(team, { skin: '#7a4d30', hair: '#1a1310', hairStyle: 2, beard: false }), 'run2', true), 'kit')}</div>`, () => setPat(p), () => setPat(prev));
+    }
   });
   bind('[data-act=back]', () => { audio.click(); showSquad(h); });
   bind('[data-act=save]', () => {
+    // never save a look that is still locked
+    if (isLocked('pattern', d.pattern)) d.pattern = 'solid';
+    if (isLocked('shape', d.crest.shape)) d.crest.shape = 0;
+    if (isLocked('icon', d.crest.icon)) d.crest.icon = 'star';
     d.name = d.name.trim() || 'Mad FC';
     d.short = (d.short.trim() || 'MAD').padEnd(3, 'X').slice(0, 3);
     profile.club = d;

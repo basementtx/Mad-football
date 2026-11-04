@@ -4,7 +4,7 @@ export interface CrestCfg {
   icon: string;
 }
 
-export type KitPattern = 'solid' | 'stripes' | 'hoops' | 'half' | 'sash' | 'chevron';
+export type KitPattern = 'solid' | 'stripes' | 'hoops' | 'half' | 'sash' | 'chevron' | 'pinstripe' | 'checker' | 'band' | 'yoke' | 'diagonal' | 'zigzag';
 
 export interface TeamDef {
   id: string;

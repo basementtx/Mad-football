@@ -99,6 +99,9 @@ const tr = {
   tier: 'Seviye', tierUp: 'SEVİYE ATLADI!', copies: 'Kopya', maxTier: 'MAKS', nextSkin: 'Sonraki görünüm',
   btnSize: 'Tuş Boyutu', sizeS: 'Küçük', sizeM: 'Orta', sizeL: 'Büyük', sizeXL: 'Dev',
   tapReveal: 'DOKUN', revealAll: 'HEPSİNİ AÇ', holdBall: 'AT!', findBox: '? KUTUSU BUL', lastError: 'Son hata', transfers: 'TRANSFER PAZARI', transfersSub: 'Oyuncu al, sat, pazarlık yap', crashRecovered: 'Bir hata oluştu, menüye dönüldü',
+  unlockFor: 'AÇ', faceShape: 'Yüz şekli', shop: 'MAĞAZA', storeTab: 'GÜNÜN FIRSATLARI', cratesTab: 'KASALAR', storeSub: 'Süreli teklifler, kilitli görünümler',
+  newOffersIn: 'Yeni teklifler', flashDeal: 'FLAŞ FIRSAT', featured: 'ÖNE ÇIKAN', buy: 'AL', bought: 'ALINDI', soldOut: 'BİTTİ', ownedTag: 'SENDE',
+  refreshStore: 'YENİLE', unlockedToast: 'Kilit açıldı!', boughtToast: 'Satın alındı!', upgradeCopy: '+1 kopya', look: 'Görünüm',
 };
 
 type Dict = typeof tr;
@@ -202,6 +205,9 @@ const en: Dict = {
   tier: 'Tier', tierUp: 'TIER UP!', copies: 'Copies', maxTier: 'MAX', nextSkin: 'Next skin',
   btnSize: 'Button Size', sizeS: 'Small', sizeM: 'Medium', sizeL: 'Large', sizeXL: 'Huge',
   tapReveal: 'TAP', revealAll: 'SHOW ALL', holdBall: 'RELEASE!', findBox: 'FIND A ? BOX', lastError: 'Last error', transfers: 'TRANSFER MARKET', transfersSub: 'Buy, sell, haggle', crashRecovered: 'Something went wrong - back to the menu',
+  unlockFor: 'UNLOCK', faceShape: 'Face shape', shop: 'SHOP', storeTab: 'DAILY DEALS', cratesTab: 'CRATES', storeSub: 'Timed offers, locked looks',
+  newOffersIn: 'New offers in', flashDeal: 'FLASH DEAL', featured: 'FEATURED', buy: 'BUY', bought: 'BOUGHT', soldOut: 'GONE', ownedTag: 'OWNED',
+  refreshStore: 'REFRESH', unlockedToast: 'Unlocked!', boughtToast: 'Purchased!', upgradeCopy: '+1 copy', look: 'Look',
 };
 
 const DICTS: Record<Lang, Dict> = { en, tr };

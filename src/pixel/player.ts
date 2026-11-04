@@ -19,6 +19,8 @@ export interface PlayerLook {
   hair: string;
   hairStyle: number;
   beard: boolean;
+  /** face / head shape (0 = classic) */
+  face?: number;
 }
 
 // ------------------------------------------------------------------ poses
@@ -200,7 +202,7 @@ export interface BuiltSheet {
 const sheetCache = new Map<string, BuiltSheet>();
 
 export function lookKey(l: PlayerLook) {
-  return `${l.kit.id}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}`;
+  return `${l.kit.id}|${l.kit.primary}|${l.kit.secondary}|${l.kit.shorts}|${l.kit.socks}|${l.kit.pattern}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}|${l.face ?? 0}`;
 }
 
 export function playerSheet(look: PlayerLook): BuiltSheet {
@@ -290,6 +292,12 @@ function drawBody(b: Buf, J: Joints, look: PlayerLook) {
       case 'half': return v < 0 ? R_JER2 : R_JER;
       case 'sash': return Math.abs(u - 0.5 + v * 0.45) < 0.16 ? R_JER2 : R_JER;
       case 'chevron': return Math.abs(u - 0.62 + Math.abs(v) * 0.3) < 0.1 ? R_JER2 : R_JER;
+      case 'pinstripe': return Math.floor((v + 1) * 6) % 3 === 0 ? R_JER2 : R_JER;
+      case 'checker': return (Math.floor(u * 5) + Math.floor((v + 1) * 2.5)) % 2 ? R_JER2 : R_JER;
+      case 'band': return Math.abs(v) < 0.3 ? R_JER2 : R_JER;
+      case 'yoke': return u > 0.66 ? R_JER2 : R_JER;
+      case 'diagonal': return u - 0.5 + v * 0.5 > 0 ? R_JER2 : R_JER;
+      case 'zigzag': return Math.abs(u - 0.5 - (Math.abs(((v + 1) * 3) % 2 - 1) - 0.5) * 0.2) < 0.08 ? R_JER2 : R_JER;
       case 'gk': return Math.abs(u - 0.55) < 0.08 ? R_JER2 : R_JER;
       default: return u < 0.12 ? R_JER2 : R_JER;
     }
@@ -329,7 +337,22 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
         const spike = Math.abs(Math.sin(ang * 3.5)) ;
         return Math.hypot(lx, ly) < R + spike * 2.6;
       }
+      case 7: return (inHead && (ly < -1.6 || (lx < -1.6 && ly < 1.4))) || Math.hypot(lx + 1.4, ly + 5.1) < 1.9;
+      case 8: return (inHead && (ly < -1.3 || (lx < -2 && ly < 0.8))) || (ly < -0.6 && lx < 2.6 && Math.hypot(lx + 0.3, ly) < R + 1 + 0.7 * Math.sin(Math.atan2(ly, lx) * 7));
+      case 9: return (inHead && (ly < -1.6 || (lx < -1.6 && ly < 1.4) || (lx > 0 && lx < 3.4 && ly < -0.7))) || (!inHead && lx < -1 && lx > -5.5 && ly > -2.5 && ly < 3 && Math.hypot(lx + 2.6, ly - 0.4) < 3.3);
+      case 10: return (inHead && (ly < -1.6 || (lx < -1.4 && ly < 1.6))) || (!inHead && lx < 0.6 && ly > -3.5 && ly < 6.5 && Math.hypot(lx + 2, ly) < 6.3 && Math.floor(lx + 9) % 2 === 0);
+      case 11: return (ly < -1.6 && ly > -7.2 && lx > -3.7 && lx < 3.3 && (inHead || ly < -2.4)) || (inHead && lx < -2.4 && ly < 0.4);
       default: return false;
+    }
+  };
+  const fs = look.face ?? 0;
+  const headIn = (lx: number, ly: number, d: number) => {
+    switch (fs) {
+      case 1: return d <= R + 0.35;
+      case 2: return Math.pow(Math.pow(Math.abs(lx), 4) + Math.pow(Math.abs(ly), 4), 0.25) <= R - 0.15;
+      case 3: return Math.hypot(lx * 1.06, ly * 0.88) <= R;
+      case 4: return d <= R - Math.max(0, ly - 1) * 0.45;
+      default: return d <= R;
     }
   };
   const minX = Math.floor(hx - 8), maxX = Math.ceil(hx + 8), minY = Math.floor(hy - 8), maxY = Math.ceil(hy + 8);
@@ -338,7 +361,7 @@ function drawHead(b: Buf, J: Joints, look: PlayerLook) {
       const dx = x + 0.5 - hx, dy = y + 0.5 - hy;
       const lx = dx * ca - dy * sa, ly = dx * sa + dy * ca;
       const d = Math.hypot(dx, dy);
-      const inHead = d <= R;
+      const inHead = headIn(lx, ly, d);
       const nose = lx > 3.4 && lx < 4.9 && ly > -0.2 && ly < 1.4;
       let col = -1, tone = 2;
       if (hairAt(lx, ly, inHead)) {

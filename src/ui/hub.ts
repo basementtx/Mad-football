@@ -14,6 +14,7 @@ import { showCreator } from './creator';
 import { showShop } from './shop';
 import { showCollection } from './collection';
 import { showMarket } from './market';
+import { tickStore, newStoreOffers } from '../meta/cosmetics';
 import { market, tickMarket } from '../meta/market';
 import { TEAMS } from '../game/teams';
 import { league, positionOf, ROUNDS } from '../meta/league';
@@ -47,6 +48,7 @@ export function showHub(h: MenuHandlers) {
   if (!club) return showClubEditor(h, true);
   const me = cardById(profile.myPlayer);
   tickMarket();
+  tickStore();
   const free = freeCrateReady() || profile.starterCrate;
   const fx = itemById(profile.equipped.goalfx);
   const kit = profile.loadout.map((id) => itemById(id)).filter((i): i is NonNullable<typeof i> => !!i);
@@ -78,10 +80,11 @@ export function showHub(h: MenuHandlers) {
           <div class="tile-art">${me ? cardHTML(me, { club, size: 'sm' }) : '<div class="plus">+</div>'}</div>
           <div class="tile-label">${me ? L.myPlayer : L.createPlayer}</div>
         </button>
-        <button class="tile ${free ? 'has-badge' : ''}" data-act="shop">
+        <button class="tile ${free || newStoreOffers() ? 'has-badge' : ''}" data-act="shop">
           <div class="tile-art">${crateTag('premium', 'crate-md')}</div>
-          <div class="tile-label">${L.crates}</div>
-          ${free ? `<div class="badge">${L.free}!</div>` : ''}
+          <div class="tile-label">${L.shop}</div>
+          <small>${L.storeSub}</small>
+          ${free ? `<div class="badge">${L.free}!</div>` : newStoreOffers() ? '<div class="badge">NEW</div>' : ''}
         </button>
         <button class="tile" data-act="collection">
           <div class="tile-art col-art">${kit.map((it) => paintTag(() => itemIcon(it.id, it.type, it.color), 'kit-ic')).join('')}</div>
@@ -102,7 +105,7 @@ export function showHub(h: MenuHandlers) {
   bind('[data-act=squad]', () => { audio.click(); showSquad(h); });
   bind('[data-act=club]', () => { audio.click(); showSquad(h); });
   bind('[data-act=player]', () => { audio.click(); showCreator(h, false); });
-  bind('[data-act=shop]', () => { audio.click(); showShop(h); });
+  bind('[data-act=shop]', () => { audio.click(); showShop(h, freeCrateReady() || profile.starterCrate || !newStoreOffers() ? 'crates' : 'store'); });
   bind('[data-act=collection]', () => { audio.click(); showCollection(h); });
   bind('[data-act=market]', () => { audio.select(); showMarket(h); });
   bind('[data-act=howto]', () => { audio.click(); showHowTo(() => showHub(h)); });

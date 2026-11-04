@@ -2,7 +2,10 @@
 import { t } from '../engine/i18n';
 import { audio } from '../engine/audio';
 import { profile, saveProfile, cardById, clubTeamDef, saveMyPlayer } from '../meta/profile';
-import { CardData, Pos, SKINS, HAIRS, HAIR_STYLES, STAT_KEYS, StatKey, uid, overall } from '../meta/cards';
+import { CardData, Pos, SKINS, HAIRS, HAIR_STYLES, FACES, STAT_KEYS, StatKey, uid, overall } from '../meta/cards';
+import { DYES, CosKind } from '../meta/cosmetics';
+import { lockTag, isLocked, askUnlock } from './unlock';
+import { portraitSource } from './common';
 import { setScreen, bind, esc, paintTag, paintAll, spriteSource, lookFor, ui, MenuHandlers } from './common';
 import { cardHTML } from './cards';
 import { showHub } from './hub';
@@ -40,7 +43,8 @@ export function showCreator(h: MenuHandlers, first: boolean) {
           <div class="ce-row"><span>${L.position}</span><div class="opts">${(['GK', 'DEF', 'MID', 'FWD'] as Pos[]).map((p) => `<button class="opt-b ${d.pos === p ? 'on' : ''}" data-pos="${p}">${L.pos[p]}</button>`).join('')}</div></div>
           <div class="ce-row"><span>${L.skin}</span><div class="swatches">${SKINS.map((c) => `<button class="sw ${d.look.skin === c ? 'on' : ''}" data-skin="${c}" style="--c:${c}"></button>`).join('')}</div></div>
           <div class="ce-row"><span>${L.hairStyle}</span><div class="opts" id="cr-hair"></div></div>
-          <div class="ce-row"><span>${L.hairColor}</span><div class="swatches">${HAIRS.map((c) => `<button class="sw ${d.look.hair === c ? 'on' : ''}" data-hc="${c}" style="--c:${c}"></button>`).join('')}</div></div>
+          <div class="ce-row"><span>${L.faceShape}</span><div class="opts" id="cr-face"></div></div>
+          <div class="ce-row"><span>${L.hairColor}</span><div class="swatches" id="cr-dye"></div></div>
           <div class="ce-row"><span>${L.beard}</span><button class="toggle ${d.look.beard ? 'on' : ''}" data-act="beard"><i></i></button></div>
           <div class="ce-row stats-head"><span>${L.pointsLeft}</span><b id="cr-pts"></b></div>
           ${STAT_KEYS.map((k) => `<div class="ce-row stat-row"><span>${L.stat[k]}</span><div class="stepper"><button data-dec="${k}">−</button><div class="st-bar"><i id="cr-bar-${k}"></i></div><b id="cr-v-${k}"></b><button data-inc="${k}">+</button></div></div>`).join('')}
@@ -54,16 +58,23 @@ export function showCreator(h: MenuHandlers, first: boolean) {
     el.innerHTML = `${cardHTML(d, { club, size: 'lg' })}${paintTag(spriteSource(lookFor(club, d.look, d.pos === 'GK'), 'cel0'), 'kit')}`;
     paintAll(el);
     const hairs = document.getElementById('cr-hair')!;
-    hairs.innerHTML = Array.from({ length: HAIR_STYLES }, (_, i) => `<button class="opt-c ${d.look.hairStyle === i ? 'on' : ''}" data-hs="${i}">${paintTag(() => {
-      const src = spriteSource(lookFor(club, { ...d.look, hairStyle: i }), 'idle0', false, false)();
-      const c = document.createElement('canvas');
-      c.width = 16;
-      c.height = 14;
-      c.getContext('2d')!.drawImage(src, 13, 0, 16, 14, 0, 0, 16, 14);
-      return c;
-    }, 'hair-ic')}</button>`).join('');
+    hairs.innerHTML = Array.from({ length: HAIR_STYLES }, (_, i) => `<button class="opt-c ${d.look.hairStyle === i ? 'on' : ''} ${isLocked('hair', i) ? 'locked' : ''}" data-hs="${i}">${lockTag('hair', i)}${paintTag(portraitSource(lookFor(club, { ...d.look, hairStyle: i })), 'face-ic')}</button>`).join('');
     paintAll(hairs);
-    bind('[data-hs]', (b) => { d.look.hairStyle = Number(b.dataset.hs); audio.click(); renderPreview(); }, hairs);
+    const faces = document.getElementById('cr-face')!;
+    faces.innerHTML = Array.from({ length: FACES }, (_, i) => `<button class="opt-c ${(d.look.face ?? 0) === i ? 'on' : ''} ${isLocked('face', i) ? 'locked' : ''}" data-fc="${i}">${paintTag(portraitSource(lookFor(club, { ...d.look, face: i })), 'face-ic')}${lockTag('face', i)}</button>`).join('');
+    paintAll(faces);
+    const dyes = document.getElementById('cr-dye')!;
+    dyes.innerHTML = DYES.map((c) => `<button class="sw ${d.look.hair === c ? 'on' : ''} ${isLocked('dye', c) ? 'locked' : ''}" data-hc="${c}" style="--c:${c}">${lockTag('dye', c)}</button>`).join('');
+    // try a look on; locked ones open the unlock sheet and revert on cancel
+    const tryOn = (kind: CosKind, value: string | number, apply: () => void, revert: () => void) => {
+      apply();
+      audio.click();
+      renderPreview();
+      if (isLocked(kind, value)) askUnlock(kind, value, `<div class="um-portrait">${cardHTML(d, { club, size: 'md' })}</div>`, renderPreview, () => { revert(); renderPreview(); });
+    };
+    bind('[data-hs]', (b) => { const prev = d.look.hairStyle; const v = Number(b.dataset.hs); tryOn('hair', v, () => (d.look.hairStyle = v), () => (d.look.hairStyle = prev)); }, hairs);
+    bind('[data-fc]', (b) => { const prev = d.look.face ?? 0; const v = Number(b.dataset.fc); tryOn('face', v, () => (d.look.face = v), () => (d.look.face = prev)); }, faces);
+    bind('[data-hc]', (b) => { const prev = d.look.hair; const v = b.dataset.hc!; tryOn('dye', v, () => (d.look.hair = v), () => (d.look.hair = prev)); }, dyes);
     const left = CREATOR_POINTS - spent();
     document.getElementById('cr-pts')!.textContent = String(left);
     for (const k of STAT_KEYS) {
@@ -83,7 +94,6 @@ export function showCreator(h: MenuHandlers, first: boolean) {
   numIn.addEventListener('input', () => { d.number = Math.max(1, Math.min(99, Number(numIn.value) || 1)); renderPreview(); });
   bind('[data-pos]', (b) => { d.pos = b.dataset.pos as Pos; ui().querySelectorAll('[data-pos]').forEach((x) => x.classList.toggle('on', x === b)); audio.click(); renderPreview(); });
   bind('[data-skin]', (b) => { d.look.skin = b.dataset.skin!; ui().querySelectorAll('[data-skin]').forEach((x) => x.classList.toggle('on', x === b)); audio.click(); renderPreview(); });
-  bind('[data-hc]', (b) => { d.look.hair = b.dataset.hc!; ui().querySelectorAll('[data-hc]').forEach((x) => x.classList.toggle('on', x === b)); audio.click(); renderPreview(); });
   bind('[data-act=beard]', (b) => { d.look.beard = !d.look.beard; b.classList.toggle('on', d.look.beard); audio.click(); renderPreview(); });
   const step = (k: StatKey, delta: number) => {
     const left = CREATOR_POINTS - spent();
@@ -100,6 +110,9 @@ export function showCreator(h: MenuHandlers, first: boolean) {
   bind('[data-dec]', (b) => step(b.dataset.dec as StatKey, -1));
   bind('[data-act=back]', () => { audio.click(); showHub(h); });
   bind('[data-act=save]', () => {
+    if (isLocked('hair', d.look.hairStyle)) d.look.hairStyle = 0;
+    if (isLocked('face', d.look.face ?? 0)) d.look.face = 0;
+    if (isLocked('dye', d.look.hair)) d.look.hair = HAIRS[1];
     d.name = d.name.trim() || 'Mad Striker';
     saveMyPlayer(d);
     if (first) profile.starterCrate = true;

@@ -10,6 +10,12 @@ import { setScreen, bind, paintTag, paintAll, coinsPill, coinTag, crateTag, toas
 import { cardHTML, itemHTML } from './cards';
 import { showHub } from './hub';
 import { showCollection } from './collection';
+import { store, tickStore, refreshStore, buyOffer, StoreOffer, offerItem, offerCos, offerRarity, markStoreSeen, cosName, cosKindName, STORE_REFRESH_COST, Cosmetic } from '../meta/cosmetics';
+import { itemName, RARITY_COLOR } from '../meta/items';
+import { itemIcon } from '../pixel/icons';
+import { crestTag, portraitSource, lookFor, esc, toast as toastMsg } from './common';
+import { cardById } from '../meta/profile';
+import type { KitPattern } from '../game/teams';
 
 function fmtTime(ms: number) {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -17,18 +23,86 @@ function fmtTime(ms: number) {
   return h ? `${h}h ${m}m` : `${m}m ${s % 60}s`;
 }
 
-export function showShop(h: MenuHandlers) {
+let shopTab: 'crates' | 'store' = 'crates';
+let storeTimer = 0;
+
+function fmtClock(ms: number) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`;
+}
+
+/** Preview art for a store offer. */
+function offerArt(o: StoreOffer) {
+  const it = offerItem(o);
+  if (it) return paintTag(() => itemIcon(it.id, it.type, it.color), 'so-icon');
+  const c = offerCos(o)!;
+  const club = clubTeamDef();
+  const me = cardById(profile.myPlayer);
+  const base = me?.look ?? { skin: '#e5b48f', hair: '#3b2416', hairStyle: 0, beard: false, face: 0 };
+  if (!club) return '';
+  switch (c.kind) {
+    case 'pattern': {
+      const kit = { ...club, pattern: c.value as KitPattern };
+      return `<span class="so-kits">${paintTag(portraitSource(lookFor(kit, base)), 'so-face')}</span>`;
+    }
+    case 'hair': return paintTag(portraitSource(lookFor(club, { ...base, hairStyle: Number(c.value) })), 'so-face');
+    case 'face': return paintTag(portraitSource(lookFor(club, { ...base, face: Number(c.value) })), 'so-face');
+    case 'dye': return paintTag(portraitSource(lookFor(club, { ...base, hair: c.value })), 'so-face');
+    case 'shape': return crestTag({ ...club, crest: { ...club.crest, shape: Number(c.value) } }, 'so-crest');
+    case 'icon': return crestTag({ ...club, crest: { ...club.crest, icon: c.value } }, 'so-crest');
+  }
+}
+
+function offerTile(o: StoreOffer, i: number) {
   const L = t();
+  const it = offerItem(o);
+  const c = offerCos(o) as Cosmetic | undefined;
+  const rar = offerRarity(o);
+  const name = it ? itemName(it) : cosName(c!);
+  const kind = it ? (it.type === 'goalfx' ? L.goalFx : it.type === 'trail' ? L.trails : L.items) : cosKindName(c!);
+  const copy = !!it && it.type === 'power' && profile.owned.includes(it.id);
+  const gone = o.bought || (!!o.until && Date.now() > o.until);
+  const flag = o.featured ? `<span class="so-flag feat">${L.featured}</span>` : o.until ? `<span class="so-flag flash">${L.flashDeal} <b data-until="${o.until}">${fmtClock(o.until - Date.now())}</b></span>` : '';
+  return `<div class="so-tile r-${rar} ${o.featured ? 'featured' : ''} ${gone ? 'gone' : ''}" style="--rc:${RARITY_COLOR[rar]};--i:${i}">
+    ${flag}
+    ${o.off ? `<span class="so-off">-${o.off}%</span>` : ''}
+    <div class="so-art"><div class="so-glow"></div>${offerArt(o)}</div>
+    <div class="so-kick">${esc(kind)} · ${L.itemRarity[rar]}${copy ? ` · ${L.upgradeCopy}` : ''}</div>
+    <div class="so-name">${esc(name)}</div>
+    <button class="btn ${gone ? 'btn-ghost' : 'btn-primary'} so-buy" data-buy="${i}" ${gone ? 'disabled' : ''}>
+      ${gone ? (o.bought ? L.bought : L.soldOut) : `${o.off ? `<s>${o.base}</s>` : ''}${coinTag()} ${o.price}`}
+    </button>
+    ${o.bought ? `<div class="stamp green so-stamp">${L.bought}</div>` : ''}
+  </div>`;
+}
+
+export function showShop(h: MenuHandlers, tab: 'crates' | 'store' = shopTab) {
+  const L = t();
+  shopTab = tab;
+  tickStore();
+  if (tab === 'store') markStoreSeen();
   const freeBasic = freeCrateReady();
   const starter = profile.starterCrate;
+  const newDeals = !store.seen;
   setScreen(
     'screen-shop',
     `<div class="shop">
       <div class="panel-head">
         <button class="btn btn-ghost btn-sm" data-act="back">‹ ${L.back}</button>
-        <div class="panel-title">${L.crates}</div>
+        <div class="panel-title">${L.shop}</div>
         ${coinsPill()}
       </div>
+      <div class="tabs shop-tabs">
+        <button class="tab ${tab === 'crates' ? 'on' : ''}" data-tab="crates">${L.cratesTab}${freeBasic || starter ? ` <small class="tab-dot">${L.free}!</small>` : ''}</button>
+        <button class="tab ${tab === 'store' ? 'on' : ''}" data-tab="store">${L.storeTab}${newDeals ? ' <small class="tab-dot">NEW</small>' : ''}</button>
+      </div>
+      ${tab === 'store' ? `
+      <div class="store">
+        <div class="store-bar"><span>${L.newOffersIn} <b id="store-clock">${fmtClock(store.at - Date.now())}</b></span>
+          <button class="btn btn-ghost btn-sm" data-act="refresh">${L.refreshStore} · ${coinTag()} ${STORE_REFRESH_COST}</button></div>
+        <div class="store-grid">${store.offers.map(offerTile).join('')}</div>
+      </div>` : `
       <div class="crates">
         ${CRATES.map((c) => {
           const isFree = (c.id === 'basic' && freeBasic) || (c.id === 'premium' && starter);
@@ -40,10 +114,45 @@ export function showShop(h: MenuHandlers) {
             ${c.id === 'basic' && !freeBasic ? `<div class="crate-timer">${L.freeIn} ${fmtTime(profile.freeCrateAt - Date.now())}</div>` : ''}
           </div>`;
         }).join('')}
-      </div>
+      </div>`}
     </div>`,
   );
   bind('[data-act=back]', () => { audio.click(); showHub(h); });
+  bind('[data-tab]', (el) => { audio.click(); showShop(h, el.dataset.tab as 'crates' | 'store'); });
+  bind('[data-act=refresh]', () => {
+    if (!refreshStore()) { toastMsg(L.notEnough); audio.groan(); return; }
+    audio.select();
+    showShop(h, 'store');
+  });
+  bind('[data-buy]', (el) => {
+    const o = store.offers[Number(el.dataset.buy)];
+    if (!o) return;
+    const r = buyOffer(o);
+    if (r.res === 'coins') { toastMsg(L.notEnough); audio.groan(); return; }
+    if (r.res !== 'ok') return;
+    audio.cheer(0.5);
+    audio.horn();
+    vibrate([40, 30, 80]);
+    const tile = el.closest<HTMLElement>('.so-tile')!;
+    sparks(tile, [RARITY_COLOR[offerRarity(o)], '#ffffff', '#ffe14d'], 26, 140);
+    tile.classList.add('buying');
+    toastMsg(r.tierUp ? `${L.tierUp} ${ROMAN[r.tierUp - 1]}` : offerCos(o) ? L.unlockedToast : L.boughtToast);
+    setTimeout(() => { if (tile.isConnected) showShop(h, 'store'); }, 700);
+  });
+  clearInterval(storeTimer);
+  storeTimer = window.setInterval(() => {
+    const clock = document.getElementById('store-clock');
+    if (!clock && !document.querySelector('.crates')) return clearInterval(storeTimer);
+    if (clock) {
+      if (Date.now() >= store.at) return showShop(h, 'store');
+      clock.textContent = fmtClock(store.at - Date.now());
+      document.querySelectorAll<HTMLElement>('[data-until]').forEach((b) => {
+        const left = Number(b.dataset.until) - Date.now();
+        b.textContent = fmtClock(left);
+        if (left <= 0) b.closest('.so-tile')?.classList.add('gone');
+      });
+    }
+  }, 1000);
   bind('[data-crate]', (el) => {
     const def = CRATES.find((c) => c.id === el.dataset.crate)!;
     if (def.id === 'premium' && profile.starterCrate) {

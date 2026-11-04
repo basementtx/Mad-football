@@ -32,6 +32,8 @@ export interface Profile {
   tiers: Record<string, { t: number; s: number }>;
   freeCrateAt: number;
   starterCrate: boolean;
+  /** unlocked looks (meta/cosmetics ids) */
+  unlocked: string[];
 }
 
 const KEY = 'mf.profile';
@@ -49,6 +51,7 @@ function fresh(): Profile {
     tiers: {},
     freeCrateAt: 0,
     starterCrate: true,
+    unlocked: [],
   };
 }
 
@@ -77,6 +80,7 @@ function migrate() {
     if (it.type === 'power' && profile.owned.includes(it.id) && !profile.loadout.includes(it.id)) profile.loadout.push(it.id);
   }
   if (!profile.tiers || typeof profile.tiers !== 'object') profile.tiers = {};
+  if (!Array.isArray(profile.unlocked)) profile.unlocked = [];
 }
 
 export const tierOf = (id: string) => profile.tiers[id]?.t ?? 1;

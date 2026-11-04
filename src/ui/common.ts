@@ -150,8 +150,8 @@ export function toast(msg: string) {
   toastT = window.setTimeout(() => el!.classList.remove('show'), 2200);
 }
 
-export function lookFor(kit: TeamDef, l: { skin: string; hair: string; hairStyle: number; beard: boolean }, isGK = false): PlayerLook {
-  return { kit, isGK, skin: l.skin, hair: l.hair, hairStyle: l.hairStyle, beard: l.beard };
+export function lookFor(kit: TeamDef, l: { skin: string; hair: string; hairStyle: number; beard: boolean; face?: number }, isGK = false): PlayerLook {
+  return { kit, isGK, skin: l.skin, hair: l.hair, hairStyle: l.hairStyle, beard: l.beard, face: l.face ?? 0 };
 }
 
 export interface MenuHandlers {

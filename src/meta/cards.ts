@@ -12,6 +12,8 @@ export interface CardLook {
   hair: string;
   hairStyle: number;
   beard: boolean;
+  /** face shape (0 = classic) */
+  face?: number;
 }
 
 export interface CardData {
@@ -27,7 +29,10 @@ export interface CardData {
 
 export const SKINS = ['#f3d2b5', '#e5b48f', '#c98d63', '#a8714a', '#7a4d30', '#5a3722'];
 export const HAIRS = ['#1a1310', '#3b2416', '#6b3e1f', '#c98a3a', '#e8d27a', '#d8d8d8', '#b02a1a', '#20263a'];
-export const HAIR_STYLES = 7;
+/** unlockable dyes (shop) */
+export const HAIRS_EXTRA = ['#f4f1e8', '#ff7a1a', '#ff3fa4', '#8a5cff', '#3f8cff', '#21c48a'];
+export const HAIR_STYLES = 12;
+export const FACES = 5;
 
 const FIRST = ['Leo', 'Kai', 'Emre', 'Bruno', 'Mateo', 'Yusuf', 'Niko', 'Arda', 'Luca', 'Omar', 'Theo', 'Ivan', 'Kenji', 'Diego', 'Malik', 'Sami', 'Hugo', 'Rafa', 'Can', 'Felix', 'Jonas', 'Tariq', 'Enzo', 'Bora'];
 const LAST = ['Storm', 'Kaya', 'Silva', 'Novak', 'Okafor', 'Duran', 'Varga', 'Yilmaz', 'Costa', 'Moreau', 'Petrov', 'Tanaka', 'Reyes', 'Bakker', 'Rossi', 'Demir', 'Mensah', 'Kowal', 'Lund', 'Aziz', 'Blitz', 'Crash', 'Hammer', 'Vortex'];
@@ -66,7 +71,7 @@ export const RARITY_RANGE: Record<CardRarity, [number, number]> = {
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
 export function randomLook(): CardLook {
-  return { skin: pick(SKINS), hair: pick(HAIRS), hairStyle: randInt(0, HAIR_STYLES - 1), beard: Math.random() < 0.25 };
+  return { skin: pick(SKINS), hair: pick(HAIRS), hairStyle: randInt(0, HAIR_STYLES - 1), beard: Math.random() < 0.25, face: randInt(0, FACES - 1) };
 }
 
 /** Generate a card whose overall lands in the rarity band. */

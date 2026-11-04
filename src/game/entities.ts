@@ -191,7 +191,8 @@ export class Player {
   runPhase = Math.random() * 6;
   skin = pick(SKIN);
   hair = pick(HAIR_COLORS);
-  hairStyle = randInt(0, 6);
+  hairStyle = randInt(0, 11);
+  faceShape = randInt(0, 4);
   beard = Math.random() < 0.25;
   build = 0.92 + Math.random() * 0.16;
 
@@ -227,6 +228,7 @@ export class Player {
     this.skin = c.look.skin;
     this.hair = c.look.hair;
     this.hairStyle = c.look.hairStyle;
+    this.faceShape = c.look.face ?? 0;
     this.beard = c.look.beard;
     this.number = c.number;
   }
