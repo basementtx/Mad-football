@@ -49,6 +49,7 @@ const tr = {
     ['⚽', 'Şut', 'Top sende iken basılı tut, gücü doldur, bırak. Aşırı doldurursan top havalanır! (J / Boşluk)'],
     ['🦵', 'Kay / İt', 'Top sende değilken: yakındaki rakibi iter, uzaktakine kayarak dalarsın. Herkes hedef — kaleci dahil! (J / Boşluk)'],
     ['➡️', 'Pas', 'Dokun: yerden pas. Basılı tut: havadan pas. Top sende değilken oyuncu değiştirir. (K)'],
+    ['⤴️', 'Orta / Aşırtma', 'PAS tuşunu basılı tutup parmağını yukarı kaydır ve bırak: ceza sahasına orta. ŞUT tuşunda aynısı: kalecinin üstünden aşırtma. Ortaya ŞUT ile kafa/vole vur. (Klavye: R basılıyken K veya J)'],
     ['💨', 'Depar', 'Basılı tut, dayanıklılık biter. (Shift / L)'],
     ['🌀', 'Çalım', 'Kısa süre dokunulmaz olursun, kaymaları boşa çıkarırsın. (I / C)'],
     ['❓', 'Gizemli Kutular', 'Sahada dönen gökkuşağı "?" kutularının üstünden geç: envanterinde seçtiğin eşyalardan biri rastgele çıkar. EŞYA tuşuyla kullan (E / Q).'],
@@ -113,6 +114,17 @@ const tr = {
   } as Record<string, string>,
   pitchNames: { stripes: 'Çizgili', checker: 'Damalı', diagonal: 'Çapraz', rings: 'Halkalı', dry: 'Kurak', astro: 'Suni Çim' } as Record<string, string>,
   stadiumNames: { arena: 'Arena', retro: 'Eski Tribün', street: 'Sokak Kafesi', coliseum: 'Kolezyum', neon: 'Neon Kubbe' } as Record<string, string>,
+  crossTxt: 'ORTA!', chipTxt: 'AŞIRTMA!',
+  missions: 'GÖREVLER', daily: 'GÜNLÜK', weekly: 'HAFTALIK', claim: 'AL', claimed: 'ALINDI', resetsIn: 'Yenilenme', missionDone: 'Görev tamamlandı',
+  missionsSub: 'Günlük ve haftalık ödüller', hours: 'sa', minutes: 'dk', days: 'g',
+  missionText: {
+    play: '{n} maç oyna', win: '{n} maç kazan', goals: '{n} gol at', knockdowns: '{n} rakibi yere ser', passes: '{n} isabetli pas yap',
+    crosses: '{n} orta aç', chips: '{n} aşırtma şut çek', headers: '{n} kafa / vole vuruşu yap', powers: '{n} özel güç kullan',
+    cleanSheet: '{n} maçı gol yemeden bitir', hardWin: 'Zor veya üstünde {n} galibiyet al', weatherWin: 'Yağmur, fırtına ya da karda {n} galibiyet',
+    league: '{n} lig maçı oyna', steals: '{n} top kap',
+  } as Record<string, string>,
+  chemistry: 'KİMYA', chemHint: 'Doğru mevki +1 • 3 maç birlikte +1 • 10 maç +2',
+  chemWrongPos: 'Yanlış mevki', chemGK: 'Kaleci yerinde değil', chemGames: 'maç',
 };
 
 type Dict = typeof tr;
@@ -166,6 +178,7 @@ const en: Dict = {
     ['⚽', 'Shoot', 'With the ball: hold to charge, release to shoot. Overcharge and it flies high! (J / Space)'],
     ['🦵', 'Slide / Shove', 'Without the ball: shove nearby opponents, slide into distant ones. Anyone is fair game — even the keeper! (J / Space)'],
     ['➡️', 'Pass', 'Tap: ground pass. Hold: lofted pass. Without the ball it switches player. (K)'],
+    ['⤴️', 'Cross / Chip', 'Hold PASS, swipe your finger up and release: a cross into the box. Same on SHOOT: a chip over the keeper. Attack a cross with SHOOT for a header/volley. (Keyboard: hold R with K or J)'],
     ['💨', 'Sprint', 'Hold to sprint, drains stamina. (Shift / L)'],
     ['🌀', 'Spin', 'Briefly untouchable — makes tackles whiff. (I / C)'],
     ['❓', 'Mystery Boxes', 'Run over the spinning rainbow "?" boxes: you get a random item from your inventory loadout. Use it with the ITEM button (E / Q).'],
@@ -230,6 +243,17 @@ const en: Dict = {
   } as Record<string, string>,
   pitchNames: { stripes: 'Stripes', checker: 'Checkered', diagonal: 'Diagonal', rings: 'Rings', dry: 'Dry', astro: 'Astroturf' } as Record<string, string>,
   stadiumNames: { arena: 'Arena', retro: 'Old Ground', street: 'Street Cage', coliseum: 'Coliseum', neon: 'Neon Dome' } as Record<string, string>,
+  crossTxt: 'CROSS!', chipTxt: 'CHIP!',
+  missions: 'MISSIONS', daily: 'DAILY', weekly: 'WEEKLY', claim: 'CLAIM', claimed: 'CLAIMED', resetsIn: 'Resets in', missionDone: 'Mission complete',
+  missionsSub: 'Daily and weekly rewards', hours: 'h', minutes: 'm', days: 'd',
+  missionText: {
+    play: 'Play {n} matches', win: 'Win {n} matches', goals: 'Score {n} goals', knockdowns: 'Knock down {n} opponents', passes: 'Complete {n} passes',
+    crosses: 'Whip in {n} crosses', chips: 'Try {n} chip shots', headers: 'Hit {n} headers / volleys', powers: 'Use {n} powers',
+    cleanSheet: 'Keep {n} clean sheets', hardWin: 'Win {n} on Hard or above', weatherWin: 'Win {n} in rain, storm or snow',
+    league: 'Play {n} league matches', steals: 'Make {n} steals',
+  } as Record<string, string>,
+  chemistry: 'CHEMISTRY', chemHint: 'Right position +1 • 3 matches together +1 • 10 matches +2',
+  chemWrongPos: 'Out of position', chemGK: 'Keeper out of goal', chemGames: 'matches',
 };
 
 const DICTS: Record<Lang, Dict> = { en, tr };

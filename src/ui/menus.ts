@@ -15,6 +15,8 @@ import type { CardData, Pos } from '../meta/cards';
 import { vibrate } from '../engine/audio';
 import { WEATHERS, PITCHES, STADIUMS, makeEnv, Weather, PitchStyle, Stadium } from '../game/env';
 import { THEMES, GRASS } from '../game/stadium';
+import type { Mission } from '../meta/missions';
+import { missionLabel } from './missions';
 
 export type { MenuHandlers };
 
@@ -402,7 +404,7 @@ function cardOf(p: Player): CardData {
   };
 }
 
-export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode = false) {
+export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode = false, done: Mission[] = []) {
   const L = t();
   const [a, b] = m.teams;
   const res = a.score > b.score ? 'win' : a.score < b.score ? 'loss' : 'draw';
@@ -442,6 +444,7 @@ export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode
             <div class="mvp-line"><span>⚽ <b data-count="${mvp.goals}">0</b></span><span>🎯 <b data-count="${mvp.assists}">0</b></span><span>💥 <b data-count="${mvp.knockdowns}">0</b></span>${mvp.isGK ? `<span>🧤 <b data-count="${mvp.saves}">0</b></span>` : ''}</div></div>
           </div>
           <div class="coins">+${coins} ${coinTag()}</div>
+          ${done.map((d) => `<div class="res-mission">🎯 ${esc(L.missionDone)}: ${esc(missionLabel(d))}</div>`).join('')}
         </div>
       </div>
       <div class="row">

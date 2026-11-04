@@ -16,6 +16,8 @@ import './ui/crate3d.css';
 import { installMotion } from './ui/motion';
 import { initUpdater } from './engine/update';
 import { initNotifications } from './engine/notify';
+import { lineupChemMuls, addFamiliarity } from './meta/chemistry';
+import { missionsAfterMatch } from './meta/missions';
 import { resolveEnv, homeGroundEnv, MatchEnv, Weather, PitchStyle, Stadium, Choice } from './game/env';
 
 import { Input, Insets } from './engine/input';
@@ -142,6 +144,7 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
     {
       home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty, demo: false,
       homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
+      homeChem: useClub ? lineupChemMuls() : undefined,
       starId: useClub ? profile.myPlayer : null,
       loadout: { goalfx: profile.equipped.goalfx, trail: profile.equipped.trail, powers: profile.loadout, tiers: loadoutTiers(), boots: profile.equipped.boots },
       training,
@@ -318,9 +321,17 @@ function endMatch() {
   record.coins += coins;
   saveRecord();
   if (matchMode === 'league') recordUserResult(a.score, b.score);
+  if (m.cfg.homeCards) addFamiliarity(m.cfg.size);
+  const w = m.env.weather;
+  const done = missionsAfterMatch({
+    res, goalsFor: a.score, goalsAgainst: b.score, knockdowns: a.stats.knockdowns, passes: a.stats.passes,
+    crosses: a.stats.crosses, chips: a.stats.chips, headers: a.stats.headers, powers: a.stats.powerShots, steals: a.stats.tackles,
+    hard: ['hard', 'insane', 'legend'].includes(m.cfg.difficulty), badWeather: w === 'rain' || w === 'storm' || w === 'snow',
+    league: matchMode === 'league',
+  });
   mode = 'results';
   input.enabled = false;
-  showResults(handlers, m, coins, matchMode === 'league');
+  showResults(handlers, m, coins, matchMode === 'league', done);
 }
 
 // unlock audio on first interaction anywhere

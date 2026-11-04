@@ -89,6 +89,12 @@ export interface TeamStats {
   passes: number;
   saves: number;
   powerShots: number;
+  /** lofted crosses into the box */
+  crosses: number;
+  /** chip (lob) shots */
+  chips: number;
+  /** header / volley shots */
+  headers: number;
 }
 
 export class Team {
@@ -109,7 +115,7 @@ export class Team {
   trail = 'tr_basic';
   /** equipped football boots (item id, '' = default) */
   boots = '';
-  stats: TeamStats = { shots: 0, onTarget: 0, knockdowns: 0, tackles: 0, possession: 0, passes: 0, saves: 0, powerShots: 0 };
+  stats: TeamStats = { shots: 0, onTarget: 0, knockdowns: 0, tackles: 0, possession: 0, passes: 0, saves: 0, powerShots: 0, crosses: 0, chips: 0, headers: 0 };
 
   constructor(
     public def: TeamDef,
@@ -292,6 +298,8 @@ export class Ball {
   /** visual/behaviour kind of the active power shot */
   power: 'fire' | 'ice' | 'thunder' | 'banana' = 'fire';
   passTarget: Player | null = null;
+  /** current flight is a cross (receiver can attack it from further away) */
+  cross = false;
   shotBy: Team | null = null;
   inGoal = 0;
   /** skin tier of the active power shot */
@@ -306,6 +314,7 @@ export class Ball {
     this.x = this.y = this.z = 0;
     this.vx = this.vy = this.vz = 0;
     this.spin = 0;
+    this.cross = false;
     this.owner = null;
     this.lastTouch = this.prevTouch = null;
     this.lockPlayer = null;

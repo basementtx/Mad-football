@@ -59,6 +59,9 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **6 saha deseni**: Çizgili, Damalı, Çapraz, Halkalı, Kurak (sararmış çim, daha fazla toprak) ve Suni Çim (topu biraz daha hızlı ve sektiren zemin).
 - **5 stadyum**: Arena, Eski Tribün (ahşap çatı, görüşü kapatan direkler, köşe projektör kuleleri), Sokak Kafesi (tel örgü, grafiti, şehir silueti, seyrek seyirci), Kolezyum (kumtaşı kemerler, titreyen meşaleler) ve Neon Kubbe (neon şeritler).
 - Hızlı maçta zorluk seçiminden sonra **Saha & Hava** ekranında stadyum, çim ve hava seçilir (ya da hepsi rastgele); seçim menü arka planında canlı önizlenir. Lig maçları ev sahibi takımın stadyumunda, o takıma özgü havalarla oynanır.
+- **Orta ve aşırtma**: PAS tuşunu basılı tutup parmağını yukarı kaydırıp bırakınca ceza sahasındaki arkadaşına kafa yüksekliğinde orta açılır; ŞUT tuşunda aynı hareket kalecinin üstünden aşırtma şutu çeker. Kaydırma algılanınca tuşun içindeki ok sararır ve oyuncunun üstünde ORTA/AŞIRTMA yazar; nişan çizgisi topun yayını gösterir. Gelen ortaya ŞUT ile kafa/vole vurulur. Klavyede R basılıyken K (orta) veya J (aşırtma). Yapay zekâ da kanattan orta açar.
+- **Günlük ve haftalık görevler**: her gün 3, her hafta (pazartesi yenilenir) 3 rastgele görev: maç oyna/kazan, gol, yere serme, pas, orta, aşırtma, kafa/vole, özel güç, gol yememe, zorda galibiyet, kötü havada galibiyet, lig maçı, top kapma. Tamamlananlar Görevler ekranından altın olarak alınır; maç sonu ekranı tamamlanan görevleri gösterir.
+- **Takım kimyası**: ilk 11'deki (5'teki) her oyuncu 0-3 kimya puanı alır: doğru mevki +1, kulüpte 3 maç +1, 10 maç +2 (kaleci yerinde değilse 0). Takım kimyası 0-100 arası; maçta oyuncu değerleri kimyaya göre ×0.93 ile ×1.04 arasında ölçeklenir. Kadro ekranında kimya çubuğu ve oyuncu başına ◆ puanları görünür.
 - İngilizce (varsayılan) ve Türkçe arayüz; dil, ayarlardan ya da ana menüdeki piksel bayrak düğmesinden değiştirilebilir.
 
 ## Kontroller

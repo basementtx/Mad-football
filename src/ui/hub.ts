@@ -25,6 +25,9 @@ import { career } from '../career/state';
 import { clubName } from '../career/world';
 import { L2 } from '../career/util';
 import { lookOf } from '../career/util';
+import { showMissions } from './missions';
+import { claimableCount } from '../meta/missions';
+import { teamChem, chemColor } from '../meta/chemistry';
 
 export function showSplash(h: MenuHandlers) {
   const L = t();
@@ -59,11 +62,13 @@ export function showHub(h: MenuHandlers) {
   const fx = itemById(profile.equipped.goalfx);
   const kit = profile.loadout.map((id) => itemById(id)).filter((i): i is NonNullable<typeof i> => !!i);
   const lang = LANGS.find((l) => l.code === settings.lang)!;
+  const claim = claimableCount();
+  const chem = teamChem();
   setScreen(
     'screen-hub',
     `<div class="hub">
       <div class="hub-top">
-        <button class="club-chip" data-act="club">${crestTag(club, 'crest-md')}<div><b>${esc(club.name)}</b><small>${L.ovr} ${clubOverall()} • ${record.wins}${L.w} ${record.draws}${L.d} ${record.losses}${L.l}</small></div></button>
+        <button class="club-chip" data-act="club">${crestTag(club, 'crest-md')}<div><b>${esc(club.name)}</b><small>${L.ovr} ${clubOverall()} • <span style="color:${chemColor(chem)}">${L.chemistry} ${chem}</span> • ${record.wins}${L.w} ${record.draws}${L.d} ${record.losses}${L.l}</small></div></button>
         <div class="hub-top-r">
           ${coinsPill()}
           <button class="icon-btn" data-act="lang">${flagTag(lang.flag)}</button>
@@ -105,6 +110,7 @@ export function showHub(h: MenuHandlers) {
         </button>
         <button class="tile tile-sm" data-act="quick"><div class="tile-label"><span class="bolt">⚡</span> ${L.quickMatch}</div></button>
         <button class="tile tile-sm tile-train" data-act="training"><div class="tile-label"><span class="cone">◢</span> ${L.training}</div><small>${L.trainingSub}</small></button>
+        <button class="tile tile-sm tile-missions ${claim ? 'has-badge' : ''}" data-act="missions"><div class="tile-label">🎯 ${L.missions}</div><small>${L.missionsSub}</small>${claim ? `<div class="badge">${claim}</div>` : ''}</button>
       </div>
     </div>`,
   );
@@ -112,6 +118,7 @@ export function showHub(h: MenuHandlers) {
   bind('[data-act=career]', () => { audio.select(); h.showCareer(); });
   bind('[data-act=quick]', () => { audio.select(); showSetup(h); });
   bind('[data-act=training]', () => { audio.select(); showTraining(h); });
+  bind('[data-act=missions]', () => { audio.select(); showMissions(h); });
   bind('[data-act=squad]', () => { audio.click(); showSquad(h); });
   bind('[data-act=club]', () => { audio.click(); showSquad(h); });
   bind('[data-act=player]', () => { audio.click(); showCreator(h, false); });

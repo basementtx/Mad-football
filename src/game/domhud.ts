@@ -78,6 +78,9 @@ export class DomHud {
   private score: HTMLElement;
   private sides: { name: HTMLElement; num: HTMLElement; bar: HTMLElement; icon: HTMLCanvasElement; chip: HTMLElement }[] = [];
   private clock: HTMLElement;
+  /** wind gauge + venue line under the clock */
+  private venue: HTMLElement;
+  private flicks = new Map<BtnId, HTMLElement>();
   private toasts: HTMLElement;
   private center: HTMLElement;
   private banners = new Map<Banner, HTMLElement>();
@@ -130,6 +133,7 @@ export class DomHud {
       if (i === 0) el('span', 'dash', line);
     }
     this.clock = el('div', 'dclock sh', this.score);
+    this.venue = el('div', 'dvenue sh', this.score);
 
     this.toasts = el('div', 'dtoasts', R);
     this.center = el('div', 'dcenter', R);
@@ -149,6 +153,8 @@ export class DomHud {
       icon.width = icon.height = 13;
       const label = el('span', 'lbl', face);
       const tier = el('small', 'tier', box);
+      // swipe-up hint on SHOOT / PASS (cross / chip)
+      if (id === 'a' || id === 'b') this.flicks.set(id, el('i', 'dflick', box, '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 11V2M2 6l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
       this.keys.set(id, { box, prog, ico, label, icon, tier });
     }
     this.hints = el('div', 'dhints', R);
@@ -174,6 +180,8 @@ export class DomHud {
       const deg = Math.round((left / GK_HOLD) * 360);
       parts.push(`<div class="oclock ${left < 2 ? 'warn' : ''}" style="--a:${deg}deg"><b>${left < 2 ? '!' : Math.ceil(left)}</b></div><div class="otag ${left < 2 ? 'warn' : ''}">${left < 2 ? L.holdBall : L.pos.GK}</div>`);
     } else {
+      // swipe-up armed: cross / chip label
+      if (m.aim && (m.aim.kind === 'cross' || m.aim.kind === 'chip')) parts.push(`<div class="otag lift ${m.aim.kind}">⤴ ${(m.aim.kind === 'cross' ? L.crossTxt : L.chipTxt).replace('!', '')}</div>`);
       if (h.chargeKind !== 'none') {
         const shot = h.chargeKind === 'shot';
         const pct = Math.min(1, h.charge / (shot ? 1.3 : 1)) * 100;
@@ -249,6 +257,19 @@ export class DomHud {
     const c = Math.ceil(m.clock);
     setText(this.clock, m.cfg.training ? L.training : `${Math.floor(c / 60)}:${(c % 60).toString().padStart(2, '0')}`);
     setCls(this.clock, 'urgent', c <= 10 && m.phase === 'play');
+    {
+      const env = m.env;
+      const intro = m.phase === 'intro' || m.phase === 'kickoff';
+      const wind = env.windF > 0.3
+        ? `<span class="dwind" title="wind"><svg viewBox="0 0 12 12" style="transform:rotate(${((env.windA * 180) / Math.PI).toFixed(0)}deg)" aria-hidden="true"><path d="M1 6h9M7 3l3 3-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>${'|'.repeat(Math.min(3, Math.max(1, Math.round(env.windF / 1.4))))}</span>`
+        : '';
+      const label = intro ? `<span>${esc(`${L.stadiumNames[env.stadium]} · ${L.weatherNames[env.weather]}`)}</span>` : '';
+      const html = wind + label;
+      if (this.venue.dataset.h !== html) {
+        this.venue.dataset.h = html;
+        this.venue.innerHTML = html;
+      }
+    }
 
     // ---- me
     const h = m.human;
@@ -361,6 +382,12 @@ export class DomHud {
       setCls(key.box, 'noprog', fill <= 0.001);
       setCls(key.box, 'over', b.id === 'a' && !!hp && hp.chargeKind === 'shot' && hp.charge > 1);
       setCls(key.box, 'tired', b.id === 'c' && !!hp && hp.exhausted);
+      const fl = this.flicks.get(b.id);
+      if (fl) {
+        const onBall = !!hp && m.ball.owner === hp && !hp.isGK && st.down && (b.id === 'a' ? hp.chargeKind === 'shot' : hp.chargeKind === 'pass');
+        setCls(fl, 'on', onBall);
+        setCls(fl, 'armed', onBall && st.flick);
+      }
       if (b.id === 'e') {
         const id = team.item ? 'pw_' + team.item : null;
         paintIcon(key.icon, id);
@@ -374,7 +401,7 @@ export class DomHud {
 
     // ---- desktop key hints
     if (!input.touchMode) {
-      const html = `<span><b>J</b>${esc(labels.a.text)}</span><span><b>K</b>${esc(labels.b.text)}</span><span><b class="w">SHIFT</b>${L.sprint}</span><span><b>I</b>${L.spin}</span><span><b>E</b>${L.itemBtn}</span>`;
+      const html = `<span><b>J</b>${esc(labels.a.text)}</span><span><b>K</b>${esc(labels.b.text)}</span><span><b class="w">SHIFT</b>${L.sprint}</span><span><b>I</b>${L.spin}</span><span><b>E</b>${L.itemBtn}</span><span><b>R</b>+K ${esc(L.crossTxt.replace('!', ''))}</span><span><b>R</b>+J ${esc(L.chipTxt.replace('!', ''))}</span>`;
       if (this.hints.dataset.h !== html) {
         this.hints.dataset.h = html;
         this.hints.innerHTML = html;

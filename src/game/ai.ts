@@ -428,6 +428,16 @@ function carrierAI(m: Match, p: Player, decide: boolean) {
       return;
     }
 
+    // --- wide in the final third with a team-mate attacking the box: whip in a cross
+    const wide = Math.abs(p.y) > P.boxHalf - 1 && Math.abs(gx - p.x) < P.boxDepth + 6;
+    if (wide && !p.isGK && chance((0.3 + iq * 0.1) * (1 - d.passiveness * 0.4))) {
+      const ct = m.crossTarget(p, team.side, -Math.sign(p.y) * 0.8);
+      if (ct.q && Math.abs(ct.q.x - gx) < P.boxDepth + 2) {
+        m.cross(p, team.side, -Math.sign(p.y), rand(0.4, 1));
+        return;
+      }
+    }
+
     // --- pass when a team-mate has a better chance than we do here
     const plans = passPlans(m, p);
     // career: your player called for it - play it unless the lane is suicidal

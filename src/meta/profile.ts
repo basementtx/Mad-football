@@ -34,6 +34,8 @@ export interface Profile {
   starterCrate: boolean;
   /** unlocked looks (meta/cosmetics ids) */
   unlocked: string[];
+  /** club matches each card has started (team chemistry) */
+  fam: Record<string, number>;
 }
 
 const KEY = 'mf.profile';
@@ -52,6 +54,7 @@ function fresh(): Profile {
     freeCrateAt: 0,
     starterCrate: true,
     unlocked: [],
+    fam: {},
   };
 }
 
