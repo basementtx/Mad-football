@@ -9,6 +9,7 @@ import { crateCanvases } from '../pixel/crate';
 import { ramp, css } from '../pixel/palette';
 import type { TeamDef, CrestCfg } from '../game/teams';
 import { record } from '../engine/storage';
+import { enhanceScreen } from './motion';
 
 export const ui = () => document.getElementById('ui')!;
 
@@ -27,9 +28,13 @@ export function bind(sel: string, fn: (el: HTMLElement, e: Event) => void, root:
 }
 
 export function setScreen(cls: string, html: string) {
-  ui().className = cls;
-  ui().innerHTML = html;
+  const root = ui();
+  // only a new screen gets the entrance animation, not a re-render of the same one
+  const fresh = !root.classList.contains(cls);
+  root.className = cls;
+  root.innerHTML = html;
   paintAll();
+  enhanceScreen(root, fresh);
 }
 
 // ------------------------------------------------------------------ canvas painting registry

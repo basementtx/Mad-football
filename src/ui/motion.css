@@ -1,0 +1,224 @@
+/* ===================================================================
+   Motion layer — loaded last.
+   1. Responsive fixes: hub tile art scales into whatever room the tile
+      has (container queries), so nothing gets cropped on short screens.
+   2. Smooth, compositor-only animation (transform / opacity / filter):
+      staggered screen entrances, spring hover / press, pointer-tracked
+      light on tiles, 3D tilt + holographic glare on player cards,
+      touch ripples, idle loops on the hub, a smoother in-match HUD.
+   =================================================================== */
+:root {
+  --e-out: cubic-bezier(.16, 1, .3, 1);          /* expo-out */
+  --e-spring: cubic-bezier(.34, 1.56, .64, 1);   /* overshoot */
+  --e-soft: cubic-bezier(.45, 0, .25, 1);
+}
+
+/* ---------------------------------------------------------------- hub layout fixes */
+#ui .hub { gap: clamp(8px, 2.4vh, 18px); min-height: 0; }
+#ui .hub-grid { gap: clamp(8px, 2vh, 14px); }
+#ui .tile { justify-content: flex-start; gap: clamp(2px, 1vh, 6px); padding: clamp(10px, 3vh, 18px) 8px clamp(6px, 1.6vh, 12px); }
+#ui .tile > .tile-label, #ui .tile > small { flex: none; position: relative; z-index: 1; }
+#ui .tile-label { line-height: 1.05; }
+#ui .tile small { line-height: 1.2; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* the art takes the room that is left and its contents scale into it */
+#ui .tile > .tile-art { flex: 1 1 0; min-height: 0; width: 100%; container-type: size; align-items: center; position: relative; z-index: 1; }
+#ui .tile .crest-lg { height: min(92px, 92cqh); width: auto; }
+#ui .tile .crate-md { height: min(112px, 92cqh); width: auto; }
+#ui .tile .kit-ic { height: min(44px, 80cqh); width: auto; }
+#ui .tile .col-art { gap: min(14px, 8cqh); }
+#ui .tile .pcard.sm { --w: min(92px, calc(96cqh / 1.22)); }
+#ui .tile .plus { font-size: min(48px, 80cqh); line-height: 1; }
+#ui .tile-play > .tile-art { align-items: flex-end; }
+#ui .tile-play .tile-sprite, #ui .tile-play .tile-sprite2 { height: min(170px, 100cqh); width: auto; }
+#ui .tile-play .tile-sprite2 { margin-left: calc(min(170px, 100cqh) * -0.44); }
+#ui .tile-play .tile-label.big { font-size: clamp(26px, 8.5vh, 54px); }
+#ui .tile-play small { display: flex; align-items: center; justify-content: center; gap: 4px; }
+/* the row tiles keep their own layout */
+#ui .tile-sm { justify-content: center; }
+#ui .tile-market { justify-content: flex-start; }
+#ui .tile-market .mk-art { margin-right: 14px; }
+#ui .tile-market > div:last-of-type { margin-left: 0; }
+#ui .tile::before { z-index: 3; }
+#ui .tile-market > .tile-art { flex: none; width: auto; container-type: normal; }
+#ui .tile-sm { padding: clamp(8px, 2vh, 12px); }
+@media (max-height: 380px) {
+  #ui .tile-label { font-size: 15px; }
+  #ui .tile-market .tile-label { font-size: 15px; }
+  #ui .mk-hub-face { width: 32px; height: 30px; }
+  #ui .mk-hub-face:nth-child(n+3) { display: none; }
+  #ui .tile small { font-size: 10px; }
+}
+
+/* ---------------------------------------------------------------- player cards: room for the text */
+#ui .lineup .pcard { --w: clamp(84px, 27vh, 136px); }
+#ui .lineup .empty-slot { width: clamp(84px, 27vh, 136px); height: calc(clamp(84px, 27vh, 136px) * 1.42); }
+#ui .slot-n { bottom: -4px; top: auto; left: 50%; transform: translateX(-50%); padding: 0 7px; line-height: 1.25; box-shadow: 2px 2px 0 rgba(21,23,28,0.5); }
+#ui .reserves { padding-top: 10px; }
+
+/* ---------------------------------------------------------------- screen entrance (stagger) */
+@keyframes m-rise { from { opacity: 0; transform: translate3d(0, 26px, 0) scale(.96); } }
+@keyframes m-drop { from { opacity: 0; transform: translate3d(0, -22px, 0); } }
+@keyframes m-fade { from { opacity: 0; } }
+@keyframes m-pop { from { opacity: 0; transform: scale(.6) rotate(-6deg); } }
+@keyframes m-card-in { from { opacity: 0; transform: perspective(700px) translate3d(0, 34px, 0) rotateX(28deg) scale(.9); } }
+#ui.enter::before { animation: m-fade .5s ease-out backwards; }
+#ui.enter .hub-top > *, #ui.enter .panel-head > * { animation: m-drop .6s var(--e-out) backwards; animation-delay: calc(var(--i, 0) * 50ms); }
+#ui.enter .hub-grid > .tile { animation: m-rise .7s var(--e-out) backwards; animation-delay: calc(80ms + var(--i, 0) * 55ms); }
+#ui.enter .lineup > .slot, #ui.enter .reserves > *, #ui.enter .mk-grid > *, #ui.enter .items-grid > *, #ui.enter .crates > *, #ui.enter .rewards > * { animation: m-card-in .7s var(--e-out) backwards; animation-delay: calc(100ms + var(--i, 0) * 45ms); }
+#ui.enter .sec-label, #ui.enter .tabs { animation: m-fade .6s ease-out backwards .1s; }
+#ui.enter .badge { animation: m-pop .55s var(--e-spring) backwards; animation-delay: calc(450ms + var(--i, 0) * 55ms); }
+
+/* ---------------------------------------------------------------- tiles: spring hover, pointer light, press */
+#ui .tile { transition: transform .45s var(--e-spring), box-shadow .35s var(--e-out), outline-color .2s; will-change: transform; outline: 4px solid transparent; transform: translateZ(0); }
+@media (hover: hover) { #ui .tile:hover { transform: translate3d(0, -5px, 0) scale(1.012); outline-color: var(--marker); box-shadow: 10px 12px 0 rgba(21,23,28,0.4); } }
+#ui .tile:active, #ui .tile.pressed { transform: translate3d(0, 1px, 0) scale(.975); transition-duration: .12s; box-shadow: 3px 3px 0 rgba(21,23,28,0.5); }
+/* soft light that follows the pointer + a gloss sweep on hover */
+#ui .tile::after { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .35s;
+  background: radial-gradient(circle 160px at var(--mx, 50%) var(--my, 30%), rgba(255,255,255,0.35), transparent 70%); }
+@media (hover: hover) { #ui .tile:hover::after { opacity: 1; } }
+#ui .tile-sm::after { background: radial-gradient(circle 200px at var(--mx, 50%) var(--my, 50%), rgba(250,204,21,0.22), transparent 70%); }
+#ui .tile .gloss { position: absolute; inset: -20% -60%; z-index: 2; pointer-events: none; transform: translate3d(-70%, 0, 0) skewX(-18deg);
+  background: linear-gradient(90deg, transparent 40%, rgba(255,255,255,0.45) 49%, rgba(255,255,255,0.12) 53%, transparent 60%); opacity: 0; }
+@media (hover: hover) { #ui .tile:hover .gloss { animation: m-gloss .9s var(--e-soft); } }
+@keyframes m-gloss { 0% { transform: translate3d(-70%, 0, 0) skewX(-18deg); opacity: 1; } 100% { transform: translate3d(70%, 0, 0) skewX(-18deg); opacity: 1; } }
+
+/* LEAGUE: the hero tile breathes */
+#ui .tile-play { isolation: isolate; }
+#ui .tile-play .tl-rays { position: absolute; left: 50%; top: 42%; width: 180%; aspect-ratio: 1; z-index: 0; pointer-events: none; transform: translate(-50%, -50%);
+  background: repeating-conic-gradient(from 0deg, rgba(255,255,255,0.16) 0 9deg, transparent 9deg 18deg);
+  -webkit-mask: radial-gradient(circle, #000 0 18%, transparent 62%); mask: radial-gradient(circle, #000 0 18%, transparent 62%);
+  animation: m-spin 40s linear infinite; }
+@keyframes m-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+#ui .tile-play .tl-sheen { position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.5) 46%, rgba(255,255,255,0.1) 50%, transparent 56%);
+  background-size: 260% 100%; background-repeat: no-repeat; animation: m-sheen 5s var(--e-soft) infinite 1.2s; }
+@keyframes m-sheen { 0% { background-position: 130% 0; } 30%, 100% { background-position: -40% 0; } }
+#ui .tile-play { animation: m-breathe 3.2s ease-in-out infinite; }
+#ui.enter .tile-play { animation: m-rise .7s var(--e-out) backwards, m-breathe 3.2s ease-in-out infinite .8s; }
+@keyframes m-breathe { 0%, 100% { box-shadow: 0 0 0 6px rgba(250,204,21,0.22), 8px 10px 0 rgba(21,23,28,0.45); } 50% { box-shadow: 0 0 0 12px rgba(250,204,21,0.08), 0 0 34px 6px rgba(250,204,21,0.35), 8px 10px 0 rgba(21,23,28,0.45); } }
+#ui .tile-play:hover { animation-play-state: paused; }
+#ui .tile-play .tile-sprite { animation: m-idle 1.6s ease-in-out infinite; transform-origin: 50% 100%; }
+#ui .tile-play .tile-sprite2 { animation: m-slide 1.6s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes m-idle { 50% { transform: translate3d(0, -3%, 0) scale(1.02, .98); } }
+@keyframes m-slide { 50% { transform: translate3d(4%, 0, 0) rotate(-2deg); } }
+#ui .tile-play .tile-label.big { display: inline-flex; align-items: center; }
+#ui .tile-play .arr { display: inline-block; margin-left: .18em; animation: m-nudge 1.2s var(--e-soft) infinite; }
+@keyframes m-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(.16em); } }
+#ui .tile-sm .tile-label .bolt { display: inline-block; color: var(--marker); animation: m-zap 2.4s ease-in-out infinite; }
+@keyframes m-zap { 0%, 80%, 100% { transform: none; filter: none; } 84% { transform: scale(1.35) rotate(-10deg); filter: drop-shadow(0 0 6px var(--marker)); } 90% { transform: scale(.95); } }
+
+/* idle life on the other tiles */
+#ui .tile .crate-md { animation: m-float 2.8s ease-in-out infinite; }
+#ui .tile .crest-lg { animation: m-float 3.4s ease-in-out infinite .4s; }
+#ui .tile .kit-ic { animation: m-float 2.6s ease-in-out infinite; }
+#ui .tile .kit-ic:nth-child(2) { animation-delay: .3s; } #ui .tile .kit-ic:nth-child(3) { animation-delay: .6s; }
+@keyframes m-float { 50% { transform: translate3d(0, -6%, 0); } }
+@media (hover: hover) { #ui .tile:hover .crate-md { animation: m-rattle .5s ease-in-out infinite; } }
+@keyframes m-rattle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-4deg) translateY(-3%); } 75% { transform: rotate(4deg) translateY(-3%); } }
+#ui .badge { animation: m-wiggle 3s ease-in-out infinite 1s; }
+@keyframes m-wiggle { 0%, 86%, 100% { transform: rotate(8deg) scale(1); } 90% { transform: rotate(-4deg) scale(1.18); } 94% { transform: rotate(12deg) scale(1.08); } }
+
+/* ---------------------------------------------------------------- buttons */
+#ui .btn, #ui .icon-btn, #ui .club-chip, #ui .coins-pill { transition: transform .35s var(--e-spring), box-shadow .25s var(--e-out), background-color .2s, color .2s; }
+@media (hover: hover) { #ui .btn:hover, #ui .icon-btn:hover, #ui .club-chip:hover { transform: translate3d(0, -2px, 0); } }
+#ui .btn:active, #ui .icon-btn:active, #ui .club-chip:active { transform: translate3d(1px, 2px, 0) scale(.96); transition-duration: .1s; box-shadow: 1px 1px 0 rgba(21,23,28,0.5); }
+@media (hover: hover) { #ui .icon-btn.gear:hover { transform: translate3d(0, -2px, 0) rotate(60deg); } }
+#ui .coins-pill.bump { animation: m-bump .5s var(--e-spring); }
+@keyframes m-bump { 30% { transform: scale(1.14); } }
+#ui .coins-pill canvas { transition: transform .5s var(--e-spring); }
+#ui .coins-pill.bump canvas { transform: rotateY(360deg); }
+
+/* touch ripple */
+.rip-host { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: inherit; z-index: 5; }
+.rip-host > i { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: rgba(255,255,255,0.45); transform: scale(0); animation: m-ripple .6s var(--e-out) forwards; }
+.tile-play .rip-host > i, .btn-primary .rip-host > i { background: rgba(21,23,28,0.18); }
+@keyframes m-ripple { to { transform: scale(var(--rs, 30)); opacity: 0; } }
+
+/* ---------------------------------------------------------------- player cards: tilt + holo glare */
+.pcard { transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(0); transition: transform .6s var(--e-out), filter .3s; will-change: transform; }
+.pcard.tilting { transition: transform .08s linear; }
+.pcard .pc-glare { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; transition: opacity .4s; mix-blend-mode: overlay;
+  background: radial-gradient(circle at var(--gx, 50%) var(--gy, 30%), rgba(255,255,255,0.85), rgba(255,255,255,0) 55%); }
+.pcard.tilting .pc-glare { opacity: 1; }
+.pcard:is(.r-gold, .r-hero, .r-legend, .custom) .pc-glare::after { content: ''; position: absolute; inset: 0; opacity: .55; mix-blend-mode: color-dodge;
+  background: linear-gradient(115deg, transparent 20%, rgba(255,80,180,0.35) 36%, rgba(80,220,255,0.35) 50%, rgba(255,230,90,0.35) 64%, transparent 80%);
+  background-size: 220% 220%; background-position: var(--hx, 50%) var(--hy, 50%); }
+.pc-shine { will-change: background-position; }
+
+/* ---------------------------------------------------------------- splash */
+#ui .tap-start { animation: m-tap 1.6s ease-in-out infinite; }
+@keyframes m-tap { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: .75; } }
+#ui .logo-top { animation: m-pop .8s var(--e-spring) backwards .1s; }
+#ui .logo-bottom { animation: m-pop .8s var(--e-spring) backwards .25s; }
+#ui .logo-tag { animation: m-drop .7s var(--e-out) backwards .5s; }
+
+/* ===================================================================
+   In-match HUD — smoother motion
+   =================================================================== */
+.dhud .dtoast { animation: m-toast-in .55s var(--e-spring) both; }
+@keyframes m-toast-in { 0% { transform: translate3d(calc(60 * var(--u)), 0, 0) skewX(-8deg); opacity: 0; } 60% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+.dhud .dtoast::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.7) 45%, transparent 60%); background-size: 250% 100%; background-repeat: no-repeat;
+  animation: m-toast-sheen .8s var(--e-soft) .15s backwards; background-position: -60% 0; }
+@keyframes m-toast-sheen { from { background-position: 160% 0; } }
+.dhud .dtoast.out, .dhud .dslab.out, .dhud .dcount.out { transition: opacity .22s ease-in, transform .22s ease-in; opacity: 0; }
+.dhud .dtoast.out { transform: translate3d(calc(30 * var(--u)), 0, 0); }
+.dhud .dslab.out { transform: scale(1.08) rotate(-2deg); }
+.dhud .dcount.out { transform: scale(1.5); }
+.dhud .dslab { animation: m-slab .6s var(--e-spring) both; }
+@keyframes m-slab { 0% { transform: scale(2.2) rotate(-6deg); opacity: 0; filter: blur(6px); } 45% { opacity: 1; filter: blur(0); } 100% { transform: scale(1) rotate(-2deg); opacity: 1; } }
+.dhud .dslab::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.8) 45%, transparent 58%); background-size: 260% 100%; background-repeat: no-repeat; background-position: -70% 0;
+  animation: m-toast-sheen .9s var(--e-soft) .3s backwards; }
+.dhud .dslab::before { content: ''; position: absolute; left: 50%; top: 50%; width: 120%; aspect-ratio: 1; border-radius: 50%; pointer-events: none; z-index: -1;
+  border: calc(4 * var(--u)) solid rgba(250,204,21,0.9); transform: translate(-50%, -50%) scale(.2); opacity: 0; animation: m-shock .7s var(--e-out) .12s; }
+@keyframes m-shock { 0% { transform: translate(-50%, -50%) scale(.2); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1.4); opacity: 0; } }
+.dhud .dcount { animation: m-count .7s var(--e-spring) both; }
+@keyframes m-count { 0% { transform: scale(2.6); opacity: 0; filter: blur(8px); } 50% { opacity: 1; filter: blur(0); } 100% { transform: scale(1); opacity: 1; } }
+.dhud .tnum { display: inline-block; }
+.dhud .tnum.pop { animation: m-score .9s var(--e-spring); }
+@keyframes m-score { 0% { transform: scale(2.2) rotate(-8deg); color: var(--marker); text-shadow: 0 0 calc(14 * var(--u)) var(--marker); } 55% { color: var(--marker); } 100% { transform: none; color: var(--paper); } }
+.dhud .dscore.goal { animation: m-goal-flash 1.2s var(--e-out); }
+@keyframes m-goal-flash { 0% { filter: brightness(2.2) drop-shadow(0 0 calc(18 * var(--u)) var(--marker)); scale: 1.12; } 100% { filter: none; scale: 1; } }
+.dhud .dclock.urgent { animation: m-urgent .9s ease-in-out infinite; }
+@keyframes m-urgent { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); box-shadow: 0 0 calc(14 * var(--u)) rgba(200,45,32,0.8); } }
+/* round keys: springy press, glow when ready, flash ring on release */
+.dhud .dbtn { transition: transform .35s var(--e-spring), opacity .2s, filter .2s; }
+.dhud .dbtn.down { transform: scale(.88); transition-duration: .08s; }
+.dhud .dbtn.dim { filter: saturate(.4) brightness(.85); }
+.dhud .dbtn .face { transition: box-shadow .2s, filter .2s; }
+.dhud .dbtn.down .face { filter: brightness(1.25); }
+.dhud .dbtn.charging .ring .prog { filter: drop-shadow(0 0 calc(3 * var(--u)) var(--marker)); }
+.dhud .dbtn.over .ring .prog { stroke: var(--stamp); filter: drop-shadow(0 0 calc(4 * var(--u)) var(--stamp)); animation: m-over .25s ease-in-out infinite alternate; }
+@keyframes m-over { to { opacity: .55; } }
+.dhud .dbtn .tap-ring { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; border: calc(3 * var(--u)) solid rgba(246,241,230,0.9); animation: m-tapring .45s var(--e-out) forwards; }
+@keyframes m-tapring { from { transform: scale(.85); opacity: 1; } to { transform: scale(1.45); opacity: 0; } }
+.dhud .djoy { transition: opacity .25s, transform .3s var(--e-spring); }
+.dhud .djoy.active { transform: scale(1.06); }
+.dhud .djoy-knob { transition: transform .18s var(--e-out); }
+.dhud .djoy.active .djoy-knob { transition: none; }
+.dhud .dover > * { animation: m-fade .2s ease-out; }
+.dhud .ditem { transition: transform .35s var(--e-spring), opacity .25s; }
+.dhud .ditem.got { animation: m-got .7s var(--e-spring); }
+@keyframes m-got { 0% { transform: scale(1.35) rotate(-4deg); filter: brightness(1.8) drop-shadow(0 0 calc(10 * var(--u)) var(--tc, var(--marker))); } 100% { transform: none; filter: none; } }
+
+/* ---------------------------------------------------------------- accessibility */
+@media (prefers-reduced-motion: reduce) {
+  #ui *, #ui *::before, #ui *::after, .dhud *, .dhud *::before, .dhud *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ---------------------------------------------------------------- transfer market tiles: nothing covers the rating */
+#ui .mk-ovr { z-index: 2; text-shadow: 1px 1px 0 var(--paper), -1px -1px 0 var(--paper), 1px -1px 0 var(--paper), -1px 1px 0 var(--paper); }
+#ui .mk-ovr small { text-shadow: none; }
+#ui .mk-photo { justify-content: flex-end; }
+#ui .mk-face { margin-right: -6px; }
+#ui .mk-ribbon { z-index: 2; top: auto; bottom: 4px; right: 0; max-width: calc(100% - 4px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 2px 2px 0 rgba(21,23,28,0.35); }
+#ui .mk-tile { transition: transform .4s var(--e-spring), box-shadow .3s var(--e-out); }
+@media (hover: hover) { #ui .mk-tile:hover { transform: translate3d(0, -4px, 0); } }
+#ui .mk-tile:active { transform: scale(.97); transition-duration: .1s; }
+
+/* touch screens: no sticky hover after a tap */
+@media (hover: none) {
+  #ui .tile:hover:not(:active), #ui .mk-tile:hover:not(:active):not(.sel), #ui .btn:hover:not(:active) { transform: none; }
+  #ui .tile:hover { outline-color: transparent; }
+}

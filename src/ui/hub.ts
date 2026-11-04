@@ -65,7 +65,7 @@ export function showHub(h: MenuHandlers) {
       <div class="hub-grid">
         <button class="tile tile-play" data-act="play">
           <div class="tile-art">${paintTag(spriteSource(lookFor(club, me?.look ?? { skin: '#e5b48f', hair: '#3b2416', hairStyle: 0, beard: false }), 'kick1'), 'tile-sprite')}${paintTag(spriteSource(lookFor(TEAMS[(club.name.length + 3) % TEAMS.length], { skin: '#7a4d30', hair: '#1a1310', hairStyle: 2, beard: true }), 'down0', true, false), 'tile-sprite2')}</div>
-          <div class="tile-label big">${L.league} ▶</div>
+          <div class="tile-label big">${L.league}<span class="arr">▶</span></div>
           <small><span class="div-badge d${league.div}">${league.div}</span> ${esc(L.divNames[league.div])} • ${league.round > 0 ? positionOf() + '.' : '—'} • ${L.matchday} ${Math.min(league.round + 1, ROUNDS)}/${ROUNDS}</small>
         </button>
         <button class="tile" data-act="squad">
@@ -92,7 +92,7 @@ export function showHub(h: MenuHandlers) {
           <div><div class="tile-label">${L.transfers}</div><small>${L.transfersSub}</small></div>
           ${market.offers.length ? `<div class="badge">${market.offers.length}</div>` : ''}
         </button>
-        <button class="tile tile-sm" data-act="quick"><div class="tile-label">⚡ ${L.quickMatch}</div></button>
+        <button class="tile tile-sm" data-act="quick"><div class="tile-label"><span class="bolt">⚡</span> ${L.quickMatch}</div></button>
       </div>
     </div>`,
   );

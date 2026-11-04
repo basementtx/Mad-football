@@ -228,8 +228,10 @@ export class DomHud {
       if (this.lastScore[i] !== team.score) {
         if (this.lastScore[i] >= 0) {
           s.num.classList.remove('pop');
+          this.score.classList.remove('goal');
           void s.num.offsetWidth;
           s.num.classList.add('pop');
+          this.score.classList.add('goal');
         }
         this.lastScore[i] = team.score;
         setText(s.num, String(team.score));
@@ -256,7 +258,13 @@ export class DomHud {
       setText(this.meKick, `${h.isGK ? L.pos.GK : L.you} · #${h.number}`);
       setText(this.meName, (h.name ?? '').toUpperCase());
       const it = team.item ? itemById('pw_' + team.item) : null;
+      const had = !this.meItem.classList.contains('empty');
       setCls(this.meItem, 'empty', !it);
+      if (it && !had) {
+        this.meItem.classList.remove('got');
+        void this.meItem.offsetWidth;
+        this.meItem.classList.add('got');
+      }
       paintIcon(this.meItemIcon, it ? it.id : null);
       if (it) {
         const tier = team.tiers[team.item!] ?? 1;
@@ -332,6 +340,11 @@ export class DomHud {
       if (key.ico.dataset.ic !== ic) {
         key.ico.dataset.ic = ic;
         key.ico.innerHTML = ic ? svg(ic) : '';
+      }
+      if (st.down && !key.box.classList.contains('down')) {
+        // release-style flash ring on every press
+        const ring = el('i', 'tap-ring', key.box);
+        setTimeout(() => ring.remove(), 460);
       }
       setCls(key.box, 'down', st.down);
       setCls(key.box, 'dim', !!lab.dim);

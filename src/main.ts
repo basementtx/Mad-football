@@ -10,6 +10,8 @@ import '@fontsource/permanent-marker/400.css';
 import '@fontsource/roboto-condensed/400.css';
 import './ui/style.css';
 import './ui/dossier.css';
+import './ui/motion.css';
+import { installMotion } from './ui/motion';
 
 import { Input, Insets } from './engine/input';
 import { audio } from './engine/audio';
@@ -293,6 +295,7 @@ if (import.meta.env.DEV) {
 }
 
 async function boot() {
+  installMotion();
   resize();
   applyLang();
   try {
