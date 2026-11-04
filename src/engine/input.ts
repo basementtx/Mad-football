@@ -6,9 +6,14 @@ export interface Button {
   pressed: boolean;
   released: boolean;
   held: number;
+  /** swiped upward while held (touch) or lift key held (keyboard): cross / chip */
+  flick: boolean;
 }
 
-const mkBtn = (): Button => ({ down: false, pressed: false, released: false, held: 0 });
+const mkBtn = (): Button => ({ down: false, pressed: false, released: false, held: 0, flick: false });
+
+/** Upward finger travel (virtual px) on a held button that counts as a swipe. */
+const FLICK_PX = 11;
 
 export type BtnId = 'a' | 'b' | 'c' | 'd';
 
@@ -51,6 +56,7 @@ export class Input {
   onPause: (() => void) | null = null;
 
   private ptrBtn = new Map<number, BtnId>();
+  private ptrStart = new Map<number, { x: number; y: number }>();
   private keys = new Set<string>();
 
   constructor(private el: HTMLElement) {
@@ -121,6 +127,7 @@ export class Input {
     }
     if (best) {
       this.ptrBtn.set(e.pointerId, best.id);
+      this.ptrStart.set(e.pointerId, { x, y });
       this.press(best.id);
       return;
     }
@@ -137,6 +144,17 @@ export class Input {
   }
 
   private onMove(e: PointerEvent) {
+    const bid = this.ptrBtn.get(e.pointerId);
+    if (bid) {
+      // swipe up on a held button
+      const st = this.ptrStart.get(e.pointerId)!;
+      const x = e.clientX / this.k, y = e.clientY / this.k;
+      const up = st.y - y, side = Math.abs(x - st.x);
+      if (up > FLICK_PX && up > side * 0.8) this.btn[bid].flick = true;
+      else if (up < FLICK_PX * 0.4) this.btn[bid].flick = false;
+      e.preventDefault();
+      return;
+    }
     if (e.pointerId === this.joyId && this.joyActive) {
       e.preventDefault();
       this.joyX = e.clientX / this.k;
@@ -163,6 +181,7 @@ export class Input {
     const id = this.ptrBtn.get(e.pointerId);
     if (id) {
       this.ptrBtn.delete(e.pointerId);
+      this.ptrStart.delete(e.pointerId);
       this.release(id);
     }
   }
@@ -189,6 +208,7 @@ export class Input {
       b.down = true;
       b.pressed = true;
       b.held = 0;
+      b.flick = this.keys.has('KeyQ') || this.keys.has('KeyU');
     }
   }
 
@@ -210,6 +230,14 @@ export class Input {
   private onKey(e: KeyboardEvent, down: boolean) {
     if (e.code === 'Escape' || e.code === 'KeyP') {
       if (down) this.onPause?.();
+      return;
+    }
+    if (e.code === 'KeyQ' || e.code === 'KeyU') {
+      // keyboard "lift" modifier: hold it while shooting / passing for a chip / cross
+      if (this.enabled) e.preventDefault();
+      if (down) this.keys.add(e.code);
+      else this.keys.delete(e.code);
+      if (down) for (const k of ['a', 'b'] as BtnId[]) if (this.btn[k].down) this.btn[k].flick = true;
       return;
     }
     const id = Input.KEYMAP[e.code];
@@ -253,6 +281,7 @@ export class Input {
     for (const id of ['a', 'b', 'c', 'd'] as BtnId[]) this.btn[id] = mkBtn();
     this.keys.clear();
     this.ptrBtn.clear();
+    this.ptrStart.clear();
     this.joyActive = false;
     this.joyId = -1;
     this.mx = 0;

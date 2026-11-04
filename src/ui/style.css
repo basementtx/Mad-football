@@ -633,3 +633,33 @@ canvas.flag { width: 39px; height: 27px; display: block; }
   .venue-chip { padding: 2px 6px 2px 2px; }
   .venue-chip .sw { width: 18px; height: 14px; font-size: 10px; }
 }
+
+/* ---------------------------------------------------------------- missions */
+.hub-grid .tile-sm { grid-column: auto; }
+.hub-grid .tile-missions { grid-column: 2 / span 2; flex-direction: row; gap: 12px; }
+.missions .panel-body { overflow-y: auto; touch-action: pan-y; }
+.m-col { display: flex; flex-direction: column; gap: 8px; }
+.mission { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #1b2236;
+  box-shadow: 0 -2px 0 0 var(--ink), 0 2px 0 0 var(--ink), -2px 0 0 0 var(--ink), 2px 0 0 0 var(--ink), inset 4px 0 0 0 #3a4766; }
+.mission.done { box-shadow: 0 -2px 0 0 var(--ink), 0 2px 0 0 var(--ink), -2px 0 0 0 var(--ink), 2px 0 0 0 var(--ink), inset 4px 0 0 0 var(--yellow); }
+.mission.claimed { opacity: 0.55; }
+.m-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.m-text { font-size: 15px; color: #fff; line-height: 1.05; }
+.m-bar { position: relative; height: 10px; background: var(--panel-dk); box-shadow: 0 0 0 2px var(--ink); }
+.m-bar i { display: block; height: 100%; background: #5ff0a4; box-shadow: inset 0 2px 0 0 rgba(255,255,255,0.35); }
+.m-bar span { position: absolute; right: 4px; top: 1px; font-family: var(--display); font-size: 6px; color: #fff; text-shadow: 1px 1px 0 var(--ink); }
+.m-side { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.m-rew { font-family: var(--display); font-size: 8px; color: var(--yellow); display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+.m-tag { font-family: var(--display); font-size: 7px; color: #6ff5a4; }
+.res-mission { font-family: var(--display); font-size: 7px; color: var(--yellow); line-height: 1.4; }
+
+/* ---------------------------------------------------------------- chemistry */
+.chem-bar { display: flex; align-items: center; gap: 8px; font-family: var(--display); font-size: 8px; flex-wrap: wrap; }
+.chem-bar b { color: var(--cc); }
+.chem-bar .cb { width: 140px; height: 8px; background: var(--panel-dk); box-shadow: 0 0 0 2px var(--ink); }
+.chem-bar .cb i { display: block; height: 100%; background: var(--cc); }
+.chem-bar span { color: #fff; }
+.chem-bar small { font-family: inherit; font-size: 6px; color: var(--muted); }
+.chem-dots { text-align: center; font-size: 11px; color: #5ff0a4; letter-spacing: 2px; margin-top: 2px; }
+.chem-dots span { color: #3a4766; }
+.chem-dots em { display: block; font-style: normal; font-family: var(--display); font-size: 6px; color: #ff9a2e; letter-spacing: 0; }

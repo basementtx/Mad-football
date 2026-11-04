@@ -28,6 +28,8 @@ export interface Profile {
   equipped: { goalfx: string; trail: string; power: string };
   freeCrateAt: number;
   starterCrate: boolean;
+  /** club matches each card has started (team chemistry) */
+  fam: Record<string, number>;
 }
 
 const KEY = 'mf.profile';
@@ -43,6 +45,7 @@ function fresh(): Profile {
     equipped: { goalfx: 'gx_classic', trail: 'tr_basic', power: 'pw_fireball' },
     freeCrateAt: 0,
     starterCrate: true,
+    fam: {},
   };
 }
 

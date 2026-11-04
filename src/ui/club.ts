@@ -10,6 +10,7 @@ import { setScreen, bind, esc, paintTag, paintAll, crestTag, spriteSource, lookF
 import { cardHTML } from './cards';
 import { showHub } from './hub';
 import { showCreator } from './creator';
+import { playerChem, teamChem, chemColor, familiarity } from '../meta/chemistry';
 
 export const SWATCHES = ['#e23a2e', '#ff7a1a', '#ffd23f', '#b6ff3b', '#21a85a', '#14b8a6', '#7fd3ff', '#2f7bff', '#13215e', '#6b3fd6', '#ff2fa0', '#ffffff', '#c8d0e0', '#6c7480', '#1b1b1f', '#7a3b12'];
 const PATTERNS: KitPattern[] = ['solid', 'stripes', 'hoops', 'half', 'sash', 'chevron'];
@@ -143,11 +144,18 @@ export function showSquad(h: MenuHandlers) {
           <div class="squad-title">${crestTag(club, 'crest-sm')}<span>${esc(club.name)}</span><small>${L.ovr} ${clubOverall()}</small></div>
           <button class="btn btn-ghost btn-sm" data-act="edit">${L.editClub}</button>
         </div>
+        <div class="chem-bar" style="--cc:${chemColor(teamChem())}"><b>${L.chemistry}</b><div class="cb"><i style="width:${teamChem()}%"></i></div><span>${teamChem()}</span><small>${esc(L.chemHint)}</small></div>
         <div class="sec-label">${L.lineup} <small>${L.slotsHint}</small></div>
         <div class="lineup">
           ${Array.from({ length: LINEUP_SLOTS }, (_, i) => {
             const c = lineup[i];
-            return `<div class="slot ${sel === i ? 'sel' : ''}" data-slot="${i}"><div class="slot-n">${i + 1}</div>${c ? cardHTML(c, { club, size: 'md', selected: sel === i }) : '<div class="empty-slot">+</div>'}</div>`;
+            let chem = '';
+            if (c) {
+              const ci = playerChem(c, i);
+              const tip = ci.wrongGK ? L.chemGK : !ci.posOk ? L.chemWrongPos : '';
+              chem = `<div class="chem-dots" title="${familiarity(c.id)} ${L.chemGames}">${'◆'.repeat(ci.points)}<span>${'◆'.repeat(3 - ci.points)}</span>${tip ? `<em>${esc(tip)}</em>` : ''}</div>`;
+            }
+            return `<div class="slot ${sel === i ? 'sel' : ''}" data-slot="${i}"><div class="slot-n">${i + 1}</div>${c ? cardHTML(c, { club, size: 'md', selected: sel === i }) : '<div class="empty-slot">+</div>'}${chem}</div>`;
           }).join('')}
         </div>
         <div class="sec-label">${L.reserves} <small>${sel !== null ? L.tapSlot : ''}</small></div>

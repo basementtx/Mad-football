@@ -25,6 +25,8 @@ export interface MatchConfig {
   /** id of the user's own created player */
   starId?: string | null;
   loadout?: { power: string; goalfx: string; trail: string };
+  /** chemistry stat multiplier per home card slot (see meta/chemistry.ts) */
+  homeChem?: number[];
   /** weather, pitch style and stadium (default: clear night at the arena) */
   env?: MatchEnv;
 }
@@ -64,7 +66,7 @@ export class Match {
   aimX = 1;
   aimY = 0;
   /** where the human's ball would go (for the aim line) */
-  aim: { x: number; y: number; kind: 'shot' | 'pass' | 'free' } | null = null;
+  aim: { x: number; y: number; kind: 'shot' | 'pass' | 'free' | 'cross' | 'chip' } | null = null;
   goalFlash = 0;
   env: MatchEnv;
   /** weather physics modifiers */
@@ -102,6 +104,11 @@ export class Match {
         if (r === 'FWD') p.number = pick([9, 10, 11, 7]);
         if (card) {
           p.applyCard(card);
+          const cm = cfg.homeChem?.[i] ?? 1;
+          p.pace *= cm;
+          p.power *= cm;
+          p.tackle *= cm;
+          p.skill *= cm;
           p.star = !!cfg.starId && card.id === cfg.starId;
         }
         team.players.push(p);
@@ -468,6 +475,14 @@ export class Match {
       if (gt && (hp.chargeKind === 'shot' || dGoal < 24)) this.aim = { x: gt[0], y: gt[1], kind: 'shot' };
       else if (this.passHint) this.aim = { x: this.passHint.x + this.passHint.vx * 0.3, y: this.passHint.y + this.passHint.vy * 0.3, kind: 'pass' };
       else this.aim = { x: hp.x + ndx * 7, y: hp.y + ndy * 7, kind: 'free' };
+      // swipe-up armed: show where the cross / chip will drop
+      if (hp.chargeKind === 'pass' && inp.btn.b.flick) {
+        const ct = this.crossTarget(hp, ndx, ndy);
+        this.aim = { x: ct.x, y: ct.y, kind: 'cross' };
+      } else if (hp.chargeKind === 'shot' && inp.btn.a.flick) {
+        const gt = this.aimAtGoal(hp, ndx, ndy) ?? [hp.x + ndx * 18, hp.y + ndy * 18];
+        this.aim = { x: gt[0], y: gt[1], kind: 'chip' };
+      }
     }
 
     // A: shoot / tackle / volley
@@ -477,6 +492,9 @@ export class Match {
         hp.charge = 0;
       } else if (!b.owner && b.z > 0.6 && dist(hp.x, hp.y, b.x, b.y) < 3) {
         hp.volleyT = 0.45;
+      } else if (!b.owner && b.cross && b.lastTouch?.team === team && b.z > 0.4 && dist(hp.x, hp.y, b.x, b.y) < 9) {
+        // attack the incoming cross: header / volley when it arrives
+        hp.volleyT = 0.9;
       } else {
         this.tackleAction(hp, ndx, ndy, stick);
       }
@@ -489,7 +507,8 @@ export class Match {
       } else {
         const power = 0.3 + Math.min(1, hp.charge) * 0.7;
         const over = Math.max(0, hp.charge - 1);
-        this.humanShoot(hp, ndx, ndy, power, over);
+        if (inp.btn.a.flick) this.chipShot(hp, ndx, ndy, power, over);
+        else this.humanShoot(hp, ndx, ndy, power, over);
         hp.chargeKind = 'none';
         hp.charge = 0;
       }
@@ -507,7 +526,12 @@ export class Match {
     if (hp.chargeKind === 'pass') {
       if (!hasBall || !hp.canAct) hp.chargeKind = 'none';
       else if (inp.btn.b.down) hp.charge = Math.min(1, hp.charge + dt / 0.7);
-      else {
+      else if (inp.btn.b.flick) {
+        const q = this.cross(hp, ndx, ndy, hp.charge);
+        if (q && !q.isGK) this.setHuman(q);
+        hp.chargeKind = 'none';
+        hp.charge = 0;
+      } else {
         const lob = hp.charge > 0.28;
         const q = this.assistTarget(hp, ndx, ndy);
         if (q) {
@@ -622,6 +646,7 @@ export class Match {
     b.lockTime = 0.25;
     b.kickAge = 0;
     b.passTarget = null;
+    b.cross = false;
     b.shotBy = null;
     b.fire = 0;
     p.kickAnim = 0.3;
@@ -749,6 +774,88 @@ export class Match {
     this.fx.addShake(0.5);
     this.fx.banner(this.powerName('turbo'), '', '#ff3b30', 1.2, false);
     this.excitement = 1;
+  }
+
+  /** Where a cross from `p` aimed along (dx,dy) should drop, and who it is for. */
+  crossTarget(p: Player, dx: number, dy: number): { x: number; y: number; q: Player | null } {
+    const P = this.pitch;
+    const side = p.team.side;
+    const gx = side * P.hw;
+    let best: Player | null = null;
+    let bs = -Infinity;
+    for (const q of p.team.players) {
+      if (q === p || q.isGK || q.state === 'down') continue;
+      const d = dist(p.x, p.y, q.x, q.y);
+      if (d < 4 || d > 34) continue;
+      const dGoal = dist(q.x, q.y, gx, 0);
+      if (dGoal > 22) continue;
+      const cos = ((q.x - p.x) * dx + (q.y - p.y) * dy) / d;
+      let marked = 6;
+      for (const o of p.team.opp.players) marked = Math.min(marked, dist(q.x, q.y, o.x, o.y));
+      const inBox = Math.abs(q.x - gx) < P.boxDepth && Math.abs(q.y) < P.boxHalf;
+      const sc = cos * 1.6 - dGoal * 0.12 + (inBox ? 1.4 : 0) + marked * 0.15;
+      if (sc > bs) {
+        bs = sc;
+        best = q;
+      }
+    }
+    if (best) {
+      const T = clamp(0.8 + dist(p.x, p.y, best.x, best.y) * 0.028, 0.95, 1.55);
+      // lead the runner, a little toward goal
+      const tx = best.x + best.vx * T * 0.8 + side * 0.6;
+      const ty = best.y + best.vy * T * 0.8;
+      return { x: clamp(tx, -P.hw + 1, P.hw - 1), y: clamp(ty, -P.hh + 1, P.hh - 1), q: best };
+    }
+    // nobody there: drop it on the penalty spot area, far side
+    const fy = Math.abs(p.y) > 2 ? -Math.sign(p.y) * 1.8 : 0;
+    return { x: gx - side * P.boxDepth * 0.6, y: fy, q: null };
+  }
+
+  /** Lofted cross that drops at head height. Returns the intended receiver. */
+  cross(p: Player, dx: number, dy: number, charge: number): Player | null {
+    const tgt = this.crossTarget(p, dx, dy);
+    const sx = p.x + p.faceX * 0.5, sy = p.y + p.faceY * 0.5;
+    const err = (0.5 + (1 - p.skill) * 1.4) * (1.25 - Math.min(1, charge) * 0.5);
+    const tx = tgt.x + gauss() * err, ty = tgt.y + gauss() * err;
+    const d = dist(sx, sy, tx, ty);
+    const T = clamp(0.8 + d * 0.028, 0.95, 1.55);
+    const [ux, uy] = norm(tx - sx, ty - sy);
+    const h = d / T;
+    const zt = 1.5;
+    const vz = (zt + (PHYS.gravity * T * T) / 2) / T;
+    this.kick(p, ux * h, uy * h, vz, 0.55);
+    const b = this.ball;
+    b.passTarget = tgt.q;
+    b.cross = true;
+    p.team.stats.crosses++;
+    this.fx.text(p.x, p.y, 1.6, t().crossTxt, '#bfe8ff', 0.8);
+    return tgt.q;
+  }
+
+  /** Chip / lob shot: high arc that drops under the bar. */
+  chipShot(p: Player, dx: number, dy: number, power: number, over: number) {
+    const P = this.pitch;
+    const tgt = this.aimAtGoal(p, dx, dy);
+    const sx = p.x + p.faceX * 0.5, sy = p.y + p.faceY * 0.5;
+    const [tx, ty] = tgt ?? [p.x + dx * 18, p.y + dy * 18];
+    const err = 0.03 + (1 - p.skill) * 0.05 + this.pressureOn(p) * 0.04;
+    const ang = Math.atan2(ty - sy, tx - sx) + gauss() * err;
+    const d = dist(sx, sy, tx, ty);
+    // softer chips hang longer; full power is flatter and quicker
+    const T = clamp((0.55 + d * 0.032) * (1.12 - power * 0.25), 0.7, 1.7);
+    const zt = tgt ? P.goalHeight * 0.62 : 0.4;
+    const h = (d / T) * rand(0.97, 1.03);
+    const vz = (zt + (PHYS.gravity * T * T) / 2) / T + over * 9;
+    this.kick(p, Math.cos(ang) * h, Math.sin(ang) * h, vz, power * 0.8);
+    const b = this.ball;
+    b.shotBy = p.team;
+    b.spin = gauss() * 0.15;
+    p.shots++;
+    p.team.stats.shots++;
+    p.team.stats.chips++;
+    if (tgt && over === 0) p.team.stats.onTarget++;
+    p.team.rage = Math.min(1, p.team.rage + 0.04);
+    this.fx.text(p.x, p.y, 1.6, t().chipTxt, '#ffe14d', 0.8);
   }
 
   /** Very light pass assist: only snaps to a teammate within ~20° of where you aim. */
@@ -940,6 +1047,7 @@ export class Match {
     b.owner = p;
     b.lastTouch = p;
     b.passTarget = null;
+    b.cross = false;
     b.shotBy = null;
     b.fire = 0;
     b.spin = 0;
@@ -1387,7 +1495,7 @@ export class Match {
       }
       if (p.state === 'dive' || p.state === 'shove') continue;
       // airborne ball: header / volley / chest
-      if (b.z > 0.85 && b.z < 2.3 && d < 0.8) {
+      if (b.z > 0.85 && b.z < 2.3 && (d < 0.8 || (b.cross && p.volleyT > 0 && d < 1.4))) {
         this.airTouch(p);
         return;
       }
@@ -1464,6 +1572,7 @@ export class Match {
     b.lastTouch = p;
     b.shotBy = null;
     b.passTarget = null;
+    b.cross = false;
     audio.touch();
   }
 
@@ -1485,6 +1594,7 @@ export class Match {
       b.z = Math.max(0.3, b.z);
       p.shots++;
       p.team.stats.shots++;
+      p.team.stats.headers++;
       p.volleyT = 0;
       if (header) {
         p.kickAnim = 0;

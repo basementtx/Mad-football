@@ -191,13 +191,23 @@ function drawTouch(ctx: CanvasRenderingContext2D, input: Input, labels: Record<B
     ctx.drawImage(d, Math.round(b.x) - (d.width >> 1), Math.round(b.y) - (d.width >> 1));
     ctx.globalAlpha = 1;
     drawText(ctx, L.text, Math.round(b.x) + 1, Math.round(b.y) - 4 + (st.down ? 2 : 0), { color: '#ffffff', align: 'center', outline: css(ramp(L.color)[0]) });
+    // swipe-up hint while holding SHOOT / PASS on the ball: cross / chip
+    if (st.down && (b.id === 'a' || b.id === 'b') && L.text === (b.id === 'a' ? t().shoot : t().pass)) {
+      // small arrow inside the top of the button (the label goes above the player)
+      const ax = Math.round(b.x) + 1, ay = Math.round(b.y - b.r + 3 - (st.flick ? 1 : Math.floor(time * 4) % 2));
+      ctx.fillStyle = st.flick ? '#ffe14d' : 'rgba(255,255,255,0.8)';
+      ctx.fillRect(ax, ay, 1, 4);
+      ctx.fillRect(ax - 1, ay + 1, 3, 1);
+      ctx.fillRect(ax - 2, ay + 2, 5, 1);
+    }
   }
 }
 
 function drawKeyHints(ctx: CanvasRenderingContext2D, H: number, ins: Input['insets']) {
   const L = t();
-  const lines = [`J ${L.shoot}/${L.tackleBtn}  K ${L.pass}`, `SHIFT ${L.sprint}  I ${L.spin}`];
-  lines.forEach((s, i) => drawText(ctx, s, ins.left + 6, H - 24 + i * 10, { color: '#c8d0e0' }));
+  const strip = (x: string) => x.replace('!', '');
+  const lines = [`J ${L.shoot}/${L.tackleBtn}  K ${L.pass}`, `SHIFT ${L.sprint}  I ${L.spin}`, `Q+K ${strip(L.crossTxt)}  Q+J ${strip(L.chipTxt)}`];
+  lines.forEach((s, i) => drawText(ctx, s, ins.left + 6, H - 34 + i * 10, { color: '#c8d0e0' }));
 }
 
 function drawBanners(ctx: CanvasRenderingContext2D, m: Match, W: number, H: number, time: number) {

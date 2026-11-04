@@ -9,6 +9,7 @@ import { ramp, css, RGB } from '../pixel/palette';
 import { drawText, measure } from '../pixel/font';
 import { clamp, hexToRgb, TAU, pick } from '../engine/math';
 import { settings } from '../engine/storage';
+import { t } from '../engine/i18n';
 import { THEMES, GRASS, DIRT, SAND, MUD, SNOW, mowing, vnoise, isLit, drawRoof, drawStadiumFront, StadiumTheme } from './stadium';
 import { WeatherFX } from './weatherfx';
 
@@ -843,11 +844,12 @@ export class Renderer {
     const start = 0.9;
     const end = a.kind === 'free' ? Math.min(len, 6) : len;
     const charging = h.chargeKind !== 'none';
+    const lofted = a.kind === 'cross' || a.kind === 'chip';
     const lob = h.chargeKind === 'pass' && h.charge > 0.28;
-    const arcH = lob ? 1.2 + h.charge * 1.6 : 0;
-    const base = a.kind === 'free' ? 0.28 : 0.42;
+    const arcH = lofted ? 2.2 + len * 0.08 : lob ? 1.2 + h.charge * 1.6 : 0;
+    const base = a.kind === 'free' ? 0.28 : lofted ? 0.6 : 0.42;
     const boost = charging ? Math.min(1, h.charge) * 0.35 : 0;
-    const col = a.kind === 'shot' ? (charging ? '255,226,120' : '255,246,210') : '255,255,255';
+    const col = a.kind === 'cross' ? '150,215,255' : a.kind === 'chip' ? '255,226,120' : a.kind === 'shot' ? (charging ? '255,226,120' : '255,246,210') : '255,255,255';
     // sample in screen space so dots are evenly spaced
     const x0 = cam.sx(h.x + ux * start), y0 = cam.sy(h.y + uy * start);
     const x1 = cam.sx(h.x + ux * end), y1 = cam.sy(h.y + uy * end);
@@ -865,12 +867,12 @@ export class Renderer {
     const ex = cam.sx(h.x + ux * end), ey = cam.sy(h.y + uy * end);
     const ma = (base + boost) * 0.9;
     ctx.fillStyle = `rgba(${col},${ma.toFixed(3)})`;
-    if (a.kind === 'pass') {
+    if (a.kind === 'pass' || a.kind === 'cross') {
       ctx.fillRect(ex - 2, ey, 1, 1);
       ctx.fillRect(ex + 2, ey, 1, 1);
       ctx.fillRect(ex, ey - 1, 1, 1);
       ctx.fillRect(ex, ey + 1, 1, 1);
-    } else if (a.kind === 'shot') {
+    } else if (a.kind === 'shot' || a.kind === 'chip') {
       ctx.fillRect(ex - 1, ey, 3, 1);
       ctx.fillRect(ex, ey - 1, 1, 3);
     }
@@ -904,6 +906,10 @@ export class Renderer {
       ctx.fillStyle = h.exhausted ? (Math.floor(time * 8) % 2 ? '#ff5a4a' : '#a02a20') : '#5ff0a4';
       ctx.fillRect(x - 8, yb, Math.round(16 * h.stamina), 2);
       yb -= 5;
+    }
+    if (m.aim && (m.aim.kind === 'cross' || m.aim.kind === 'chip')) {
+      const L = t();
+      drawText(ctx, m.aim.kind === 'cross' ? L.crossTxt : L.chipTxt, x, yb - 15, { color: m.aim.kind === 'cross' ? '#9cd8ff' : '#ffe14d', align: 'center' });
     }
     if (h.chargeKind !== 'none') {
       const w = 26, hh = 4;

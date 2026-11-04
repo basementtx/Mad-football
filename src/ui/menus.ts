@@ -10,6 +10,8 @@ import { ui, esc, bind, setScreen, paintTag, paintAll, crestTag, flagTag, sprite
 import { showHub } from './hub';
 import { WEATHERS, PITCHES, STADIUMS, makeEnv, Weather, PitchStyle, Stadium } from '../game/env';
 import { THEMES, GRASS } from '../game/stadium';
+import type { Mission } from '../meta/missions';
+import { missionLabel } from './missions';
 
 export type { MenuHandlers };
 
@@ -368,7 +370,7 @@ export function mvpOf(m: Match): Player {
   return best;
 }
 
-export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode = false) {
+export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode = false, done: Mission[] = []) {
   const L = t();
   const [a, b] = m.teams;
   const res = a.score > b.score ? 'win' : a.score < b.score ? 'loss' : 'draw';
@@ -409,6 +411,7 @@ export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode
             <div class="mvp-line">⚽ ${mvp.goals} · 💥 ${mvp.knockdowns} · 🧤 ${mvp.saves}</div>
           </div>
           <div class="coins">+${coins} ${coinTag()}</div>
+          ${done.map((d) => `<div class="res-mission">🎯 ${esc(L.missionDone)}: ${esc(missionLabel(d))}</div>`).join('')}
         </div>
       </div>
       <div class="row">

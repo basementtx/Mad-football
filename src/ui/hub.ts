@@ -14,6 +14,9 @@ import { showCollection } from './collection';
 import { TEAMS } from '../game/teams';
 import { league, positionOf, ROUNDS } from '../meta/league';
 import { showLeague } from './league';
+import { showMissions } from './missions';
+import { claimableCount } from '../meta/missions';
+import { teamChem, chemColor } from '../meta/chemistry';
 
 export function showSplash(h: MenuHandlers) {
   const L = t();
@@ -46,11 +49,13 @@ export function showHub(h: MenuHandlers) {
   const fx = itemById(profile.equipped.goalfx);
   const pw = itemById(profile.equipped.power);
   const lang = LANGS.find((l) => l.code === settings.lang)!;
+  const claim = claimableCount();
+  const chem = teamChem();
   setScreen(
     'screen-hub',
     `<div class="hub">
       <div class="hub-top">
-        <button class="club-chip" data-act="club">${crestTag(club, 'crest-md')}<div><b>${esc(club.name)}</b><small>${L.ovr} ${clubOverall()} • ${record.wins}${L.w} ${record.draws}${L.d} ${record.losses}${L.l}</small></div></button>
+        <button class="club-chip" data-act="club">${crestTag(club, 'crest-md')}<div><b>${esc(club.name)}</b><small>${L.ovr} ${clubOverall()} • <span style="color:${chemColor(chem)}">${L.chemistry} ${chem}</span> • ${record.wins}${L.w} ${record.draws}${L.d} ${record.losses}${L.l}</small></div></button>
         <div class="hub-top-r">
           ${coinsPill()}
           <button class="icon-btn" data-act="lang">${flagTag(lang.flag)}</button>
@@ -84,11 +89,13 @@ export function showHub(h: MenuHandlers) {
           <small>${fx ? esc(itemName(fx)) : ''} • ${pw ? esc(itemName(pw)) : ''}</small>
         </button>
         <button class="tile tile-sm" data-act="quick"><div class="tile-label">⚡ ${L.quickMatch}</div></button>
+        <button class="tile tile-sm tile-missions ${claim ? 'has-badge' : ''}" data-act="missions"><div class="tile-label">🎯 ${L.missions}</div><small>${L.missionsSub}</small>${claim ? `<div class="badge">${claim}</div>` : ''}</button>
       </div>
     </div>`,
   );
   bind('[data-act=play]', () => { audio.select(); showLeague(h); });
   bind('[data-act=quick]', () => { audio.select(); showSetup(h); });
+  bind('[data-act=missions]', () => { audio.select(); showMissions(h); });
   bind('[data-act=squad]', () => { audio.click(); showSquad(h); });
   bind('[data-act=club]', () => { audio.click(); showSquad(h); });
   bind('[data-act=player]', () => { audio.click(); showCreator(h, false); });

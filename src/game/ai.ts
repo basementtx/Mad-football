@@ -185,6 +185,15 @@ function carrierAI(m: Match, p: Player, decide: boolean) {
       m.shootAt(p, gx, ty, power, d.shootErr * (1.3 - p.skill * 0.6));
       return;
     }
+    // wide in the final third with a teammate in the box: whip in a cross
+    const wide = Math.abs(p.y) > P.boxHalf - 1 && Math.abs(gx - p.x) < P.boxDepth + 6;
+    if (wide && !p.isGK && chance(0.35 - d.passiveness * 0.15)) {
+      const ct = m.crossTarget(p, team.side, -Math.sign(p.y) * 0.8);
+      if (ct.q && Math.abs(ct.q.x - gx) < P.boxDepth + 2) {
+        m.cross(p, team.side, -Math.sign(p.y), rand(0.4, 1));
+        return;
+      }
+    }
     const pressured = !!opp && nd < 2.6;
     const opts = passOptions(p);
     const best = opts[0];

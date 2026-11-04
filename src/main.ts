@@ -2,6 +2,8 @@ import '@fontsource/press-start-2p';
 import '@fontsource/pixelify-sans/400.css';
 import '@fontsource/pixelify-sans/700.css';
 import './ui/style.css';
+import { lineupChemMuls, addFamiliarity } from './meta/chemistry';
+import { missionsAfterMatch } from './meta/missions';
 import { resolveEnv, homeGroundEnv, MatchEnv, Weather, PitchStyle, Stadium, Choice } from './game/env';
 
 import { Input, Insets } from './engine/input';
@@ -111,6 +113,7 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
     {
       home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty, demo: false,
       homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
+      homeChem: useClub ? lineupChemMuls() : undefined,
       starId: useClub ? profile.myPlayer : null,
       loadout: profile.equipped,
       env,
@@ -215,9 +218,17 @@ function endMatch() {
   record.coins += coins;
   saveRecord();
   if (matchMode === 'league') recordUserResult(a.score, b.score);
+  if (m.cfg.homeCards) addFamiliarity(m.cfg.size);
+  const w = m.env.weather;
+  const done = missionsAfterMatch({
+    res, goalsFor: a.score, goalsAgainst: b.score, knockdowns: a.stats.knockdowns, passes: a.stats.passes,
+    crosses: a.stats.crosses, chips: a.stats.chips, headers: a.stats.headers, powers: a.stats.powerShots, steals: a.stats.tackles,
+    hard: ['hard', 'insane', 'legend'].includes(m.cfg.difficulty), badWeather: w === 'rain' || w === 'storm' || w === 'snow',
+    league: matchMode === 'league',
+  });
   mode = 'results';
   input.enabled = false;
-  showResults(handlers, m, coins, matchMode === 'league');
+  showResults(handlers, m, coins, matchMode === 'league', done);
 }
 
 // unlock audio on first interaction anywhere
@@ -242,7 +253,7 @@ function frame(now: number) {
 }
 
 if (import.meta.env.DEV) {
-  (window as unknown as { __mf: unknown }).__mf = { get game() { return game; }, get demo() { return demo; }, preview: (e: MatchEnv) => handlers.previewEnv(e) };
+  (window as unknown as { __mf: unknown }).__mf = { get game() { return game; }, get demo() { return demo; }, preview: (e: MatchEnv) => handlers.previewEnv(e), handlers };
 }
 
 async function boot() {
