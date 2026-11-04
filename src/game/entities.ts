@@ -65,14 +65,16 @@ export interface DiffParams {
   stealMul: number;
   dodge: number;
   passiveness: number;
+  /** tactical awareness 0..1 (positioning, anticipation, decisions) - kept high on every level */
+  iq: number;
 }
 
 export const DIFF: Record<Difficulty, DiffParams> = {
-  easy: { react: 0.38, speedMul: 0.86, aggression: 0.2, shootErr: 0.17, gkCatch: 19, gkReact: 0.3, stealMul: 0.45, dodge: 0.12, passiveness: 0.5 },
-  normal: { react: 0.24, speedMul: 0.95, aggression: 0.4, shootErr: 0.11, gkCatch: 22.5, gkReact: 0.2, stealMul: 0.65, dodge: 0.32, passiveness: 0.25 },
-  hard: { react: 0.15, speedMul: 1.01, aggression: 0.6, shootErr: 0.075, gkCatch: 25.5, gkReact: 0.13, stealMul: 0.85, dodge: 0.55, passiveness: 0.1 },
-  insane: { react: 0.09, speedMul: 1.07, aggression: 0.8, shootErr: 0.05, gkCatch: 28.5, gkReact: 0.085, stealMul: 1.0, dodge: 0.75, passiveness: 0 },
-  legend: { react: 0.06, speedMul: 1.12, aggression: 1.0, shootErr: 0.035, gkCatch: 31, gkReact: 0.06, stealMul: 1.15, dodge: 0.9, passiveness: 0 },
+  easy: { iq: 0.66, react: 0.3, speedMul: 0.86, aggression: 0.2, shootErr: 0.17, gkCatch: 19, gkReact: 0.3, stealMul: 0.45, dodge: 0.12, passiveness: 0.5 },
+  normal: { iq: 0.8, react: 0.22, speedMul: 0.95, aggression: 0.4, shootErr: 0.11, gkCatch: 22.5, gkReact: 0.2, stealMul: 0.65, dodge: 0.32, passiveness: 0.25 },
+  hard: { iq: 0.9, react: 0.15, speedMul: 1.01, aggression: 0.6, shootErr: 0.075, gkCatch: 25.5, gkReact: 0.13, stealMul: 0.85, dodge: 0.55, passiveness: 0.1 },
+  insane: { iq: 0.97, react: 0.09, speedMul: 1.07, aggression: 0.8, shootErr: 0.05, gkCatch: 28.5, gkReact: 0.085, stealMul: 1.0, dodge: 0.75, passiveness: 0 },
+  legend: { iq: 1, react: 0.06, speedMul: 1.12, aggression: 1.0, shootErr: 0.035, gkCatch: 31, gkReact: 0.06, stealMul: 1.15, dodge: 0.9, passiveness: 0 },
 };
 
 export type PState = 'run' | 'slide' | 'down' | 'recover' | 'shove' | 'spin' | 'dive' | 'celebrate' | 'sad';
@@ -178,6 +180,10 @@ export class Player {
   aiDirX = 1;
   aiDirY = 0;
   aiSprint = false;
+  /** off-ball target picked by the support AI */
+  aiTX = 0;
+  aiTY = 0;
+  aiHas = false;
   aiTx = 0;
   aiTy = 0;
 

@@ -1451,6 +1451,20 @@ export class Match {
     this.ball.passTarget = q;
   }
 
+  /** Pass into space: the ball goes to a spot for the receiver to run onto. */
+  passToSpot(p: Player, tx: number, ty: number, q: Player, err = 0) {
+    const d = dist(p.x, p.y, tx, ty);
+    let [ux, uy] = norm(tx - p.x, ty - p.y);
+    if (err) {
+      const a = gauss() * err;
+      const c = Math.cos(a), s = Math.sin(a);
+      [ux, uy] = [ux * c - uy * s, ux * s + uy * c];
+    }
+    const sp = clamp(9 + d * 0.8, 11, 26);
+    this.kick(p, ux * sp, uy * sp, 0.4, 0.35);
+    this.ball.passTarget = q;
+  }
+
   slide(p: Player, dx: number, dy: number) {
     if (p.tackleCd > 0 || !p.canAct) return;
     p.setState('slide', PHYS.slideTime);
