@@ -130,7 +130,7 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
       home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty, demo: false,
       homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
       starId: useClub ? profile.myPlayer : null,
-      loadout: { goalfx: profile.equipped.goalfx, trail: profile.equipped.trail, powers: profile.loadout, tiers: loadoutTiers() },
+      loadout: { goalfx: profile.equipped.goalfx, trail: profile.equipped.trail, powers: profile.loadout, tiers: loadoutTiers(), boots: profile.equipped.boots },
       training,
     },
     input,

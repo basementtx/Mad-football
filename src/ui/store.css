@@ -177,3 +177,19 @@
 #ui .motm .mvp-line b { font-family: var(--display); font-size: 16px; color: var(--ink); }
 #ui .eye-crop { display: block; position: relative; width: 40px; height: 20px; overflow: hidden; }
 #ui .eye-crop .eye-ic { position: absolute; left: -20px; top: -16px; width: 80px; height: 75px; image-rendering: pixelated; }
+
+/* ---------------------------------------------------------------- boots */
+#ui .itile.boot { width: 150px; }
+#ui .bt-stats { width: 100%; display: flex; flex-direction: column; gap: 3px; margin: 2px 0 4px; }
+#ui .bt-row { display: grid; grid-template-columns: 62px 1fr 26px; align-items: center; gap: 5px; font-family: var(--ui); font-weight: 700; font-size: 11px; color: var(--note2); text-transform: uppercase; }
+#ui .bt-row i { height: 7px; background: var(--track); box-shadow: 0 0 0 2px var(--ink); }
+#ui .bt-row em { display: block; height: 100%; background: var(--rc); }
+#ui .bt-row b { font-family: var(--display); font-size: 13px; color: var(--green); text-align: right; }
+#ui .bt-none { font-family: var(--ui); font-weight: 700; font-size: 11px; color: var(--note); text-align: center; display: block; }
+#ui .bt-desc { font-size: 12px; line-height: 1.15; color: var(--note2); text-align: center; min-height: 28px; }
+#ui .bt-tile .so-icon { width: 76px; height: 76px; }
+#ui .bt-tile.worn { outline: 4px solid var(--marker); transform: translateY(-4px); }
+#ui .bt-worn { margin-top: auto; width: 100%; text-align: center; padding: 5px 0; }
+#ui .bt-own { background: var(--green); color: var(--paper); }
+#ui .bt-bar { justify-content: flex-start; }
+#ui .bt-model { width: 60px; height: 57px; image-rendering: pixelated; flex: none; margin: -14px 0 -8px; }

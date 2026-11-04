@@ -1,7 +1,7 @@
 /** Unlockable cosmetics and powers. */
 import { settings } from '../engine/storage';
 
-export type ItemType = 'goalfx' | 'trail' | 'power';
+export type ItemType = 'goalfx' | 'trail' | 'power' | 'boots';
 export type ItemRarity = 'common' | 'rare' | 'epic' | 'legendary';
 
 export interface Item {
@@ -13,7 +13,31 @@ export interface Item {
   desc: { en: string; tr: string };
   /** owned from the start */
   starter?: boolean;
+  /** football boots: colours and team-wide stat bonuses */
+  boot?: BootSpec;
 }
+
+/** Bonus points (1 point = +1 card stat) given to every player of your team. */
+export interface BootBonus {
+  pace: number;
+  power: number;
+  skill: number;
+  tackle: number;
+  /** less stamina drain while sprinting */
+  stamina: number;
+}
+export const BOOT_STATS = ['pace', 'power', 'skill', 'tackle', 'stamina'] as const;
+
+export interface BootSpec {
+  /** upper colour */
+  main: string;
+  /** stripe and sole */
+  accent: string;
+  bonus: BootBonus;
+}
+
+/** Boot shop prices by rarity (always available, no rotation). */
+export const BOOT_PRICE: Record<ItemRarity, number> = { common: 350, rare: 900, epic: 2000, legendary: 4200 };
 
 export const RARITY_COLOR: Record<ItemRarity, string> = {
   common: '#9aa6bd',
@@ -26,7 +50,30 @@ const I = (id: string, type: ItemType, rarity: ItemRarity, color: string, en: st
   id, type, rarity, color, name: { en, tr }, desc: { en: den, tr: dtr }, starter,
 });
 
+const B = (
+  id: string, rarity: ItemRarity, main: string, accent: string,
+  [pace, power, skill, tackle, stamina]: [number, number, number, number, number],
+  en: string, tr: string, den: string, dtr: string, starter = false,
+): Item => ({ ...I(id, 'boots', rarity, main, en, tr, den, dtr, starter), boot: { main, accent, bonus: { pace, power, skill, tackle, stamina } } });
+
 export const ITEMS: Item[] = [
+  // ---- football boots (bonus: pace, power, skill, tackle, stamina)
+  B('bt_classic', 'common', '#2a2a36', '#eef0f5', [0, 0, 0, 0, 0], 'Classic Black', 'Klasik Siyah', 'Old-school leather. Never lets you down.', 'Eski usul deri. Seni asla yarı yolda bırakmaz.', true),
+  B('bt_street', 'common', '#f2f2f5', '#e8323c', [3, 0, 2, 0, 0], 'Street Runner', 'Sokak Koşucusu', 'Light and comfy, born on concrete pitches.', 'Hafif ve rahat, beton sahalarda doğdu.'),
+  B('bt_turf', 'common', '#2fa84f', '#f5f0a0', [0, 2, 0, 3, 0], 'Turf Grinder', 'Çim Öğütücü', 'Extra studs for brutal grip.', 'Acımasız tutuş için ekstra krampon dişi.'),
+  B('bt_vintage', 'common', '#e8e2d0', '#8a5a2a', [0, 0, 3, 0, 2], 'Vintage Cream', 'Vintage Krem', 'Hand-stitched classic. Smooth touch.', 'El dikimi klasik. Yumuşak dokunuş.'),
+  B('bt_volt', 'rare', '#e6ff2a', '#16121e', [7, 0, 2, 0, 2], 'Volt Sprint', 'Volt Sprint', 'Neon speed boots. Leave them in the dust.', 'Neon hız kramponu. Rakipleri tozda bırak.'),
+  B('bt_cobalt', 'rare', '#2a6cff', '#ffffff', [0, 7, 2, 0, 0], 'Cobalt Striker', 'Kobalt Golcü', 'Reinforced strike zone for rocket shots.', 'Füze şutlar için güçlendirilmiş vuruş bölgesi.'),
+  B('bt_crimson', 'rare', '#d81f3a', '#ffd23f', [2, 0, 7, 0, 0], 'Crimson Control', 'Kızıl Kontrol', 'Grippy texture: the ball sticks to your feet.', 'Pürüzlü doku: top ayağına yapışır.'),
+  B('bt_iron', 'rare', '#6a7284', '#ff9a1f', [0, 2, 0, 7, 2], 'Iron Tank', 'Demir Tank', 'Steel toe caps. Slide tackles hurt more.', 'Çelik burun. Kayarak müdahaleler daha çok acıtır.'),
+  B('bt_phantom', 'epic', '#5a2a9a', '#3bd9ff', [8, 0, 8, 0, 3], 'Phantom Glide', 'Hayalet Süzülüş', 'Feather-light. Defenders grab thin air.', 'Tüy kadar hafif. Defans boşluğu yakalar.'),
+  B('bt_inferno', 'epic', '#ff5a1f', '#ffe14d', [6, 10, 0, 0, 2], 'Inferno', 'Cehennem', 'Built for thunderous strikes on the run.', 'Koşarken gümbürtülü şutlar için yapıldı.'),
+  B('bt_glacier', 'epic', '#9ae6ff', '#ffffff', [3, 0, 6, 3, 8], 'Glacier', 'Buzul', 'Cool under pressure. Run all day.', 'Baskı altında soğukkanlı. Bütün gün koş.'),
+  B('bt_viper', 'epic', '#1f8a5a', '#c6ff3a', [5, 3, 3, 7, 2], 'Viper Bite', 'Engerek Isırığı', 'Snake-skin upper. Quick and nasty.', 'Yılan derisi. Hızlı ve sert.'),
+  B('bt_golden', 'legendary', '#ffcc2a', '#ffffff', [7, 9, 7, 5, 6], 'Golden Boot', 'Altın Ayakkabı', 'Worn only by the deadliest finishers.', 'Sadece en ölümcül golcülerin giydiği efsane.'),
+  B('bt_cosmic', 'legendary', '#ff3fa4', '#3bd9ff', [10, 6, 10, 2, 6], 'Cosmic Rush', 'Kozmik Hücum', 'Forged from a fallen star. Pure magic.', 'Düşen bir yıldızdan dövüldü. Saf sihir.'),
+  B('bt_titan', 'legendary', '#1b1b22', '#ff3b30', [4, 8, 2, 12, 8], 'Titan Crusher', 'Titan Ezici', 'Heavy, red-studded war boots. Nobody gets past.', 'Ağır, kırmızı dişli savaş botu. Kimse geçemez.'),
+
   // ---- goal explosions
   I('gx_classic', 'goalfx', 'common', '#ffd23f', 'Confetti', 'Konfeti', 'Team-colour confetti burst.', 'Takım renklerinde konfeti patlaması.', true),
   I('gx_fireworks', 'goalfx', 'common', '#ff5a8a', 'Fireworks', 'Havai Fişek', 'Rockets launch and burst over the goal.', 'Kalenin üstünde patlayan roketler.'),

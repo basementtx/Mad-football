@@ -2,6 +2,7 @@
 import { t } from '../engine/i18n';
 import { audio } from '../engine/audio';
 import { profile, saveProfile, cardById, clubTeamDef, saveMyPlayer } from '../meta/profile';
+import { itemById } from '../meta/items';
 import { CardData, Pos, SKINS, HAIRS, HAIR_STYLES, FACES, EYE_STYLES, EYE_COLORS, STAT_KEYS, StatKey, uid, overall } from '../meta/cards';
 import { DYES, EYE_COLS, CosKind } from '../meta/cosmetics';
 import { lockTag, isLocked, askUnlock } from './unlock';
@@ -57,7 +58,7 @@ export function showCreator(h: MenuHandlers, first: boolean) {
 
   const renderPreview = () => {
     const el = document.getElementById('cr-preview')!;
-    el.innerHTML = `${cardHTML(d, { club, size: 'lg' })}${paintTag(spriteSource(lookFor(club, d.look, d.pos === 'GK'), 'cel0'), 'kit')}`;
+    el.innerHTML = `${cardHTML(d, { club, size: 'lg' })}${paintTag(spriteSource(lookFor(club, d.look, d.pos === 'GK', itemById(profile.equipped.boots)?.boot), 'cel0'), 'kit')}`;
     paintAll(el);
     const hairs = document.getElementById('cr-hair')!;
     hairs.innerHTML = Array.from({ length: HAIR_STYLES }, (_, i) => `<button class="opt-c ${d.look.hairStyle === i ? 'on' : ''} ${isLocked('hair', i) ? 'locked' : ''}" data-hs="${i}">${lockTag('hair', i)}${paintTag(portraitSource(lookFor(club, { ...d.look, hairStyle: i })), 'face-ic')}</button>`).join('');

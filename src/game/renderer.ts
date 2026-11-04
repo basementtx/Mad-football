@@ -2,7 +2,7 @@ import type { Match } from './match';
 import type { Camera } from './camera';
 import { PPM, YS } from './camera';
 import type { Pitch, Player, MysteryBox, Bomb, Bullet } from './entities';
-import { tierColors } from '../meta/items';
+import { tierColors, itemById } from '../meta/items';
 import type { TeamDef } from './teams';
 import { playerSheet, FRAMES, CELL_W, CELL_H, ANCHOR_X, ANCHOR_Y, SS, PlayerLook } from '../pixel/player';
 import { ballFrame, shadow, ring, arrow, BALL_SIZE } from '../pixel/props';
@@ -52,7 +52,7 @@ export class Renderer {
   constructor(private m: Match) {
     this.P = m.pitch;
     for (const p of m.all) {
-      const look: PlayerLook = { kit: p.team.def, isGK: p.isGK, skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard, face: p.faceShape, eyes: p.eyes, eyeColor: p.eyeColor };
+      const look: PlayerLook = { kit: p.team.def, isGK: p.isGK, skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard, face: p.faceShape, eyes: p.eyes, eyeColor: p.eyeColor, boot: itemById(p.team.boots)?.boot };
       this.looks.set(p, look);
       playerSheet(look);
     }

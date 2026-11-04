@@ -27,6 +27,8 @@ export interface PlayerLook {
   /** eye style and iris colour */
   eyes?: number;
   eyeColor?: string;
+  /** equipped football boots (default: dark boots with a random stripe colour) */
+  boot?: { main: string; accent: string };
 }
 
 // ------------------------------------------------------------------ poses
@@ -245,7 +247,7 @@ export interface BuiltSheet {
 const sheetCache = new Map<string, BuiltSheet>();
 
 export function lookKey(l: PlayerLook) {
-  return `${l.kit.id}|${l.kit.primary}|${l.kit.secondary}|${l.kit.shorts}|${l.kit.socks}|${l.kit.pattern}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}|${l.face ?? 0}|${l.eyes ?? 0}|${l.eyeColor ?? ''}`;
+  return `${l.kit.id}|${l.kit.primary}|${l.kit.secondary}|${l.kit.shorts}|${l.kit.socks}|${l.kit.pattern}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}|${l.face ?? 0}|${l.eyes ?? 0}|${l.eyeColor ?? ''}|${l.boot ? l.boot.main + l.boot.accent : ''}`;
 }
 
 export function playerSheet(look: PlayerLook): BuiltSheet {
@@ -260,7 +262,7 @@ export function playerSheet(look: PlayerLook): BuiltSheet {
   ramps[R_SOCK] = ramp(look.isGK ? kit.gk : kit.socks);
   ramps[R_SKIN] = ramp(look.skin);
   ramps[R_HAIR] = ramp(look.hair);
-  ramps[R_BOOT] = ramp('#2a2a36');
+  ramps[R_BOOT] = ramp(look.boot?.main ?? '#2a2a36');
   ramps[R_WHITE] = ramp('#eef0f5');
   ramps[R_EYE] = ramp('#16121e');
   ramps[R_MOUTH] = ramp('#8a2030');
@@ -268,7 +270,7 @@ export function playerSheet(look: PlayerLook): BuiltSheet {
   // boot colour: each player picks his own (stable per look)
   let hsh = 0;
   for (const ch of look.skin + look.hair + look.hairStyle + (look.face ?? 0)) hsh = (hsh * 31 + ch.charCodeAt(0)) | 0;
-  ramps[R_ACC] = ramp(look.isGK ? '#5ff0a4' : BOOT_ACCENTS[Math.abs(hsh) % BOOT_ACCENTS.length]);
+  ramps[R_ACC] = ramp(look.boot?.accent ?? (look.isGK ? '#5ff0a4' : BOOT_ACCENTS[Math.abs(hsh) % BOOT_ACCENTS.length]));
 
   const c = document.createElement('canvas');
   c.width = PW * FRAME_COUNT;

@@ -107,6 +107,8 @@ export class Team {
   possSince = 0;
   goalfx = 'gx_classic';
   trail = 'tr_basic';
+  /** equipped football boots (item id, '' = default) */
+  boots = '';
   stats: TeamStats = { shots: 0, onTarget: 0, knockdowns: 0, tackles: 0, possession: 0, passes: 0, saves: 0, powerShots: 0 };
 
   constructor(
@@ -163,6 +165,8 @@ export class Player {
   frozen = 0;
   /** turbo rampage power (seconds) */
   turbo = 0;
+  /** sprint stamina drain multiplier (boots can lower it) */
+  staminaDrain = 1;
   /** magnet boots (seconds) */
   magnet = 0;
   /** force-field bubble (seconds) */

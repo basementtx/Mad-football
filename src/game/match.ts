@@ -23,7 +23,7 @@ export interface MatchConfig {
   homeCards?: CardData[];
   /** id of the user's own created player */
   starId?: string | null;
-  loadout?: { goalfx: string; trail: string; powers: string[]; tiers: Record<string, number> };
+  loadout?: { goalfx: string; trail: string; powers: string[]; tiers: Record<string, number>; boots?: string };
   /** free practice: your team (or one player) against a lone keeper, no clock */
   training?: 'team' | 'keeper';
   /** store preview: scripted scenes, no AI, no goals, no clock */
@@ -163,6 +163,19 @@ export class Match {
       home.tiers = cfg.loadout.tiers;
       home.goalfx = cfg.loadout.goalfx;
       home.trail = cfg.loadout.trail;
+      const boot = itemById(cfg.loadout.boots ?? '')?.boot;
+      if (boot) {
+        home.boots = cfg.loadout.boots!;
+        // boots boost every player of the team (1 point = +1 card stat)
+        const b = boot.bonus;
+        for (const p of home.players) {
+          p.pace += b.pace / 100;
+          p.power += b.power / 100;
+          p.skill += b.skill / 100;
+          p.tackle += b.tackle / 100;
+          p.staminaDrain = Math.max(0.6, 1 - b.stamina / 40);
+        }
+      }
     }
     this.kickoffTeam = cfg.training || cfg.showcase ? home : Math.random() < 0.5 ? home : away;
     this.setupKickoff(this.kickoffTeam);
@@ -1711,7 +1724,7 @@ export class Match {
         }
         if (sprint) {
           p.sprinting = true;
-          p.stamina -= dt * 0.26;
+          p.stamina -= dt * 0.26 * p.staminaDrain;
           if (p.stamina <= 0) {
             p.stamina = 0;
             p.exhausted = true;

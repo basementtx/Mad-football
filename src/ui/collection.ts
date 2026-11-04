@@ -1,10 +1,11 @@
-/** Collection: the special-item inventory (loadout + tiers), goal explosions and ball trails. */
+/** Collection: the special-item inventory (loadout + tiers), boots, goal explosions and ball trails. */
 import { t } from '../engine/i18n';
 import { audio } from '../engine/audio';
 import { ITEMS, ItemType, itemById, itemName, LOADOUT_MIN, LOADOUT_MAX } from '../meta/items';
 import { profile, saveProfile, tierOf, tierNeed } from '../meta/profile';
 import { setScreen, bind, toast, MenuHandlers } from './common';
-import { itemHTML } from './cards';
+import { itemHTML, itemTypeLabel } from './cards';
+import { showShop } from './shop';
 import { showHub } from './hub';
 
 let tab: ItemType = 'power';
@@ -16,14 +17,14 @@ export function showCollection(h: MenuHandlers) {
   const items = ITEMS.filter((i) => i.type === key).sort((a, b) => ORDER[a.rarity] - ORDER[b.rarity]);
   const owned = (id: string) => profile.owned.includes(id);
   const count = (tp: ItemType) => `${ITEMS.filter((i) => i.type === tp && owned(i.id)).length}/${ITEMS.filter((i) => i.type === tp).length}`;
-  const tabName = (tp: ItemType) => (tp === 'goalfx' ? L.goalFx : tp === 'trail' ? L.trails : L.inventory);
+  const tabName = (tp: ItemType) => (tp === 'power' ? L.inventory : itemTypeLabel(tp));
   const isPower = key === 'power';
-  const eqId = isPower ? '' : profile.equipped[key as 'goalfx' | 'trail'];
+  const eqId = isPower ? '' : profile.equipped[key as 'goalfx' | 'trail' | 'boots'];
 
   const tile = (it: (typeof ITEMS)[number]) => {
     if (!isPower) {
       return `<div class="iwrap">${itemHTML(it, { owned: owned(it.id), equipped: it.id === eqId, desc: true })}
-        <div class="it-act">${owned(it.id) ? (it.id === eqId ? `<span class="eq-tag">✓ ${L.equipped}</span>` : `<button class="btn btn-sm btn-ghost" data-equip="${it.id}">${L.equip}</button>`) : `<span class="lock-tag">🔒 ${L.locked}</span>`}</div>
+        <div class="it-act">${owned(it.id) ? (it.id === eqId ? `<span class="eq-tag">✓ ${L.equipped}</span>` : `<button class="btn btn-sm btn-ghost" data-equip="${it.id}">${L.equip}</button>`) : it.boot ? `<button class="btn btn-sm btn-ghost" data-bootshop="1">${L.buy} ›</button>` : `<span class="lock-tag">🔒 ${L.locked}</span>`}</div>
       </div>`;
     }
     const has = owned(it.id);
@@ -45,13 +46,14 @@ export function showCollection(h: MenuHandlers) {
         <div style="width:80px"></div>
       </div>
       <div class="tabs">
-        ${(['power', 'goalfx', 'trail'] as ItemType[]).map((tp) => `<button class="tab ${tp === key ? 'on' : ''}" data-tab="${tp}">${tabName(tp)} <small>${count(tp)}</small></button>`).join('')}
+        ${(['power', 'boots', 'goalfx', 'trail'] as ItemType[]).map((tp) => `<button class="tab ${tp === key ? 'on' : ''}" data-tab="${tp}">${tabName(tp)} <small>${count(tp)}</small></button>`).join('')}
       </div>
       ${isPower ? `<div class="loadout-bar"><span>${L.loadoutHint}</span><b class="${profile.loadout.length >= LOADOUT_MIN ? '' : 'bad'}">${profile.loadout.length}/${LOADOUT_MAX}</b></div>` : ''}
       <div class="items-grid">${items.map(tile).join('')}</div>
     </div>`,
   );
   bind('[data-act=back]', () => { audio.click(); showHub(h); });
+  bind('[data-bootshop]', () => { audio.click(); showShop(h, 'boots'); });
   bind('[data-tab]', (b) => { tab = b.dataset.tab as ItemType; audio.click(); showCollection(h); });
   bind('[data-equip]', (b) => {
     const it = itemById(b.dataset.equip!)!;

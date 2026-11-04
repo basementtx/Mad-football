@@ -25,7 +25,7 @@ export interface Profile {
   lineup: string[];
   myPlayer: string | null;
   owned: string[];
-  equipped: { goalfx: string; trail: string };
+  equipped: { goalfx: string; trail: string; boots: string };
   /** special items that can drop from the mystery boxes in a match (3-5) */
   loadout: string[];
   /** item tier / skin progress: t = tier (1..5), s = copies collected toward the next tier */
@@ -46,7 +46,7 @@ function fresh(): Profile {
     lineup: [],
     myPlayer: null,
     owned: ITEMS.filter((i) => i.starter).map((i) => i.id),
-    equipped: { goalfx: 'gx_classic', trail: 'tr_basic' },
+    equipped: { goalfx: 'gx_classic', trail: 'tr_basic', boots: 'bt_classic' },
     loadout: ITEMS.filter((i) => i.starter && i.type === 'power').map((i) => i.id),
     tiers: {},
     freeCrateAt: 0,
@@ -81,6 +81,16 @@ function migrate() {
   }
   if (!profile.tiers || typeof profile.tiers !== 'object') profile.tiers = {};
   if (!Array.isArray(profile.unlocked)) profile.unlocked = [];
+  if (!profile.equipped.boots || !profile.owned.includes(profile.equipped.boots)) profile.equipped.boots = 'bt_classic';
+}
+
+/** Buy a pair of boots from the boot shop and put them on. */
+export function buyBoots(id: string, price: number) {
+  if (profile.owned.includes(id) || !spendCoins(price)) return false;
+  profile.owned.push(id);
+  profile.equipped.boots = id;
+  saveProfile();
+  return true;
 }
 
 export const tierOf = (id: string) => profile.tiers[id]?.t ?? 1;
