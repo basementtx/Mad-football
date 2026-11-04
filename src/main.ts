@@ -28,10 +28,10 @@ import type { Difficulty } from './game/entities';
 import { DIFF_REWARD } from './game/entities';
 import { showPause, showResults, hideUI, MenuHandlers, homeDef } from './ui/menus';
 import { showSplash, showHub } from './ui/hub';
-import { toast } from './ui/common';
 import { profile, lineupCards, loadoutTiers } from './meta/profile';
 import type { CardData } from './meta/cards';
 import { t } from './engine/i18n';
+import { toast } from './ui/common';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 let ctx = canvas.getContext('2d', { alpha: false })!;
@@ -297,8 +297,22 @@ if (import.meta.env.DEV) {
   (window as unknown as { __mf: unknown }).__mf = { get game() { return game; }, get demo() { return demo; } };
 }
 
+/** One-time test gift: 50 000 coins (granted once per install). */
+function testGift() {
+  try {
+    if (localStorage.getItem('mf.gift.test50k')) return;
+    localStorage.setItem('mf.gift.test50k', '1');
+    record.coins += 50000;
+    saveRecord();
+    setTimeout(() => toast(settings.lang === 'tr' ? 'Test hediyesi: +50.000 altın!' : 'Test gift: +50,000 coins!'), 1500);
+  } catch {
+    /* ignore */
+  }
+}
+
 async function boot() {
   installMotion();
+  testGift();
   resize();
   applyLang();
   try {
