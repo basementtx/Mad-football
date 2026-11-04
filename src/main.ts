@@ -12,6 +12,7 @@ import './ui/style.css';
 import './ui/dossier.css';
 import './ui/motion.css';
 import { installMotion } from './ui/motion';
+import { initUpdater } from './engine/update';
 
 import { Input, Insets } from './engine/input';
 import { audio } from './engine/audio';
@@ -306,6 +307,7 @@ async function boot() {
   newDemo();
   input.enabled = false;
   showSplash(handlers);
+  initUpdater();
   requestAnimationFrame(frame);
   // studio screen: keep it up for a moment, then fade out
   const bootEl = document.getElementById('boot');

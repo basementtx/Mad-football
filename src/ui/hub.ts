@@ -1,4 +1,5 @@
 /** Splash ("tap to start") and the main menu hub. */
+import { BUILD } from '../engine/update';
 import { t, LANGS } from '../engine/i18n';
 import { settings, saveSettings, record } from '../engine/storage';
 import { audio } from '../engine/audio';
@@ -30,7 +31,7 @@ export function showSplash(h: MenuHandlers) {
       </div>
       <div class="tap-start">${L.tapToStart}</div>
     </div>
-    <div class="version">v0.3</div>`,
+    <div class="version">v0.4${BUILD ? ` · build ${BUILD}` : ''}</div>`,
   );
   bind('[data-act=go]', () => {
     h.firstTap();

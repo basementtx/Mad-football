@@ -222,3 +222,22 @@
   #ui .tile:hover:not(:active), #ui .mk-tile:hover:not(:active):not(.sel), #ui .btn:hover:not(:active) { transform: none; }
   #ui .tile:hover { outline-color: transparent; }
 }
+
+/* ---------------------------------------------------------------- self-update banner (Android) */
+#update-banner { position: fixed; z-index: 60; left: 50%; top: max(8px, env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 24px); padding: 7px 8px 7px 14px;
+  background: #F6F1E6; color: #15171C; border: 3px solid #15171C; box-shadow: 6px 6px 0 rgba(21,23,28,0.5);
+  font-family: 'Roboto Condensed', sans-serif; font-weight: 700; font-size: 14px; animation: m-upd-in .6s var(--e-spring) both; transition: transform .4s var(--e-spring), opacity .3s; }
+@keyframes m-upd-in { from { transform: translate(-50%, -140%); opacity: 0; } }
+#update-banner b { font-family: 'Oswald', sans-serif; }
+#update-banner small { color: #6E6553; }
+#update-banner button { font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 14px; border: 2px solid #15171C; cursor: pointer; padding: 4px 12px; }
+#update-banner .upd-go { background: #FACC15; color: #15171C; box-shadow: 3px 3px 0 rgba(21,23,28,0.45); animation: m-tap 1.6s ease-in-out infinite; }
+#update-banner .upd-later { background: transparent; color: #15171C; }
+#update-banner .upd-bar { display: block; width: 110px; height: 8px; background: #DDD4C3; border: 2px solid #15171C; }
+#update-banner .upd-bar > i { display: block; height: 100%; width: 0; background: #FACC15; transition: width .25s linear; }
+#update-banner.downloading { opacity: .9; }
+#update-banner.min { left: auto; right: 8px; transform: scale(.85); transform-origin: top right; animation: none; }
+#update-banner.min > span, #update-banner.min .upd-later { display: none; }
+/* never over the match: only shown on menu screens */
+body:has(#ui.hidden) #update-banner { opacity: 0; pointer-events: none; transform: translate(-50%, -140%); }

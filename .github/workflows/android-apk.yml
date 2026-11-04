@@ -11,7 +11,7 @@ name: Android APK
 
 on:
   push:
-    branches: ['main', 'claude/**']
+    branches: ['main', 'claude/**', 'ccr-**']
     paths-ignore: ['**.md']
   workflow_dispatch:
 
