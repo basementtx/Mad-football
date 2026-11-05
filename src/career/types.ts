@@ -150,10 +150,30 @@ export interface Post {
   t: number;
   mine?: boolean;
   /** attached media card */
-  media?: { kind: 'score' | 'rating' | 'transfer' | 'award' | 'stat' | 'injury' | 'callup' | 'photo'; data: Record<string, string | number> };
+  media?: { kind: 'score' | 'rating' | 'transfer' | 'award' | 'stat' | 'injury' | 'callup' | 'photo' | 'clip' | 'poll' | 'quote' | 'meme' | 'compare' | 'graph' | 'odds' | 'board' | 'table' | 'milestone'; data: Record<string, string | number> };
   /** sentiment towards the user (-1..1) for the vibe meter */
   mood?: number;
   tag?: string;
+}
+
+// ------------------------------------------------------------------ KICKR 2.0
+
+export type PersonaKind = 'ultra' | 'nerd' | 'doomer' | 'tactics' | 'parody' | 'itk' | 'odds' | 'pundit' | 'kid' | 'mum' | 'kickr';
+export interface Persona { id: string; kind: PersonaKind; owner: string; name: string; handle: string; color: string; verified: boolean }
+export interface KNotif { id: string; kind: 'like' | 'mention' | 'follow' | 'milestone' | 'quote' | 'trend'; text: string; week: number; season: number; seen?: boolean }
+export interface KStorySlide { bg: string; big: string; text: string; sub: string }
+export interface KStory { id: string; key: string; av: string; name: string; slides: KStorySlide[]; week: number; season: number; seen?: boolean }
+export interface KickrState {
+  /** template key -> absolute week (season*100+week) it was last used */
+  used: Record<string, number>;
+  personas: Persona[];
+  arcs: { drought: number; streak: number; campaign: { tag: string; kind: 'pos' | 'neg'; since: number } | null; saga: { club: string; stage: number; since: number } | null; beef: number; milestones: number[] };
+  /** post id -> option you voted for */
+  polls: Record<string, number>;
+  notifs: KNotif[];
+  stories: KStory[];
+  liked: string[];
+  seen: number;
 }
 
 export interface Headline {
@@ -387,6 +407,8 @@ export interface Career {
   /** last match summary for the post-match screen */
   last: LastMatch | null;
   stats: { goals: number; assists: number; apps: number; motm: number; hattricks: number; rsum: number };
+  /** KICKR 2.0 memory, cast, arcs, polls, notifications, stories */
+  kx?: KickrState;
 }
 
 export interface LastMatch {

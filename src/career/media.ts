@@ -5,9 +5,10 @@
 import type { Career, Post, Reply, Headline, DM, MsgFrom, DMChoice, LastMatch, NPC } from './types';
 import { OUTLETS, STAT_ACCOUNTS, MEME_ACCOUNTS, JOURNALISTS, AGENTS, SPONSORS, FAN_FIRST, FAN_SUFFIX, nationBy } from './data';
 import { clamp, pick, rand } from '../engine/math';
-import { L2, LP, fill, compact, money, isTR, shuffle } from './util';
+import { L2, LP, fill, compact, money, isTR } from './util';
 import { clubName, isNat, natCode, compById, compName, roundName, sortTable, myOvr } from './world';
 import { nextId } from './state';
+import { fresh, freshN, take, shortReply } from './kickr';
 import { has, owns } from './me';
 
 type TP = [string, string];
@@ -82,11 +83,17 @@ export function addPost(c: Career, p: Post) {
   return p;
 }
 
-function replies(c: Career, clubId: string | null, pool: TP[], n: number, v: Record<string, string | number>, viral = 1): Reply[] {
+function replies(c: Career, clubId: string | null, pool: TP[], n: number, v: Record<string, string | number>, viral = 1, mood?: 'pos' | 'neg' | 'mix'): Reply[] {
   const out: Reply[] = [];
-  for (const tp of shuffle([...pool]).slice(0, n)) {
+  const md = mood ?? (pool === REPLY_POS ? 'pos' : pool === REPLY_NEG ? 'neg' : 'mix');
+  const own = freshN(c, 'rp:' + pool[0][0].slice(0, 16), pool, n);
+  for (let i = 0; i < n; i++) {
     const a = fanAccount(c, clubId);
-    out.push({ name: a.name, handle: a.handle, text: T(tp, v), likes: Math.round(fanLikes(c, viral) * rand(0.05, 0.6)), color: a.color });
+    // half from this post's own pool, half composed so short replies keep changing
+    // small pools (a few lines) give at most one line, the rest is composed
+    const useOwn = own[i] && (pool.length > n * 2 ? i % 2 === 0 : i === 0);
+    const text = useOwn ? T(own[i], v) : shortReply(c, md);
+    out.push({ name: a.name, handle: a.handle, text, likes: Math.round(fanLikes(c, viral) * rand(0.05, 0.6)), color: a.color });
   }
   return out.sort((a, b) => b.likes - a.likes);
 }
@@ -246,22 +253,26 @@ export function matchMedia(c: Career, lm: LastMatch) {
   // fan reactions
   const bucket = lm.rating >= 8 ? FAN_GREAT : lm.rating >= 6.9 ? FAN_GOOD : lm.rating >= 6 ? FAN_MEH : FAN_BAD;
   const nFans = clamp(Math.round(2 + me.rep / 25 + (big ? 2 : 0)), 2, 6);
-  for (const tp of shuffle([...bucket]).slice(0, nFans)) {
+  const bankKey = bucket === FAN_GREAT ? 'FG' : bucket === FAN_GOOD ? 'FO' : bucket === FAN_MEH ? 'FM' : 'FB';
+  const fromBank = freshN(c, bankKey, bucket, Math.ceil(nFans / 2));
+  for (let i = 0; i < nFans; i++) {
     const a = fanAccount(c, my);
     const lk = fanLikes(c, viral * (bucket === FAN_GREAT ? 1.5 : 1));
-    const p = mk(c, { name: a.name, handle: a.handle, av: 'c:' + a.color, text: T(tp, v), likes: lk, mood: bucket === FAN_GREAT ? 1 : bucket === FAN_GOOD ? 0.5 : bucket === FAN_MEH ? -0.1 : -0.8 });
+    // every other fan writes a take built from what actually happened in the match
+    const text = i % 2 === 1 || !fromBank[i >> 1] ? take(c, lm).text : T(fromBank[i >> 1], v);
+    const p = mk(c, { name: a.name, handle: a.handle, av: 'c:' + a.color, text, likes: lk, mood: bucket === FAN_GREAT ? 1 : bucket === FAN_GOOD ? 0.5 : bucket === FAN_MEH ? -0.1 : -0.8 });
     if (Math.random() < 0.6) p.replies = replies(c, my, bucket === FAN_BAD ? [...REPLY_NEG, ...REPLY_MIX] : [...REPLY_POS, ...REPLY_MIX], 1 + Math.floor(Math.random() * 3), v, viral * 0.6);
     addPost(c, p);
   }
   // opposition fans after you hurt them
   if (lm.goals > 0 && !isNat(lm.opp) && c.clubs[lm.opp]) {
     const a = fanAccount(c, lm.opp);
-    addPost(c, mk(c, { name: a.name, handle: a.handle, av: 'c:' + a.color, text: T(pick(OPP_FAN), v), likes: fanLikes(c, viral * 0.5), mood: 0.2 }));
+    addPost(c, mk(c, { name: a.name, handle: a.handle, av: 'c:' + a.color, text: T(fresh(c, 'OPP_FAN', OPP_FAN), v), likes: fanLikes(c, viral * 0.5), mood: 0.2 }));
   }
   // journalist
   if (lm.rating >= 8 || lm.rating <= 5.2) {
     const [jn, jh] = pick(JOURNALISTS.filter((j) => j[2] >= 3));
-    const jp = mk(c, { name: jn, handle: jh, verified: true, av: 'c:#3a4766', text: T(pick(lm.rating >= 8 ? JOURNO_GOOD : JOURNO_BAD), v), likes: Math.round(reach(c, 0.6) + 300), mood: lm.rating >= 8 ? 0.6 : -0.6 });
+    const jp = mk(c, { name: jn, handle: jh, verified: true, av: 'c:#3a4766', text: T(lm.rating >= 8 ? fresh(c, 'JG', JOURNO_GOOD) : fresh(c, 'JB', JOURNO_BAD), v), likes: Math.round(reach(c, 0.6) + 300), mood: lm.rating >= 8 ? 0.6 : -0.6 });
     jp.replies = replies(c, my, lm.rating >= 8 ? REPLY_POS : REPLY_NEG, 2, v);
     addPost(c, jp);
   }
@@ -269,7 +280,7 @@ export function matchMedia(c: Career, lm: LastMatch) {
   const mem = lm.goals >= 3 ? MEME_HAT : lm.line.knockdowns >= 4 ? MEME_KD : lm.rating <= 5.2 ? MEME_BAD : null;
   if (mem) {
     const ma = pick(MEME_ACCOUNTS);
-    const mp = mk(c, { name: ma.name, handle: ma.handle, av: 'c:' + ma.color, text: T(pick(mem), v), likes: Math.round(reach(c, 1.6 * viral) + 2000), media: { kind: 'photo', data: { who: 'me', pose: lm.rating <= 5.2 ? 'down' : 'celebrate' } }, mood: lm.rating <= 5.2 ? -0.4 : 0.6 });
+    const mp = mk(c, { name: ma.name, handle: ma.handle, av: 'c:' + ma.color, text: T(fresh(c, 'mem' + mem.length, mem), v), likes: Math.round(reach(c, 1.6 * viral) + 2000), media: { kind: 'photo', data: { who: 'me', pose: lm.rating <= 5.2 ? 'down' : 'celebrate' } }, mood: lm.rating <= 5.2 ? -0.4 : 0.6 });
     mp.replies = replies(c, my, REPLY_MIX, 3, v, viral);
     addPost(c, mp);
   }
@@ -277,7 +288,7 @@ export function matchMedia(c: Career, lm: LastMatch) {
   if (lm.assists > 0 && !lm.nat && c.contract && Math.random() < 0.7) {
     const mate = c.clubs[c.contract.club]?.squad.map((id) => c.npcs[id]).filter((p) => p && p.pos !== 'GK').sort(() => Math.random() - 0.5)[0];
     if (mate) {
-      const p = mk(c, { name: mate.name, handle: npcHandle(mate), verified: c.clubs[c.contract.club].rep > 60, av: 'npc:' + mate.id, text: T(pick(MATE_SHOUT), v), likes: Math.round(reach(c, 0.7) + 500), mood: 0.7 });
+      const p = mk(c, { name: mate.name, handle: npcHandle(mate), verified: c.clubs[c.contract.club].rep > 60, av: 'npc:' + mate.id, text: T(fresh(c, 'MATE_SHOUT', MATE_SHOUT), v), likes: Math.round(reach(c, 0.7) + 500), mood: 0.7 });
       addPost(c, p);
     }
   }
@@ -309,12 +320,12 @@ export function nemesisMedia(c: Career, goals: number) {
   const n = c.npcs[c.nemesis];
   if (!n) return;
   if (goals > 0 && Math.random() < 0.7) {
-    const p = mk(c, { name: n.name, handle: npcHandle(n), verified: n.ovr > 72, av: 'npc:' + n.id, text: T(pick(NEMESIS_GOAL), { n: '', g: goals, club: n.club ? clubName(c, n.club) : '' }), likes: Math.round(Math.pow(n.ovr - 50, 3) * rand(1, 3)) + 50, mood: -0.2, tag: 'nemesis' });
+    const p = mk(c, { name: n.name, handle: npcHandle(n), verified: n.ovr > 72, av: 'npc:' + n.id, text: T(fresh(c, 'NEMESIS_GOAL', NEMESIS_GOAL), { n: '', g: goals, club: n.club ? clubName(c, n.club) : '' }), likes: Math.round(Math.pow(n.ovr - 50, 3) * rand(1, 3)) + 50, mood: -0.2, tag: 'nemesis' });
     p.replies = replies(c, n.club, REPLY_POS, 2, { name: surname(n.name), opp: '' });
     addPost(c, p);
   }
   if (c.me.rel.nemesis > 55 && Math.random() < (c.me.rel.nemesis - 40) / 120) {
-    const p = mk(c, { name: n.name, handle: npcHandle(n), verified: n.ovr > 72, av: 'npc:' + n.id, text: T(pick(NEMESIS_JAB)), likes: Math.round(reach(c, 1.8) + 800), mood: -0.6, tag: 'nemesis' });
+    const p = mk(c, { name: n.name, handle: npcHandle(n), verified: n.ovr > 72, av: 'npc:' + n.id, text: T(fresh(c, 'NEMESIS_JAB', NEMESIS_JAB)), likes: Math.round(reach(c, 1.8) + 800), mood: -0.6, tag: 'nemesis' });
     p.replies = replies(c, null, [...REPLY_MIX, ['@{h} you gonna take that?', '@{h} buna cevap vermeyecek misin?'], ['this is about {name} right 👀', 'bu {name} hakkında değil mi 👀'], ['beef season 🍿', 'kapışma sezonu 🍿']], 3, { name: surname(c.me.name), h: meHandle(c), opp: '' }, 2);
     addPost(c, p);
     c.me.rel.nemesis = clamp(c.me.rel.nemesis + 3, 0, 100);
@@ -539,17 +550,17 @@ export function postOptions(c: Career, lm: LastMatch | null): PostOption[] {
   const out: PostOption[] = [];
   const won = lm ? lm.gf > lm.ga : false, lost = lm ? lm.gf < lm.ga : false;
   const good = lm ? lm.rating >= 7 : true;
-  if (lm && lm.goals > 0) out.push({ id: 'goal', label: L2('Celebrate the goal', 'Golü kutla'), text: T(pick<TP>([['What a feeling. {g} for the badge ⚽❤️', 'Ne duygu ama. Arma için {g} gol ⚽❤️'], ['Dreamed of nights like this as a kid 🙏⚽', 'Çocukken böyle geceleri hayal ederdim 🙏⚽']]), v), tone: 0.5, hype: 1.3 });
+  if (lm && lm.goals > 0) out.push({ id: 'goal', label: L2('Celebrate the goal', 'Golü kutla'), text: T(fresh(c, 'po1', <TP[]>[['What a feeling. {g} for the badge ⚽❤️', 'Ne duygu ama. Arma için {g} gol ⚽❤️'], ['Dreamed of nights like this as a kid 🙏⚽', 'Çocukken böyle geceleri hayal ederdim 🙏⚽']]), v), tone: 0.5, hype: 1.3 });
   out.push(won || !lm
-    ? { id: 'humble', label: L2('Humble', 'Mütevazı'), text: T(pick<TP>([['Team effort. Big 3 points. On to the next one 🙏', 'Takım işi. Büyük 3 puan. Sıradakine 🙏'], ['Proud of the boys today. We keep going 💪', 'Bugün çocuklarla gurur duyuyorum. Devam 💪']]), v), tone: 0.8, hype: 0.7 }
-    : { id: 'apology', label: L2('Own it', 'Sorumluluk al'), text: T(pick<TP>([['Not good enough today. That\'s on me. We go again 💪', 'Bugün yeterince iyi değildi. Bu benim hatam. Yeniden 💪'], ['Sorry to everyone who travelled. We\'ll fix this.', 'Deplasmana gelen herkesten özür dilerim. Bunu düzelteceğiz.']]), v), tone: 0.9, hype: 0.6 });
-  out.push({ id: 'fans', label: L2('Thank the fans', 'Taraftara teşekkür'), text: T(pick<TP>([['That atmosphere tonight 😍 Thank you {nick}!', 'Bu akşamki atmosfer 😍 Teşekkürler {nick}!'], ['You were our 6th player tonight. Respect ❤️', 'Bu akşam altıncı oyuncumuzdunuz. Saygılar ❤️']]), v), tone: 0.7, hype: 0.9 });
+    ? { id: 'humble', label: L2('Humble', 'Mütevazı'), text: T(fresh(c, 'po2', <TP[]>[['Team effort. Big 3 points. On to the next one 🙏', 'Takım işi. Büyük 3 puan. Sıradakine 🙏'], ['Proud of the boys today. We keep going 💪', 'Bugün çocuklarla gurur duyuyorum. Devam 💪'], ['Three points, clean shirts, happy dressing room. 🧺😄', 'Üç puan, temiz formalar, mutlu soyunma odası. 🧺😄'], ['Job done vs {opp}. Recovery, then we go again.', '{opp} karşısında iş tamam. Toparlanma, sonra yeniden.'], ['Credit to the lads. Everyone ran for each other today.', 'Çocuklara teşekkürler. Bugün herkes birbiri için koştu.'], ['Small steps. Big dreams. 🙏', 'Küçük adımlar. Büyük hayaller. 🙏']]), v), tone: 0.8, hype: 0.7 }
+    : { id: 'apology', label: L2('Own it', 'Sorumluluk al'), text: T(fresh(c, 'po3', <TP[]>[['Not good enough today. That\'s on me. We go again 💪', 'Bugün yeterince iyi değildi. Bu benim hatam. Yeniden 💪'], ['Sorry to everyone who travelled. We\'ll fix this.', 'Deplasmana gelen herkesten özür dilerim. Bunu düzelteceğiz.']]), v), tone: 0.9, hype: 0.6 });
+  out.push({ id: 'fans', label: L2('Thank the fans', 'Taraftara teşekkür'), text: T(fresh(c, 'po4', <TP[]>[['That atmosphere tonight 😍 Thank you {nick}!', 'Bu akşamki atmosfer 😍 Teşekkürler {nick}!'], ['You were our 6th player tonight. Respect ❤️', 'Bu akşam altıncı oyuncumuzdunuz. Saygılar ❤️'], ['Heard you from the first minute to the last. This one\'s yours. 📣', 'İlk dakikadan sonuncusuna kadar sizi duydum. Bu sizin. 📣'], ['To everyone who travelled: we see you. ❤️🚌', 'Deplasmana gelen herkese: sizi görüyoruz. ❤️🚌'], ['Goosebumps when the stand started singing. Thank you.', 'Tribün şarkıya başladığında tüylerim diken diken oldu. Teşekkürler.']]), v), tone: 0.7, hype: 0.9 });
   out.push(good
-    ? { id: 'swag', label: L2('Confident', 'Özgüvenli'), text: T(pick<TP>([['Told you. This is just the start. 😤🔥', 'Söylemiştim. Bu daha başlangıç. 😤🔥'], ['They\'re not ready. 🔥', 'Hazır değiller. 🔥'], ['Built different. 🧱', 'Farklı yapıdayım. 🧱']]), v), tone: -0.2, hype: 1.6 }
-    : { id: 'swag', label: L2('Shrug it off', 'Umursama'), text: T(pick<TP>([['Bad days happen. Kings don\'t panic. 👑', 'Kötü günler olur. Krallar panik yapmaz. 👑'], ['Noise. 🎧', 'Gürültü. 🎧']]), v), tone: -0.5, hype: 1.2 });
-  if (n) out.push({ id: 'nem', label: L2(`Jab at ${surname(n.name)}`, `${surname(n.name)}'a laf at`), text: T(pick<TP>([['Some people talk. I score. 🤫', 'Bazıları konuşur. Ben gol atarım. 🤫'], ['Saw the comments. Funny. See you on the pitch 😉', 'Yorumları gördüm. Komik. Sahada görüşürüz 😉']]), v) + ` @${npcHandle(n)}`, tone: -0.8, hype: 2.2, tagNemesis: true });
+    ? { id: 'swag', label: L2('Confident', 'Özgüvenli'), text: T(fresh(c, 'po5', <TP[]>[['Told you. This is just the start. 😤🔥', 'Söylemiştim. Bu daha başlangıç. 😤🔥'], ['They\'re not ready. 🔥', 'Hazır değiller. 🔥'], ['Built different. 🧱', 'Farklı yapıdayım. 🧱'], ['Mood: unstoppable. 🚀', 'Ruh hali: durdurulamaz. 🚀'], ['Doubters, your silence is loud. 🤫', 'Şüphe edenler, sessizliğiniz çok gürültülü. 🤫'], ['Different gravity on my side of the pitch. 🌍', 'Sahanın benim tarafında yerçekimi farklı. 🌍'], ['Not my best. Still better than yours. 😉', 'En iyim değildi. Yine de sizinkinden iyi. 😉']]), v), tone: -0.2, hype: 1.6 }
+    : { id: 'swag', label: L2('Shrug it off', 'Umursama'), text: T(fresh(c, 'po6', <TP[]>[['Bad days happen. Kings don\'t panic. 👑', 'Kötü günler olur. Krallar panik yapmaz. 👑'], ['Noise. 🎧', 'Gürültü. 🎧']]), v), tone: -0.5, hype: 1.2 });
+  if (n) out.push({ id: 'nem', label: L2(`Jab at ${surname(n.name)}`, `${surname(n.name)}'a laf at`), text: T(fresh(c, 'po7', <TP[]>[['Some people talk. I score. 🤫', 'Bazıları konuşur. Ben gol atarım. 🤫'], ['Saw the comments. Funny. See you on the pitch 😉', 'Yorumları gördüm. Komik. Sahada görüşürüz 😉']]), v) + ` @${npcHandle(n)}`, tone: -0.8, hype: 2.2, tagNemesis: true });
   const sp = me.sponsors[0] ? SPONSORS.find((s) => s.id === me.sponsors[0].id) : null;
-  if (sp) out.push({ id: 'sponsor', label: L2('Sponsor post', 'Sponsor paylaşımı'), text: T(pick<TP>([['Fresh {b} for the weekend 👌 #{t} #ad', 'Hafta sonu için taze {b} 👌 #{t} #reklam'], ['Recovery mode with {b} ⚡ #{t} #ad', '{b} ile toparlanma modu ⚡ #{t} #reklam']]), { b: sp.name, t: sp.tag }), tone: 0.1, hype: 0.6, sponsor: sp.id });
+  if (sp) out.push({ id: 'sponsor', label: L2('Sponsor post', 'Sponsor paylaşımı'), text: T(fresh(c, 'po8', <TP[]>[['Fresh {b} for the weekend 👌 #{t} #ad', 'Hafta sonu için taze {b} 👌 #{t} #reklam'], ['Recovery mode with {b} ⚡ #{t} #ad', '{b} ile toparlanma modu ⚡ #{t} #reklam']]), { b: sp.name, t: sp.tag }), tone: 0.1, hype: 0.6, sponsor: sp.id });
   void lost;
   return out;
 }
@@ -593,10 +604,10 @@ export function publishPost(c: Career, o: PostOption, lm: LastMatch | null): str
     const s = me.sponsors.find((x) => x.id === o.sponsor);
     if (s) s.posts++;
   }
-  post.replies = replies(c, club, pool, 4, { ...v, rating: lm ? lm.rating.toFixed(1) : '' }, backfire ? 2 : 1.2);
+  post.replies = replies(c, club, pool, 4, { ...v, rating: lm ? lm.rating.toFixed(1) : '' }, backfire ? 2 : 1.2, backfire ? 'neg' : 'pos');
   if (o.tagNemesis && c.npcs[c.nemesis] && Math.random() < 0.6) {
     const n = c.npcs[c.nemesis];
-    post.replies.unshift({ name: n.name, handle: npcHandle(n), verified: true, text: T(pick<TP>([['cute 😂', 'tatlı 😂'], ['scoreboard says otherwise', 'skorbord öyle demiyor'], ['🥱', '🥱']])), likes: Math.round(post.likes * 0.6) });
+    post.replies.unshift({ name: n.name, handle: npcHandle(n), verified: true, text: T(fresh(c, 'po9', <TP[]>[['cute 😂', 'tatlı 😂'], ['scoreboard says otherwise', 'skorbord öyle demiyor'], ['🥱', '🥱']])), likes: Math.round(post.likes * 0.6) });
   }
   addPost(c, post);
   me.image = clamp(me.image, -100, 100);

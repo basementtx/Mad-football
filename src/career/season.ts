@@ -6,6 +6,7 @@ import {
   recordFixture, progressKnockouts, fixtureFor, clubName, isNat, natCode, compById, sortTable, lambdaFor, makeNPC, natPool, compName, roundName,
 } from './world';
 import { createMe, selectMe, makeObjectives, rateLine, checkObjectives, addXP, grow, marketValue, age as ageMe, has, owns, weeklyUpkeep, formAvg, roleFor, avg, Line } from './me';
+import { kickrAfterMatch, kickrWeek } from './kickr';
 import { matchMedia, worldMedia, eventPost, dm, agentName, managerName, headline, nemesisMedia, surname, addPost } from './media';
 import { windowOffers, renewalCheck, expireOffers, npcWindow, endLoan, wageFor } from './transfer';
 import { clamp, gauss, pick, rand } from '../engine/math';
@@ -343,6 +344,7 @@ export function applyUserMatch(c: Career, line: Line, opts: { sim: boolean; sub:
   if (ups) dm(c, 'agent', agentName(c), L2(`Level up! You reached level ${me.level}. You have a new perk point to spend. 📈`, `Seviye atladın! Artık ${me.level}. seviyedesin. Harcayacak yeni bir yetenek puanın var. 📈`));
   if (!info.team.startsWith('trial')) {
     matchMedia(c, lm);
+    kickrAfterMatch(c, lm);
     storyAfterMatch(c, lm);
   }
   return lm;
@@ -411,6 +413,7 @@ export function finishWeek(c: Career) {
   progressKnockouts(c, c.week);
   nemesisMedia(c, (c.npcs[c.nemesis]?.s.goals ?? 0) - nemBefore);
   worldMedia(c);
+  kickrWeek(c);
   // money
   const sponsorPay = me.sponsors.reduce((a, s) => a + Math.round((SPONSORS.find((x) => x.id === s.id)?.pay ?? 0) * (has(c, 'icon') ? 1.3 : 1)), 0);
   me.money = Math.round(me.money + (c.contract?.wage ?? 0) + sponsorPay - weeklyUpkeep(c));
