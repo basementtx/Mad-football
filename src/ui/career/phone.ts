@@ -3,12 +3,14 @@ import type { Career, Post, DM, LastMatch } from '../../career/types';
 import { esc, fmtText, crestOf, myPortrait, npcPortrait, mySprite, ratingClass, modal, closeModal, stars, paintAll, flagTag } from './kit';
 import { L2, compact, isTR } from '../../career/util';
 import { timeAgo, vibe, resolveDM, postOptions, publishPost, myHandle, PostOption } from '../../career/media';
+import { kx, votePoll, toggleLike, unseenNotifs } from '../../career/kickr';
+import type { KStory } from '../../career/types';
 import { clubName, teamDefOf } from '../../career/world';
 import { saveCareer } from '../../career/state';
 import { audio } from '../../engine/audio';
 import { toast, crestTag } from '../common';
 
-export type PhoneView = 'feed' | 'mentions' | 'dms' | 'news';
+export type PhoneView = 'feed' | 'explore' | 'notifs' | 'mentions' | 'dms' | 'news';
 let view: PhoneView = 'feed';
 let openThread: string | null = null;
 let openPost: string | null = null;
@@ -64,6 +66,40 @@ function media(c: Career, p: Post) {
       return `<div class="kr-m callup">${flagTag(String(d.nat), 'kr-flag-big')}<b>${L2('CALLED UP', 'MİLLİ TAKIMDA')}</b></div>`;
     case 'stat':
       return `<div class="kr-m stat"><b>${esc(String(d.title ?? ''))}</b></div>`;
+    case 'clip': {
+      const pose = String(d.pose);
+      return `<div class="kr-m clip ${d.old ? 'old' : ''}"><div class="kr-clip-stage">${mySprite(c, pose === 'celebrate' ? 'cel0' : 'kick1', 'kr-clip-sprite')}<i class="kr-play">▶</i><span class="kr-dur">${esc(String(d.dur))}</span>${d.old ? `<span class="kr-old">${L2('1 YEAR AGO', '1 YIL ÖNCE')}</span>` : ''}<span class="kr-live-bar"><i></i></span></div><div class="kr-clip-meta">👁 ${compact(Number(d.views))} ${L2('views', 'izlenme')} · vs ${esc(String(d.opp ?? ''))}</div></div>`;
+    }
+    case 'poll': {
+      const opts = String(d.opts).split('|');
+      const pct = String(d.pct).split('|').map(Number);
+      const voted = kx(c).polls[p.id];
+      const show = voted !== undefined;
+      const best = Math.max(...pct);
+      return `<div class="kr-m poll ${show ? 'voted' : ''}">${opts.map((o, i) => `<button class="kr-pollopt ${show && pct[i] === best ? 'lead' : ''} ${voted === i ? 'mine' : ''}" data-vote="${p.id}:${i}" ${show ? 'disabled' : ''}><i style="--w:${show ? pct[i] : 0}%"></i><span>${esc(o)}${voted === i ? ' ✓' : ''}</span>${show ? `<b>${pct[i]}%</b>` : ''}</button>`).join('')}<small>${compact(Number(d.total))} ${L2('votes', 'oy')} · ${show ? L2('Final results', 'Sonuçlar') : L2('Tap to vote', 'Oy vermek için dokun')}</small></div>`;
+    }
+    case 'quote':
+      return `<div class="kr-m quote">${avatar(c, String(d.qav ?? 'c:#6c7480'), 'kr-av sm', String(d.qn))}<div><div class="kr-head"><b>${esc(String(d.qn))}</b><span>@${esc(String(d.qh))}</span></div><div class="kr-text">${fmtText(String(d.qt))}</div></div></div>`;
+    case 'meme':
+      return `<div class="kr-m meme"><b class="mt">${esc(String(d.top))}</b>${mySprite(c, String(d.pose) === 'down' ? 'down0' : 'cel0', 'kr-meme-sprite')}<b class="mb">${esc(String(d.bot))}</b></div>`;
+    case 'compare': {
+      const rows = String(d.rows).split('|').map((r) => r.split(':'));
+      return `<div class="kr-m compare"><div class="kr-cmp-h"><span>${myPortrait(c, 'kr-cmp-face')}<b>${esc(String(d.a).split(' ').pop()!)}</b></span><em>VS</em><span>${npcPortrait(c, String(d.nid), 'kr-cmp-face')}<b>${esc(String(d.b).split(' ').pop()!)}</b></span></div>${rows.map(([l, a, b]) => { const na = Number(a), nb = Number(b); const t = na + nb || 1; return `<div class="kr-cmp-r"><b class="${na >= nb ? 'w' : ''}">${a}</b><div class="kr-cmp-bar"><i style="--w:${(na / t) * 100}%"></i></div><span>${esc(l)}</span><div class="kr-cmp-bar r"><i style="--w:${(nb / t) * 100}%"></i></div><b class="${nb > na ? 'w' : ''}">${b}</b></div>`; }).join('')}</div>`;
+    }
+    case 'graph': {
+      const rows = String(d.rows).split('|').map((r) => r.split(':'));
+      return `<div class="kr-m graph"><div class="kr-g-badge">${esc(String(d.r))}</div>${rows.map(([l, v, mx]) => `<div class="kr-g-r"><span>${esc(l)}</span><div class="kr-g-bar"><i style="--w:${Math.min(100, (Number(v) / Number(mx)) * 100)}%"></i></div><b>${esc(v)}</b></div>`).join('')}</div>`;
+    }
+    case 'odds':
+      return `<div class="kr-m odds"><div class="kr-odds-h">${esc(String(d.h))} <em>v</em> ${esc(String(d.a))}</div><div class="kr-odds-row"><span><small>1</small><b>${d.o1}</b></span><span><small>X</small><b>${d.ox}</b></span><span><small>2</small><b>${d.o2}</b></span></div><div class="kr-odds-sc">${esc(String(d.sc))} <b>${d.so}</b></div></div>`;
+    case 'board':
+      return `<div class="kr-m board"><div class="kr-bd-pitch"><i class="kr-bd-p me" style="left:62%;top:42%"></i><i class="kr-bd-p" style="left:40%;top:30%"></i><i class="kr-bd-p" style="left:44%;top:66%"></i><i class="kr-bd-p o" style="left:70%;top:58%"></i><i class="kr-bd-p o" style="left:76%;top:30%"></i><svg class="kr-bd-arrow" viewBox="0 0 100 60" preserveAspectRatio="none"><path d="M40 30 Q55 18 62 25" /><path d="M62 25 L84 30" class="run" /></svg><span class="kr-bd-zone"></span></div><small>1/4 🧵</small></div>`;
+    case 'table': {
+      const rows = String(d.rows).split('|').map((r) => r.split(':'));
+      return `<div class="kr-m table">${rows.map(([pos, n, pts, me]) => `<div class="kr-tb-r ${me === '1' ? 'me' : ''}"><span>${pos}</span><b>${esc(n)}</b><em>${pts}</em></div>`).join('')}</div>`;
+    }
+    case 'milestone':
+      return `<div class="kr-m milestone"><b>${esc(String(d.m))}</b><span>${L2('FOLLOWERS', 'TAKİPÇİ')}</span><i class="kr-confetti"></i></div>`;
   }
   return '';
 }
@@ -76,7 +112,7 @@ export function postHTML(c: Career, p: Post, compact_ = false) {
       <div class="kr-head"><b>${esc(p.name)}</b>${p.verified ? '<i class="kr-ver">✓</i>' : ''}<span>@${esc(p.handle)} · ${timeAgo(c, p)}</span></div>
       <div class="kr-text">${fmtText(compact_ && p.text.length > 110 ? p.text.slice(0, 108) + '…' : p.text)}</div>
       ${compact_ ? '' : media(c, p)}
-      <div class="kr-acts"><span>💬 ${compact(p.replyCount)}</span><span>🔁 ${compact(p.reposts)}</span><span class="lk">♥ ${compact(p.likes)}</span></div>
+      <div class="kr-acts"><span>💬 <em data-n="${p.replyCount}">${compact(p.replyCount)}</em></span><span>🔁 <em data-n="${p.reposts}">${compact(p.reposts)}</em></span><button class="kr-like ${kx(c).liked.includes(p.id) ? 'on' : ''}" data-like="${p.id}"><i>♥</i> <em data-n="${p.likes}">${compact(p.likes)}</em></button>${p.media?.kind === 'clip' ? `<span>👁 ${compact(Number(p.media.data.views))}</span>` : ''}</div>
       ${!compact_ && open && p.replies.length ? `<div class="kr-replies">${p.replies.map((r) => `<div class="kr-reply">${initialAvatar(r.name, r.color ?? '#6c7480')}<div><div class="kr-head"><b>${esc(r.name)}</b>${r.verified ? '<i class="kr-ver">✓</i>' : ''}<span>@${esc(r.handle)}</span></div><div class="kr-text">${fmtText(r.text)}</div><div class="kr-acts"><span class="lk">♥ ${compact(r.likes)}</span></div></div></div>`).join('')}</div>` : ''}
       ${!compact_ && !open && p.replies.length ? `<button class="kr-more">${L2(`Show ${p.replies.length} replies`, `${p.replies.length} yanıtı göster`)}</button>` : ''}
     </div>
@@ -94,6 +130,8 @@ export function phoneHTML(c: Career): string {
   const me = c.me;
   const nav: [PhoneView, string, string, number][] = [
     ['feed', '⌂', L2('For you', 'Sana özel'), 0],
+    ['explore', '#', L2('Explore', 'Keşfet'), 0],
+    ['notifs', '🔔', L2('Notifications', 'Bildirimler'), unseenNotifs(c)],
     ['mentions', '@', L2('About you', 'Hakkında'), 0],
     ['dms', '✉', L2('Messages', 'Mesajlar'), dms],
     ['news', '▤', L2('Sport Daily', 'Spor Gazetesi'), 0],
@@ -102,8 +140,13 @@ export function phoneHTML(c: Career): string {
   if (view === 'feed' || view === 'mentions') {
     const name = me.name.split(' ').pop()!.toLowerCase();
     const posts = view === 'feed' ? c.feed : c.feed.filter((p) => p.text.toLowerCase().includes(name) || p.av === 'me' || p.media?.data.who === 'me');
-    main = `<div class="kr-feed">${posts.length ? posts.slice(0, 60).map((p) => postHTML(c, p)).join('') : `<div class="kr-empty">${L2('Nothing here yet.', 'Henüz bir şey yok.')}</div>`}</div>`;
-  } else if (view === 'dms') main = dmsHTML(c);
+    const st = kx(c);
+    const now = c.season * 100 + c.week;
+    const fresh = view === 'feed' && st.seen < now ? posts.filter((p) => p.season * 100 + p.week === now).length : 0;
+    main = `<div class="kr-feed">${view === 'feed' ? storiesHTML(c) : ''}${fresh ? `<button class="kr-newpill" data-act="kr-top">↑ ${fresh} ${L2('new posts', 'yeni gönderi')}</button>` : ''}${posts.length ? posts.slice(0, 60).map((p) => postHTML(c, p)).join('') : `<div class="kr-empty">${L2('Nothing here yet.', 'Henüz bir şey yok.')}</div>`}</div>`;
+  } else if (view === 'explore') main = exploreHTML(c);
+  else if (view === 'notifs') main = notifsHTML(c);
+  else if (view === 'dms') main = dmsHTML(c);
   else main = newsHTML(c);
   return `<div class="kr">
     <aside class="kr-side">
@@ -119,6 +162,74 @@ export function phoneHTML(c: Career): string {
       ${c.news[0] ? `<div class="kr-box news-mini" data-kv="news"><h4>${L2('Breaking', 'Son dakika')}</h4><b>${esc(c.news[0].title)}</b><small>${esc(c.news[0].sub)}</small></div>` : ''}
     </aside>
   </div>`;
+}
+
+// ------------------------------------------------------------------ stories, explore, notifications
+
+function storiesHTML(c: Career) {
+  const st = kx(c).stories;
+  if (!st.length) return '';
+  return `<div class="kr-stories">${st.map((x) => `<button class="kr-story ${x.seen ? 'seen' : ''}" data-story="${x.id}"><span class="kr-ring">${avatar(c, x.av, 'kr-av', x.name)}</span><small>${esc(x.name)}</small></button>`).join('')}</div>`;
+}
+
+function openStory(c: Career, s: KStory, done: () => void) {
+  let i = 0;
+  const m = modal(`<div class="kr-sv"><div class="kr-sv-bars">${s.slides.map((_, k) => `<i data-b="${k}"><b></b></i>`).join('')}</div><div class="kr-sv-head">${avatar(c, s.av, 'kr-av', s.name)}<b>${esc(s.name)}</b><button class="cr-x" data-x>✕</button></div><div class="kr-sv-slide"></div></div>`, 'story');
+  const slideEl = m.querySelector<HTMLElement>('.kr-sv-slide')!;
+  let timer = 0;
+  const show = () => {
+    if (i >= s.slides.length) { close(); return; }
+    const sl = s.slides[i];
+    slideEl.style.setProperty('--bg', sl.bg);
+    slideEl.innerHTML = `<b>${esc(sl.big)}</b><span>${esc(sl.text)}</span>${sl.sub ? `<small>${esc(sl.sub)}</small>` : ''}`;
+    slideEl.classList.remove('in');
+    void slideEl.offsetWidth;
+    slideEl.classList.add('in');
+    m.querySelectorAll<HTMLElement>('[data-b]').forEach((b) => { const k = Number(b.dataset.b); b.className = k < i ? 'done' : k === i ? 'run' : ''; });
+    clearTimeout(timer);
+    timer = window.setTimeout(() => { i++; show(); }, 3200);
+  };
+  const close = () => { clearTimeout(timer); s.seen = true; saveCareer(); closeModal(); done(); };
+  m.querySelector('[data-x]')?.addEventListener('click', (e) => { e.stopPropagation(); close(); });
+  slideEl.addEventListener('click', () => { i++; audio.click(); show(); });
+  show();
+}
+
+function exploreHTML(c: Career) {
+  const trends = c.trends.length ? c.trends : [{ tag: 'MadFootball', n: 120000 }, { tag: 'NoRules', n: 54000 }];
+  const mx = Math.max(...trends.map((t) => t.n));
+  const polls = c.feed.filter((p) => p.media?.kind === 'poll').slice(0, 3);
+  const cast = kx(c).personas.slice(0, 8);
+  return `<div class="kr-explore">
+    <div class="kr-ex-sec"><h4>${L2('Trending in football', 'Futbolda gündem')}</h4>${trends.slice(0, 8).map((t, i) => `<div class="kr-ex-tr"><span class="n">${i + 1}</span><div><b>#${esc(t.tag)}</b><small>${compact(t.n)} ${L2('posts', 'gönderi')}</small></div><div class="kr-ex-spark"><i style="--w:${Math.max(6, (t.n / mx) * 100)}%"></i></div></div>`).join('')}</div>
+    ${polls.length ? `<div class="kr-ex-sec"><h4>${L2('Polls', 'Anketler')}</h4>${polls.map((p) => postHTML(c, p)).join('')}</div>` : ''}
+    ${cast.length ? `<div class="kr-ex-sec"><h4>${L2('Who to follow', 'Kimi takip etmeli')}</h4><div class="kr-ex-cast">${cast.map((x) => `<div class="kr-ex-p">${avatar(c, 'c:' + x.color, 'kr-av', x.name)}<div><b>${esc(x.name)}${x.verified ? ' <i class="kr-ver">✓</i>' : ''}</b><small>@${esc(x.handle)}</small></div></div>`).join('')}</div></div>` : ''}
+  </div>`;
+}
+
+const NOTIF_IC: Record<string, string> = { like: '♥', mention: '@', follow: '👤', milestone: '🎉', quote: '❝', trend: '📈' };
+function notifsHTML(c: Career) {
+  const ns = kx(c).notifs;
+  const html = `<div class="kr-notifs">${ns.length ? ns.map((n) => `<div class="kr-nt k-${n.kind} ${n.seen ? '' : 'new'}"><span class="kr-nt-ic">${NOTIF_IC[n.kind] ?? '•'}</span><div><p>${fmtText(n.text)}</p><small>${L2('S', 'S')}${n.season} · ${L2('W', 'H')}${n.week}</small></div></div>`).join('') : `<div class="kr-empty">${L2('No notifications yet.', 'Henüz bildirim yok.')}</div>`}</div>`;
+  for (const n of ns) n.seen = true;
+  return html;
+}
+
+/** Counters on the newest posts tick up to their value: the post is going viral as you watch. */
+function liveCounters(root: HTMLElement) {
+  const els = [...root.querySelectorAll<HTMLElement>('.kr-post:nth-child(-n+8) [data-n]')];
+  const t0 = performance.now();
+  const step = (now: number) => {
+    const k = Math.min(1, (now - t0) / 1400);
+    const e = 1 - Math.pow(1 - k, 3);
+    for (const el of els) {
+      if (!el.isConnected) return;
+      const n = Number(el.dataset.n);
+      el.textContent = compact(Math.round(n * (0.55 + 0.45 * e)));
+    }
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 // ------------------------------------------------------------------ DMs
@@ -176,6 +287,48 @@ function newsHTML(c: Career) {
 
 export function bindPhone(c: Career, root: HTMLElement, rerender: () => void) {
   root.querySelectorAll<HTMLElement>('[data-kv]').forEach((b) => b.addEventListener('click', () => { view = b.dataset.kv as PhoneView; audio.click(); rerender(); }));
+  root.querySelectorAll<HTMLElement>('[data-like]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const p = c.feed.find((x) => x.id === b.dataset.like);
+    if (!p) return;
+    const on = toggleLike(c, p);
+    b.classList.toggle('on', on);
+    b.classList.remove('pop');
+    void b.offsetWidth;
+    if (on) b.classList.add('pop');
+    const em = b.querySelector('em');
+    if (em) em.textContent = compact(p.likes);
+    audio.click();
+    saveCareer();
+  }));
+  root.querySelectorAll<HTMLElement>('[data-vote]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const [id, i] = b.dataset.vote!.split(':');
+    const p = c.feed.find((x) => x.id === id);
+    if (!p) return;
+    votePoll(c, p, Number(i));
+    saveCareer();
+    audio.select();
+    rerender();
+  }));
+  root.querySelectorAll<HTMLElement>('[data-story]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const s = kx(c).stories.find((x) => x.id === b.dataset.story);
+    if (s) { audio.click(); openStory(c, s, rerender); }
+  }));
+  root.querySelector<HTMLElement>('[data-act=kr-top]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    root.querySelector('.kr-center')?.scrollTo({ top: 0, behavior: 'smooth' });
+    (e.currentTarget as HTMLElement).remove();
+  });
+  // first look at this week's feed: watch the numbers climb
+  const st = kx(c);
+  const now = c.season * 100 + c.week;
+  if (view === 'feed' && st.seen < now) {
+    liveCounters(root);
+    st.seen = now;
+    saveCareer();
+  }
   root.querySelectorAll<HTMLElement>('.kr-post').forEach((el) => el.addEventListener('click', () => {
     openPost = openPost === el.dataset.post ? null : el.dataset.post!;
     audio.click();

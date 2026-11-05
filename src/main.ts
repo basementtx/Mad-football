@@ -47,6 +47,7 @@ import { showCareer } from './ui/career/home';
 import { career } from './career/state';
 import { careerHudStart, careerHudStop, careerHudTick } from './ui/career/hud';
 import './ui/career/career.css';
+import './ui/career/kickr.css';
 import './ui/fit.css';
 import './ui/formation.css';
 import './ui/monetize.css';
