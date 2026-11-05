@@ -8,6 +8,7 @@ import type { Difficulty } from '../game/entities';
 import { ICON_IDS, CREST_SHAPES } from '../pixel/crest';
 import { clamp, pick, rand } from '../engine/math';
 import { clubTeamDef, clubOverall, addCoins } from './profile';
+import { addTrophy } from './honours';
 
 export const DIVISIONS = 5; // 5 = lowest, 1 = top
 export const TEAMS_PER_LEAGUE = 8;
@@ -51,7 +52,7 @@ const SUFFIX = ['FC', 'United', 'Rovers', 'City', 'Athletic', 'Wanderers', 'Dyna
 const SURN = ['Storm', 'Kaya', 'Silva', 'Novak', 'Okafor', 'Duran', 'Varga', 'Yilmaz', 'Costa', 'Moreau', 'Petrov', 'Tanaka', 'Reyes', 'Bakker', 'Rossi', 'Demir', 'Mensah', 'Kowal', 'Lund', 'Aziz'];
 const PATTERNS: KitPattern[] = ['solid', 'stripes', 'hoops', 'half', 'sash', 'chevron'];
 
-function makeClub(div: number, used: Set<string>): TeamDef {
+export function makeClub(div: number, used: Set<string>): TeamDef {
   let prefix = pick(PREFIX);
   while (used.has(prefix)) prefix = pick(PREFIX);
   used.add(prefix);
@@ -216,6 +217,8 @@ function finishSeason() {
   const coins = Math.round(POS_REWARD[pos - 1] * DIV_MULT[div]);
   addCoins(coins);
   league.history.push({ season: league.season, div, pos, outcome });
+  if (pos === 1) addTrophy({ kind: 'league', div, n: league.season });
+  else if (outcome === 'promoted') addTrophy({ kind: 'promotion', div, n: league.season });
   league.pending = { season: league.season, div, pos, outcome, coins };
 }
 

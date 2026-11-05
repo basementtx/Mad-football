@@ -1,0 +1,71 @@
+/* ===================================================================
+   Cup: bracket + side panel, results line and the winners' pop-up
+   =================================================================== */
+#ui .cupscr { width: 100%; max-width: 1000px; height: 100%; min-height: 0; display: flex; flex-direction: column; gap: clamp(6px, 1.6vh, 10px); }
+#ui .cupscr > .panel-head { flex: none; }
+#ui .cp-title { display: flex; align-items: baseline; gap: 10px; }
+#ui .cp-title b { font: 700 24px/1 var(--display); color: var(--ink); background: var(--marker); border: 3px solid var(--ink); padding: 2px 14px; transform: rotate(-1.5deg); box-shadow: 5px 5px 0 rgba(21,23,28,0.5); }
+#ui .cp-title small { font: 700 12px/1 var(--ui); color: var(--label); }
+#ui .cp-body { flex: 1 1 0; min-height: 0; display: flex; gap: 14px; }
+#ui .cp-bracket { flex: 1.6; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 8px; background: var(--paper); border: 3px solid var(--ink); box-shadow: 6px 6px 0 rgba(21,23,28,0.45); overflow: hidden; }
+#ui .cp-col { display: flex; flex-direction: column; min-height: 0; }
+#ui .cp-rname { flex: none; font: 700 11px/1 var(--ui); color: var(--note); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; text-align: center; }
+#ui .cp-ties { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 4px; min-height: 0; }
+#ui .cp-tie { position: relative; display: flex; flex-direction: column; border: 2px solid var(--ink); background: #fff; box-shadow: 2px 2px 0 rgba(21,23,28,0.3); }
+#ui .cp-tie.mine { border-color: var(--ink); box-shadow: 0 0 0 3px var(--marker), 2px 2px 0 rgba(21,23,28,0.3); }
+/* connector lines to the next round */
+#ui .cp-col:not(.champ):not(.r2) .cp-tie::after, #ui .cp-col.r2 .cp-tie::after { content: ''; position: absolute; right: -12px; top: 50%; width: 10px; border-top: 2px solid var(--ink); }
+#ui .cp-slot { display: flex; align-items: center; gap: 4px; padding: 2px 4px; min-height: 20px; font: 700 12px/1 var(--display); color: var(--ink); }
+#ui .cp-slot + .cp-slot { border-top: 1px dashed rgba(21,23,28,0.3); }
+#ui .cp-slot b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ui .cp-slot em { font-style: normal; font-weight: 700; display: flex; align-items: baseline; gap: 2px; }
+#ui .cp-slot em small { font: 700 9px/1 var(--ui); color: var(--note); }
+#ui .cp-slot.me { background: rgba(250,204,21,0.35); }
+#ui .cp-slot.w { color: var(--ink); }
+#ui .cp-slot.w b::after { content: ' ✓'; color: var(--green, #2fb45a); }
+#ui .cp-slot.l { opacity: .45; text-decoration: line-through; }
+#ui .cp-slot.tbd { color: var(--note); }
+#ui .cp-crest { width: 16px; height: 18px; background: var(--track, #ddd4c3); }
+#ui .cp-champ { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border: 2px dashed rgba(21,23,28,0.35); }
+#ui .cp-champ.set { border: 3px solid var(--ink); background: linear-gradient(180deg, #fff6cc, #fff); box-shadow: 0 0 0 3px var(--marker); }
+#ui .cp-cup-sm { width: 40px; height: 52px; image-rendering: pixelated; filter: drop-shadow(2px 2px 0 rgba(21,23,28,0.35)); }
+#ui .cp-champ:not(.set) .cp-cup-sm { filter: grayscale(1) opacity(.35); }
+#ui .cp-champ.set .cp-cup-sm { animation: m-float 2.4s ease-in-out infinite; }
+
+#ui .cp-side { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; touch-action: pan-y; display: flex; flex-direction: column; gap: 10px; padding: 0 8px 8px 0; }
+#ui .cp-side > * { flex: none; }
+#ui .cp-next { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 10px 12px 20px; position: relative; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 6px 6px 0 rgba(21,23,28,0.45); }
+#ui .cp-next::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: #8a5cff; }
+#ui .cp-next.end { padding-left: 10px; }
+#ui .cp-next.end::before { display: none; }
+#ui .cp-next.end b { font: 700 22px/1 var(--display); }
+#ui .cp-next.end small { font: 600 12px/1.2 var(--ui); color: var(--note); text-align: center; }
+#ui .cp-next.won { background: linear-gradient(180deg, #fff3b0, var(--paper)); }
+#ui .cp-next.out .cp-cup-lg { filter: grayscale(1) opacity(.4); }
+#ui .cp-cup-lg { width: 80px; height: 104px; image-rendering: pixelated; filter: drop-shadow(3px 3px 0 rgba(21,23,28,0.4)); }
+#ui .cp-next.won .cp-cup-lg { animation: m-float 2.4s ease-in-out infinite; }
+#ui .cp-prizes { display: flex; flex-direction: column; gap: 4px; padding: 8px; background: var(--paper2); border: 2px solid var(--ink); color: var(--ink); }
+#ui .cp-prize { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font: 700 12px/1.3 var(--ui); padding: 2px 4px; }
+#ui .cp-prize span { flex: 1; }
+#ui .cp-prize b { display: flex; align-items: center; gap: 3px; font-family: var(--display); }
+#ui .cp-prize em { flex-basis: 100%; font-style: normal; color: #8a5cff; text-align: right; }
+#ui .cp-prize.now { background: rgba(250,204,21,0.4); }
+#ui .cp-prize.got { opacity: .55; text-decoration: line-through; }
+
+/* results: the cup line */
+#ui .res-cup { align-self: center; display: flex; align-items: center; gap: 6px; font: 700 14px/1.2 var(--display); padding: 4px 12px; border: 2px solid var(--ink); background: #e8e0ff; color: var(--ink); }
+#ui .res-cup.up { background: #d8f8e2; }
+#ui .res-cup.out { background: #ffe0da; }
+
+/* cup winners pop-up */
+#ui .cup-win { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: rgba(8,10,20,0.82); animation: m-fade .35s ease-out; overflow: hidden; }
+#ui .cup-win-in { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: m-pop .6s var(--e-spring, ease); }
+#ui .cup-win-rays { position: absolute; left: 50%; top: 40%; width: 160vmax; height: 160vmax; margin: -80vmax 0 0 -80vmax; background: repeating-conic-gradient(rgba(255,210,63,0.16) 0 8deg, transparent 8deg 18deg); animation: spin 14s linear infinite; z-index: -1; }
+#ui .cup-win-in > b { font: 700 clamp(22px, 7vh, 40px)/1 var(--display); color: var(--marker); text-shadow: 3px 3px 0 var(--ink); }
+#ui .cup-win-trophy { width: 80px; height: 104px; image-rendering: pixelated; animation: m-float 2s ease-in-out infinite; }
+#ui .cup-win .pcard { --w: clamp(80px, 22vh, 128px); }
+@media (max-height: 430px) {
+  #ui .cup-win-trophy { width: 56px; height: 73px; }
+  #ui .cp-cup-lg { width: 60px; height: 78px; }
+  #ui .cp-slot { min-height: 18px; font-size: 11px; }
+}

@@ -17,6 +17,8 @@ import { WEATHERS, PITCHES, STADIUMS, makeEnv, Weather, PitchStyle, Stadium } fr
 import { THEMES, GRASS } from '../game/stadium';
 import type { Mission } from '../meta/missions';
 import { missionLabel } from './missions';
+import type { CupOutcome } from '../meta/cup';
+import { trophyCanvas } from '../pixel/trophy';
 import { watchAd, adsLeft } from '../meta/monetize';
 import { addCoins } from '../meta/profile';
 const L2 = (en: string, tr: string) => (settings.lang === 'tr' ? tr : en);
@@ -407,12 +409,13 @@ function cardOf(p: Player): CardData {
   };
 }
 
-export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode = false, done: Mission[] = []) {
+export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode: false | 'league' | 'cup' = false, done: Mission[] = [], cupOut: CupOutcome | null = null) {
   const L = t();
   // rewarded ad: double the match coins (a small floor so a loss still pays something)
   const adBonus = m.cfg.training ? 0 : Math.max(coins, 100);
   const [a, b] = m.teams;
-  const res = a.score > b.score ? 'win' : a.score < b.score ? 'loss' : 'draw';
+  // cup ties are decided on penalties
+  const res = cupOut?.pens ? (cupOut.won ? 'win' : 'loss') : a.score > b.score ? 'win' : a.score < b.score ? 'loss' : 'draw';
   const total = a.stats.possession + b.stats.possession || 1;
   const pa = Math.round((a.stats.possession / total) * 100);
   const rows: [string, number | string, number | string][] = [
@@ -433,6 +436,7 @@ export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode
   ui().innerHTML = `
     <div class="results">
       <div class="res-title ${res}">${res === 'win' ? L.win : res === 'loss' ? L.loss : L.draw}</div>
+      ${cupOut ? `<div class="res-cup ${cupOut.won ? 'up' : 'out'}">🏆 ${cupOut.pens ? `${L2('Penalties', 'Penaltılar')} ${cupOut.pens[0]}-${cupOut.pens[1]} · ` : ''}${cupOut.champion ? L2('CUP WINNERS!', 'KUPA ŞAMPİYONU!') : cupOut.won ? L2('Through to the next round', 'Bir sonraki tura yükseldin') : L2('Knocked out of the cup', 'Kupadan elendin')}${cupOut.coins ? ` · +${cupOut.coins} ${coinTag()}` : ''}</div>` : ''}
       <div class="res-score">
         <div class="res-team" style="--c:${a.def.primary}">${crestTag(a.def, 'crest-sm')}${esc(a.def.name)}<small>${scorers(a)}</small></div>
         <div class="res-num">${a.score}<span>-</span>${b.score}</div>
@@ -455,7 +459,7 @@ export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode
       </div>
       <div class="row">
         <button class="btn btn-ghost" data-act="quit">${L.menu}</button>
-        ${leagueMode ? `<button class="btn btn-primary" data-act="league">${L.continueBtn} ▶</button>` : `<button class="btn btn-primary" data-act="restart">${L.rematch} ▶</button>`}
+        ${leagueMode === 'cup' ? `<button class="btn btn-primary" data-act="cup">${L.continueBtn} ▶</button>` : leagueMode ? `<button class="btn btn-primary" data-act="league">${L.continueBtn} ▶</button>` : `<button class="btn btn-primary" data-act="restart">${L.rematch} ▶</button>`}
       </div>
     </div>`;
   paintAll();
@@ -485,5 +489,22 @@ export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode
   bind('[data-act=quit]', () => h.quit());
   bind('[data-act=restart]', () => h.restart());
   bind('[data-act=league]', () => h.showLeague());
+  bind('[data-act=cup]', () => h.showCup());
+  // cup winners: the trophy and the special card
+  if (cupOut?.champion && cupOut.card) {
+    const card = cupOut.card;
+    setTimeout(() => {
+      if (!ui().classList.contains('screen-results')) return;
+      const pop = document.createElement('div');
+      pop.className = 'cup-win';
+      pop.innerHTML = `<div class="cup-win-in"><div class="cup-win-rays"></div>${paintTag(() => trophyCanvas('cup', m.teams[0].def.primary), 'cup-win-trophy')}<b>${L2('CUP WINNERS!', 'KUPA ŞAMPİYONU!')}</b>${cardHTML(card, { club: m.teams[0].def, size: 'lg', badge: L2('REWARD', 'ÖDÜL') })}<button class="btn btn-primary" data-act="cw-ok">${L2('LIFT IT!', 'KALDIR!')} 🏆</button></div>`;
+      ui().appendChild(pop);
+      paintAll(pop);
+      audio.horn();
+      audio.cheer(1);
+      vibrate([60, 40, 120]);
+      pop.querySelector('[data-act=cw-ok]')!.addEventListener('click', (e) => { e.stopPropagation(); audio.click(); pop.remove(); });
+    }, 1900);
+  }
   void record;
 }

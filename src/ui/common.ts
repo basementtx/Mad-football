@@ -163,6 +163,8 @@ export interface MenuHandlers {
   /** show this venue in the menu backdrop */
   previewEnv: (env: MatchEnv) => void;
   startLeagueMatch: () => void;
+  startCupMatch: () => void;
+  showCup: () => void;
   startTraining: (mode: 'team' | 'keeper') => void;
   showLeague: () => void;
   resume: () => void;

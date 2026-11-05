@@ -30,9 +30,13 @@ import { nextFixture, teamById, leagueDifficulty, recordUserResult } from './met
 import { showLeague } from './ui/league';
 import type { Difficulty } from './game/entities';
 import { DIFF_REWARD } from './game/entities';
-import { showPause, showResults, hideUI, MenuHandlers, homeDef } from './ui/menus';
+import { showPause, showResults, hideUI, MenuHandlers, homeDef, mvpOf } from './ui/menus';
 import { showSplash, showHub } from './ui/hub';
 import { installBankShortcut } from './ui/bank';
+import { cup, userOpp, cupTeam, cupDifficulty, recordCupResult } from './meta/cup';
+import { showCup } from './ui/cup';
+import { recordClubMatch } from './meta/honours';
+import { overall } from './meta/cards';
 import { stadiumIncome, trainingBoost, fitnessDrain } from './meta/facilities';
 import { profile, lineupCards, loadoutTiers } from './meta/profile';
 import type { CardData } from './meta/cards';
@@ -48,6 +52,7 @@ import './ui/formation.css';
 import './ui/monetize.css';
 import './ui/series.css';
 import './ui/facilities.css';
+import './ui/cup.css';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 let ctx = canvas.getContext('2d', { alpha: false })!;
@@ -136,7 +141,7 @@ function requestFullscreen() {
 }
 
 /** 'quick' = friendly from the setup screen, 'league' = current league fixture */
-let matchMode: 'quick' | 'league' | 'training' | 'career' = 'quick';
+let matchMode: 'quick' | 'league' | 'cup' | 'training' | 'career' = 'quick';
 /** career: the running config and what to do when it ends */
 let careerCfg: MatchConfig | null = null;
 let careerEnd: ((m: Match) => void) | null = null;
@@ -214,6 +219,20 @@ const handlers: MenuHandlers = {
     const env = homeGroundEnv(fx.home ? 'club' : fx.opp, { stadium: lastSetup.stadium as Choice<Stadium>, pitch: lastSetup.pitch as Choice<PitchStyle> });
     launch(teamById('club'), teamById(fx.opp), leagueDifficulty(), true, undefined, env);
   },
+  startCupMatch() {
+    const opp = userOpp();
+    if (!opp || !cup || cup.status !== 'running') return;
+    matchMode = 'cup';
+    const env = homeGroundEnv('club', { stadium: lastSetup.stadium as Choice<Stadium>, pitch: lastSetup.pitch as Choice<PitchStyle> });
+    launch(teamById('club'), cupTeam(opp), cupDifficulty(), true, undefined, env);
+  },
+  showCup() {
+    game?.dispose();
+    game = null;
+    mode = 'menu';
+    input.enabled = false;
+    showCup(handlers);
+  },
   showLeague() {
     game?.dispose();
     game = null;
@@ -243,6 +262,7 @@ const handlers: MenuHandlers = {
       return;
     }
     if (matchMode === 'training') handlers.startTraining(trainingMode);
+    else if (matchMode === 'cup') handlers.showCup();
     else if (matchMode === 'league') handlers.startLeagueMatch();
     else handlers.startMatch();
   },
@@ -333,6 +353,15 @@ function endMatch() {
   record.coins += coins;
   saveRecord();
   if (matchMode === 'league') recordUserResult(a.score, b.score);
+  const cupOut = matchMode === 'cup' ? recordCupResult(a.score, b.score) : null;
+  // club matches count for the legends wall and the club records
+  if (m.cfg.homeCards && matchMode !== 'training') {
+    const best = mvpOf(m);
+    recordClubMatch(
+      a.players.filter((p) => p.card).map((p) => ({ cardId: p.card!.id, name: p.card!.name, pos: p.card!.pos, ovr: overall(p.card!), look: p.card!.look, series: p.card!.series, goals: p.goals, assists: p.assists, motm: p === best })),
+      a.score, b.score, b.def.name,
+    );
+  }
   if (m.cfg.homeCards) addFamiliarity(m.cfg.size);
   const w = m.env.weather;
   const done = missionsAfterMatch({
@@ -343,7 +372,7 @@ function endMatch() {
   });
   mode = 'results';
   input.enabled = false;
-  showResults(handlers, m, coins, matchMode === 'league', done);
+  showResults(handlers, m, coins, matchMode === 'league' ? 'league' : matchMode === 'cup' ? 'cup' : false, done, cupOut);
 }
 
 // unlock audio on first interaction anywhere
