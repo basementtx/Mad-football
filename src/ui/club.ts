@@ -13,6 +13,50 @@ import { showCreator } from './creator';
 import { PATTERNS as ALL_PATTERNS, cosName, cosFor } from '../meta/cosmetics';
 import { lockTag, isLocked, askUnlock } from './unlock';
 import { playerChem, teamChem, chemColor, familiarity } from '../meta/chemistry';
+import { FORMATIONS, formationFor, Formation } from '../game/formations';
+import { settings, lastSetup } from '../engine/storage';
+
+const tl = (o: { tr: string; en: string }) => (settings.lang === 'tr' ? o.tr : o.en);
+const L2 = (en: string, tr: string) => (settings.lang === 'tr' ? tr : en);
+const ROLE_TAG: Record<string, { tr: string; en: string }> = { GK: { tr: 'KL', en: 'GK' }, DEF: { tr: 'DEF', en: 'DEF' }, MID: { tr: 'OS', en: 'MID' }, FWD: { tr: 'FV', en: 'FWD' } };
+
+/** Mini pitch with the formation's players (attack to the right). */
+function formationPitch(f: Formation) {
+  const dot = (u: number, w: number, role: string) =>
+    `<i class="fm-dot r-${role}" style="left:${((u + 1) / 2) * 100}%;top:${((w + 1) / 2) * 100}%">${tl(ROLE_TAG[role])}</i>`;
+  return `<div class="fm-pitch"><span class="fm-half"></span><span class="fm-circle"></span><span class="fm-box l"></span><span class="fm-box r"></span>${dot(-0.88, 0, 'GK')}${f.spots.map(([u, w], i) => dot(u, w, f.roles[i])).join('')}</div>`;
+}
+
+/** Formation picker: one choice per match size (3v3 / 4v4 / 5v5). */
+export function showFormations(h: MenuHandlers, size = FORMATIONS[lastSetup.size] ? lastSetup.size : 5) {
+  const cur = formationFor(size, profile.formations?.[size]);
+  setScreen(
+    'screen-formation',
+    `<div class="formation">
+      <div class="panel-head">
+        <button class="btn btn-ghost btn-sm" data-act="back">‹ ${t().back}</button>
+        <div class="panel-title">${L2('FORMATION', 'DİZİLİŞ')}</div>
+        <div class="fm-cur">${cur.id}</div>
+      </div>
+      <div class="tabs">${[3, 4, 5].map((n) => `<button class="tab ${n === size ? 'on' : ''}" data-size="${n}">${n}v${n} <small>${formationFor(n, profile.formations?.[n]).id}</small></button>`).join('')}</div>
+      <div class="fm-grid">
+        ${FORMATIONS[size].map((f) => `<button class="fm-card ${f.id === cur.id ? 'on' : ''}" data-fm="${f.id}">
+          ${formationPitch(f)}
+          <div class="fm-txt"><b>${f.id}</b><span>${esc(tl(f.name))}</span><small>${esc(tl(f.desc))}</small></div>
+        </button>`).join('')}
+      </div>
+      <div class="hint fm-hint">${L2('Lineup slots 2-' + size + ' play these roles in ' + size + 'v' + size + '. Players in their own position get chemistry.', size + 'v' + size + ' maçta 2-' + size + '. sıradaki oyuncular bu rollerde oynar. Kendi mevkiinde oynayan oyuncu kimya kazanır.')}</div>
+    </div>`,
+  );
+  bind('[data-act=back]', () => { audio.click(); showSquad(h); });
+  bind('[data-size]', (b) => { audio.click(); showFormations(h, Number(b.dataset.size)); });
+  bind('[data-fm]', (b) => {
+    profile.formations = { ...(profile.formations ?? {}), [size]: b.dataset.fm! };
+    saveProfile();
+    audio.select();
+    showFormations(h, size);
+  });
+}
 
 export const SWATCHES = ['#e23a2e', '#ff7a1a', '#ffd23f', '#b6ff3b', '#21a85a', '#14b8a6', '#7fd3ff', '#2f7bff', '#13215e', '#6b3fd6', '#ff2fa0', '#ffffff', '#c8d0e0', '#6c7480', '#1b1b1f', '#7a3b12'];
 const FREE_PATTERNS: KitPattern[] = ['solid', 'stripes', 'hoops', 'half', 'sash', 'chevron'];
@@ -176,7 +220,7 @@ export function showSquad(h: MenuHandlers) {
         <div class="panel-head">
           <button class="btn btn-ghost btn-sm" data-act="back">‹ ${L.back}</button>
           <div class="squad-title">${crestTag(club, 'crest-sm')}<span>${esc(club.name)}</span><small>${L.ovr} ${clubOverall()}</small></div>
-          <button class="btn btn-ghost btn-sm" data-act="edit">${L.editClub}</button>
+          <div class="sq-acts"><button class="btn btn-primary btn-sm" data-act="formation">⚽ ${L2('FORMATION', 'DİZİLİŞ')} <small>${formationFor(5, profile.formations?.[5]).id}</small></button><button class="btn btn-ghost btn-sm" data-act="edit">${L.editClub}</button></div>
         </div>
         <div class="chem-bar" style="--cc:${chemColor(teamChem())}"><b>${L.chemistry}</b><div class="cb"><i style="width:${teamChem()}%"></i></div><span>${teamChem()}</span><small>${esc(L.chemHint)}</small></div>
         <div class="sec-label">${L.lineup} <small>${L.slotsHint}</small></div>
@@ -198,6 +242,7 @@ export function showSquad(h: MenuHandlers) {
     );
     bind('[data-act=back]', () => { audio.click(); showHub(h); });
     bind('[data-act=edit]', () => { audio.click(); showClubEditor(h, false); });
+    bind('[data-act=formation]', () => { audio.click(); showFormations(h); });
     bind('[data-slot]', (el) => {
       const i = Number(el.dataset.slot);
       if (sel !== null && sel !== i) {

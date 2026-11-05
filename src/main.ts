@@ -42,6 +42,7 @@ import { career } from './career/state';
 import { careerHudStart, careerHudStop, careerHudTick } from './ui/career/hud';
 import './ui/career/career.css';
 import './ui/fit.css';
+import './ui/formation.css';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 let ctx = canvas.getContext('2d', { alpha: false })!;
@@ -145,7 +146,8 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
     {
       home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty, demo: false,
       homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
-      homeChem: useClub ? lineupChemMuls() : undefined,
+      homeChem: useClub ? lineupChemMuls(lastSetup.size) : undefined,
+      homeFormation: profile.formations?.[lastSetup.size] ?? null,
       starId: useClub ? profile.myPlayer : null,
       loadout: { goalfx: profile.equipped.goalfx, trail: profile.equipped.trail, powers: profile.loadout, tiers: loadoutTiers(), boots: profile.equipped.boots },
       training,

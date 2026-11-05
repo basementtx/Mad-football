@@ -1,0 +1,47 @@
+/* ===================================================================
+   Formation picker (club → formation) and the squad-screen button
+   =================================================================== */
+#ui .sq-acts { display: flex; gap: 10px; align-items: center; }
+#ui .sq-acts small { font-family: var(--display); font-weight: 700; margin-left: 4px; opacity: .75; }
+
+#ui .formation { width: 100%; max-width: 1000px; height: 100%; min-height: 0; display: flex; flex-direction: column; gap: clamp(6px, 1.6vh, 10px); }
+#ui .formation > .panel-head, #ui .formation > .tabs, #ui .formation > .fm-hint { flex: none; }
+#ui .fm-cur { font-family: var(--display); font-weight: 700; font-size: 20px; color: var(--ink); background: var(--marker); border: 3px solid var(--ink); padding: 0 12px; box-shadow: 4px 4px 0 rgba(21,23,28,0.45); min-width: 80px; text-align: center; }
+#ui .fm-hint { color: var(--label); font-family: var(--ui); font-weight: 600; font-size: 12px; }
+
+/* cards: as many per row as fit, scroll if they don't */
+#ui .fm-grid { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 12px; align-content: start; padding: 4px 8px 8px 4px; }
+#ui .fm-card { display: flex; flex-direction: column; gap: 6px; padding: 8px; cursor: pointer; text-align: left;
+  background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 5px 5px 0 rgba(21,23,28,0.45);
+  transition: transform .3s var(--e-spring, ease), box-shadow .2s; }
+#ui .fm-card:active { transform: translate3d(1px, 2px, 0) scale(.97); box-shadow: 2px 2px 0 rgba(21,23,28,0.45); }
+#ui .fm-card.on { background: var(--marker); transform: translateY(-3px); box-shadow: 7px 8px 0 rgba(21,23,28,0.5); }
+#ui .fm-txt { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+#ui .fm-txt b { font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1; }
+#ui .fm-txt span { font-family: var(--display); font-weight: 600; font-size: 14px; }
+#ui .fm-txt small { flex-basis: 100%; font-family: var(--ui); font-weight: 600; font-size: 12px; color: var(--note2); line-height: 1.2; }
+#ui .fm-card.on .fm-txt small { color: var(--ink); }
+
+/* mini pitch: our goal on the left, attacking right */
+#ui .fm-pitch { position: relative; width: 100%; aspect-ratio: 33 / 20; max-height: 30vh; overflow: hidden;
+  background: repeating-linear-gradient(90deg, #2f8f45 0 10%, #2a8240 10% 20%); border: 2px solid var(--ink); }
+#ui .fm-pitch > span { position: absolute; border: 1.5px solid rgba(255,255,255,0.75); pointer-events: none; }
+#ui .fm-half { left: 50%; top: -2px; bottom: -2px; width: 0; border-width: 0 0 0 1.5px !important; }
+#ui .fm-circle { left: 50%; top: 50%; width: 22%; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); }
+#ui .fm-box { top: 26%; bottom: 26%; width: 13%; }
+#ui .fm-box.l { left: -2px; } #ui .fm-box.r { right: -2px; }
+#ui .fm-dot { position: absolute; transform: translate(-50%, -50%); min-width: 30px; height: 20px; padding: 0 4px; display: flex; align-items: center; justify-content: center;
+  font-style: normal; font-family: var(--display); font-weight: 700; font-size: 11px; color: #fff; border: 2px solid var(--ink); border-radius: 10px; box-shadow: 2px 2px 0 rgba(0,0,0,0.35); }
+#ui .fm-dot.r-GK { background: #e8b60c; color: var(--ink); }
+#ui .fm-dot.r-DEF { background: #2f6fd8; }
+#ui .fm-dot.r-MID { background: #1f9a55; }
+#ui .fm-dot.r-FWD { background: #d8392b; }
+
+@media (max-height: 430px) {
+  #ui .fm-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 10px; }
+  #ui .fm-txt b { font-size: 18px; }
+  #ui .fm-txt span { font-size: 12px; }
+  #ui .fm-txt small { font-size: 11px; }
+  #ui .fm-dot { min-width: 26px; height: 17px; font-size: 9px; }
+}

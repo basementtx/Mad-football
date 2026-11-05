@@ -2,6 +2,7 @@ import { TeamDef } from './teams';
 import type { CardData } from '../meta/cards';
 import { attrsOf } from '../meta/cards';
 import { pick, randInt } from '../engine/math';
+import type { Formation } from './formations';
 
 export interface Pitch {
   hw: number; // half width (x) of playing field
@@ -10,6 +11,8 @@ export interface Pitch {
   goalDepth: number;
   goalHeight: number;
   boxDepth: number;
+  /** item reach multiplier: area effects grow with the pitch (33 m vs the original 30 m) */
+  area: number;
   boxHalf: number;
   smallDepth: number;
   smallHalf: number;
@@ -21,8 +24,8 @@ export interface Pitch {
 export function makePitch(size: number): Pitch {
   const s = size <= 3 ? 0.84 : size === 4 ? 1 : 1.14;
   return {
-    hw: 32 * s,
-    hh: 19.5 * s,
+    hw: 33 * s,
+    hh: 20 * s,
     goalHalf: 3.7,
     goalDepth: 2.2,
     goalHeight: 2.45,
@@ -32,6 +35,7 @@ export function makePitch(size: number): Pitch {
     smallHalf: 5.6,
     centerR: 5 * s,
     margin: 1.7,
+    area: 33 / 30,
   };
 }
 
@@ -103,6 +107,8 @@ export class Team {
   opp!: Team;
   /** special item held by the team (power id, e.g. 'bomb'), picked from a mystery box */
   item: string | null = null;
+  /** tactical shape (outfield roles + spots); null = the classic default */
+  formation: Formation | null = null;
   /** seconds the current item has been held (AI uses it after a short wait) */
   itemT = 0;
   /** items this team's mystery boxes can give */

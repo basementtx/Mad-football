@@ -1,3 +1,4 @@
+import { FORMATIONS, formationFor, aiFormation } from './formations';
 import { Ball, Bomb, Bullet, DIFF, Difficulty, makePitch, MysteryBox, PHYS, Pitch, Player, PState, Role, Team } from './entities';
 import { TeamDef } from './teams';
 import { FX } from './fx';
@@ -20,6 +21,8 @@ export interface MatchConfig {
   duration: number;
   difficulty: Difficulty;
   demo: boolean;
+  /** formation id for the home side (the user's choice); rivals get their own */
+  homeFormation?: string | null;
   /** home squad from the user's club (slot 0 = GK) */
   homeCards?: CardData[];
   /** id of the user's own created player */
@@ -176,7 +179,10 @@ export class Match {
     away.opp = home;
     this.teams = [home, away];
     for (const team of this.teams) {
-      const roles = ROLES[cfg.size] ?? ROLES[4];
+      if (FORMATIONS[cfg.size]) {
+        team.formation = team.index === 0 && !cfg.demo ? formationFor(cfg.size, cfg.homeFormation) : aiFormation(cfg.size, team.def.id);
+      }
+      const roles: Role[] = team.formation ? ['GK', ...team.formation.roles] : ROLES[cfg.size] ?? ROLES[4];
       const names = [...team.def.names].sort(() => Math.random() - 0.5);
       const nums = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 17, 19, 23].sort(() => Math.random() - 0.5);
       const cards = team.index === 0 ? cfg.homeCards : cfg.awayCards;
@@ -1169,14 +1175,15 @@ export class Match {
     p.setState('shove', 0.35);
     for (const q of team.opp.players) {
       const d = dist(p.x, p.y, q.x, q.y);
-      if (d < 6.5) {
+      const k = this.pitch.area;
+      if (d < 6.5 * k) {
         const [ux, uy] = norm(q.x - p.x, q.y - p.y);
         q.invuln = 0;
-        this.knockdown(q, p, ux * (12 - d), uy * (12 - d), 1.8);
+        this.knockdown(q, p, ux * (12 - d / k), uy * (12 - d / k), 1.8);
       }
     }
     const col = this.itemColors(team, 'shockwave', ['#ffffff', '#d8b0ff', '#b04cff']);
-    for (let i = 0; i < 3; i++) this.fx.emit('ring', p.x, p.y, 0.1, { n: 1, life: 0.5 + i * 0.15, size: 1.6 + i * 0.6, color: col[1] });
+    for (let i = 0; i < 3; i++) this.fx.emit('ring', p.x, p.y, 0.1, { n: 1, life: 0.5 + i * 0.15, size: (1.6 + i * 0.6) * this.pitch.area, color: col[1] });
     this.fx.dust(p.x, p.y, 24);
     this.fx.emit('spark', p.x, p.y, 0.3, { n: 30, speed: 12, up: 4, life: 0.5, colors: col });
     audio.power();
@@ -1264,14 +1271,14 @@ export class Match {
     p.setState('shove', 0.4);
     for (const q of team.opp.players) {
       const d = dist(p.x, p.y, q.x, q.y);
-      if (d > 15) continue;
+      if (d > 15 * this.pitch.area) continue;
       const [ux, uy] = norm(q.x - p.x, q.y - p.y);
       q.invuln = 0;
       this.knockdown(q, p, ux * 4, uy * 4, 1.4);
     }
     const col = this.itemColors(team, 'quake', ['#d8a018', '#8a5a2a', '#ffe14d']);
     for (let i = 0; i < 5; i++) this.fx.after(i * 0.1, () => {
-      this.fx.emit('ring', p.x, p.y, 0.1, { n: 1, life: 0.7, size: 2 + i * 1.4, color: col[i % 2] });
+      this.fx.emit('ring', p.x, p.y, 0.1, { n: 1, life: 0.7, size: (2 + i * 1.4) * this.pitch.area, color: col[i % 2] });
       this.fx.dust(p.x + rand(-8, 8), p.y + rand(-6, 6), 14);
     });
     this.wear(p.x, p.y, 1.6, 200, 2);
@@ -1287,13 +1294,14 @@ export class Match {
     const by = p;
     const tier = this.tierOf(p.team, 'meteor');
     for (let i = 0; i < 3; i++) {
-      const mx = tx + rand(-2.2, 2.2), my = ty + rand(-2.2, 2.2);
+      const sp = 2.2 * this.pitch.area;
+      const mx = tx + rand(-sp, sp), my = ty + rand(-sp, sp);
       this.fx.after(0.15 + i * 0.28, () => {
         this.fx.emit('meteor', mx - 4, my, 14, { n: 1, speed: 0, up: 0, vx: 10, life: 0.44, size: 0.4, color: '#ff9a1f', g: 0 });
         // emit() randomises vz, so drive the fall explicitly
         const mp = this.fx.particles[this.fx.particles.length - 1];
         if (mp && mp.type === 'meteor') { mp.vx = 9; mp.vy = 0; mp.vz = -32; mp.life = mp.max = 0.44; }
-        this.fx.after(0.43, () => this.explode({ x: mx, y: my, z: 0, vx: 0, vy: 0, vz: 0, fuse: 0, by, tier }, 3.4));
+        this.fx.after(0.43, () => this.explode({ x: mx, y: my, z: 0, vx: 0, vy: 0, vz: 0, fuse: 0, by, tier }, 3.4 * this.pitch.area));
       });
     }
     audio.whoosh();
@@ -1304,7 +1312,7 @@ export class Match {
   private throwBomb(p: Player, tx: number, ty: number) {
     let d = dist(p.x, p.y, tx, ty);
     const [ux, uy] = d > 0.1 ? norm(tx - p.x, ty - p.y) : [p.faceX, p.faceY];
-    d = clamp(d, 3, 12);
+    d = clamp(d, 3, 12 * this.pitch.area);
     const T = 0.55 + d * 0.03;
     const z0 = 1.3;
     p.face = Math.atan2(uy, ux);
@@ -1318,28 +1326,29 @@ export class Match {
     this.fx.banner(this.powerName('bomb'), '', '#ff8a1f', 1, false);
   }
 
-  private explode(bm: Bomb, R = 4.6) {
+  private explode(bm: Bomb, R = 4.6 * this.pitch.area) {
     const by = bm.by;
+    const k = this.pitch.area;
     for (const q of by.team.opp.players) {
       const d = dist(bm.x, bm.y, q.x, q.y);
       if (d > R) continue;
       const [ux, uy] = norm(q.x - bm.x, q.y - bm.y);
       q.invuln = 0;
-      this.knockdown(q, by, ux * (14 - d * 2), uy * (14 - d * 2), 1.8);
+      this.knockdown(q, by, ux * (14 - (d / k) * 2), uy * (14 - (d / k) * 2), 1.8);
     }
     const b = this.ball;
     const db = dist(bm.x, bm.y, b.x, b.y);
     if (!b.owner && db < R && b.z < 2) {
       const [ux, uy] = norm(b.x - bm.x, b.y - bm.y);
-      b.vx += ux * (16 - db * 2);
-      b.vy += uy * (16 - db * 2);
+      b.vx += ux * (16 - (db / k) * 2);
+      b.vy += uy * (16 - (db / k) * 2);
       b.vz = Math.max(b.vz, 6);
       b.lastTouch = by;
       b.shotBy = null;
       b.passTarget = null;
     }
     const col = tierColors(bm.tier, this.time) ?? ['#fff3a0', '#ffb02e', '#ff5a1f'];
-    for (let i = 0; i < 3; i++) this.fx.emit('ring', bm.x, bm.y, 0.1, { n: 1, life: 0.35 + i * 0.12, size: 1.3 + i * 0.5, color: i ? col[1] : '#ffffff' });
+    for (let i = 0; i < 3; i++) this.fx.emit('ring', bm.x, bm.y, 0.1, { n: 1, life: 0.35 + i * 0.12, size: (1.3 + i * 0.5) * (R / 4.6), color: i ? col[1] : '#ffffff' });
     this.fx.emit('fire', bm.x, bm.y, 0.3, { n: 26, speed: 6, up: 5, life: 0.6, size: 0.6 });
     this.fx.emit('spark', bm.x, bm.y, 0.4, { n: 26, speed: 11, up: 6, life: 0.5, colors: ['#ffffff', ...col] });
     this.fx.emit('smoke', bm.x, bm.y, 0.6, { n: 10, speed: 2.5, up: 2, life: 1.2, size: 0.8, color: '#555' });
@@ -1360,7 +1369,7 @@ export class Match {
     const tier = this.tierOf(p.team, 'rifle');
     for (let i = 0; i < 3; i++) {
       const a = Math.atan2(uy, ux) + (i - 1) * 0.035;
-      this.bullets.push({ x: p.x, y: p.y, vx: Math.cos(a) * 34, vy: Math.sin(a) * 34, life: 0.62, by: p, tier, delay: i * 0.11 });
+      this.bullets.push({ x: p.x, y: p.y, vx: Math.cos(a) * 34, vy: Math.sin(a) * 34, life: 0.62 * this.pitch.area, by: p, tier, delay: i * 0.11 });
     }
     this.fx.banner(this.powerName('rifle'), '', '#ffd23f', 1, false);
   }
@@ -1444,7 +1453,7 @@ export class Match {
         bl.x += (bl.vx * dt) / steps;
         bl.y += (bl.vy * dt) / steps;
         for (const q of bl.by.team.opp.players) {
-          if (q.isGK || q.isDown || dist(bl.x, bl.y, q.x, q.y) > 0.6) continue;
+          if (q.isGK || q.isDown || dist(bl.x, bl.y, q.x, q.y) > 0.6 * P.area) continue;
           q.invuln = 0;
           this.knockdown(q, bl.by, bl.vx * 0.25, bl.vy * 0.25, 1.5);
           this.fx.impact(q.x, q.y, 0.9);
@@ -1460,7 +1469,7 @@ export class Match {
       for (const p of this.all) {
         if (p.magnet <= 0 || !p.canAct) continue;
         const d = dist(p.x, p.y, b.x, b.y);
-        if (d > 9 || d < 0.3) continue;
+        if (d > 9 * P.area || d < 0.3) continue;
         b.vx += ((p.x - b.x) / d) * 34 * dt;
         b.vy += ((p.y - b.y) / d) * 34 * dt;
         if (b.lockPlayer === p) b.lockTime = Math.min(b.lockTime, 0.05);
@@ -1914,7 +1923,7 @@ export class Match {
         for (const q of p.team.opp.players) {
           if (q.isGK || q.state === 'down' || q.state === 'recover') continue;
           const d = dist(p.x, p.y, q.x, q.y);
-          if (d < 1.15 && d > 0.01) {
+          if (d < 1.15 * this.pitch.area && d > 0.01) {
             const [ux, uy] = norm(q.x - p.x, q.y - p.y);
             q.invuln = 0;
             if (this.knockdown(q, p, ux * 7, uy * 7, 1.1)) this.fx.emit('spark', q.x, q.y, 0.8, { n: 8, speed: 5, up: 2, life: 0.3, colors: ['#ffffff', '#3bd9ff'] });
@@ -2335,7 +2344,7 @@ export class Match {
       const d = dist(p.x, p.y, b.x, b.y);
       if (d > 1.6) continue;
       // fireball flattens everyone in its path
-      if (b.fire > 0 && p !== b.lastTouch && d < 0.95 && b.z < 2.3 && p.hitByFire <= 0) {
+      if (b.fire > 0 && p !== b.lastTouch && d < 0.95 * this.pitch.area && b.z < 2.3 && p.hitByFire <= 0) {
         p.hitByFire = 1.5;
         this.powerHit(p);
         b.vx *= b.power === 'thunder' ? 0.95 : 0.9;
@@ -2415,7 +2424,7 @@ export class Match {
       this.fx.bolt(p.x, p.y);
       // chain to nearby players of the same team
       for (const q of p.team.players) {
-        if (q === p || q.hitByFire > 0 || dist(p.x, p.y, q.x, q.y) > 4) continue;
+        if (q === p || q.hitByFire > 0 || dist(p.x, p.y, q.x, q.y) > 4 * this.pitch.area) continue;
         q.hitByFire = 1.5;
         q.invuln = 0;
         this.knockdown(q, by, (q.x - p.x) * 2, (q.y - p.y) * 2, 1.6);

@@ -4,6 +4,8 @@ import { CardData, randomCard, overall, CardRarity, uid, shortName } from './car
 import { ITEMS, itemById, LOADOUT_MIN, LOADOUT_MAX, MAX_TIER, TIER_NEED } from './items';
 import { record, saveRecord } from '../engine/storage';
 import { clamp } from '../engine/math';
+import { formationFor } from '../game/formations';
+import type { Role } from '../game/entities';
 
 export interface Club {
   name: string;
@@ -36,12 +38,15 @@ export interface Profile {
   unlocked: string[];
   /** club matches each card has started (team chemistry) */
   fam: Record<string, number>;
+  /** chosen formation id per match size (3 / 4 / 5); missing = the classic one */
+  formations: Record<number, string>;
 }
 
 const KEY = 'mf.profile';
 
 function fresh(): Profile {
   return {
+    formations: {},
     v: 1,
     club: null,
     cards: [],
@@ -140,6 +145,11 @@ export function saveProfile() {
 export const LINEUP_SLOTS = 5;
 export const SLOT_ROLES = ['GK', 'DEF', 'DEF', 'MID', 'FWD'] as const;
 
+/** Role of every lineup slot for a match size, from the chosen formation. */
+export function slotRoles(size = LINEUP_SLOTS): Role[] {
+  return ['GK', ...formationFor(size, profile.formations?.[size]).roles];
+}
+
 export const cardById = (id: string | null | undefined) => profile.cards.find((c) => c.id === id) ?? null;
 
 export function lineupCards(): (CardData | null)[] {
@@ -171,7 +181,7 @@ export function autoLineup() {
   const lineup = [...profile.lineup];
   for (let i = 0; i < LINEUP_SLOTS; i++) {
     if (cardById(lineup[i])) continue;
-    const want = SLOT_ROLES[i];
+    const want = slotRoles()[i] ?? SLOT_ROLES[i];
     const pool = profile.cards.filter((c) => !used.has(c.id));
     pool.sort((a, b) => (b.pos === want ? 100 : 0) + overall(b) - ((a.pos === want ? 100 : 0) + overall(a)));
     if (pool[0]) {

@@ -6,7 +6,7 @@
  * attributes are scaled by chemMul(points): low chemistry hurts, full chemistry helps a bit.
  */
 import type { CardData } from './cards';
-import { profile, saveProfile, lineupCards, SLOT_ROLES, LINEUP_SLOTS } from './profile';
+import { profile, saveProfile, lineupCards, SLOT_ROLES, LINEUP_SLOTS, slotRoles } from './profile';
 
 export const FAM_STEPS = [3, 10];
 
@@ -20,8 +20,8 @@ export interface ChemInfo {
   wrongGK: boolean;
 }
 
-export function playerChem(c: CardData, slot: number): ChemInfo {
-  const role = SLOT_ROLES[slot] ?? 'MID';
+export function playerChem(c: CardData, slot: number, size = LINEUP_SLOTS): ChemInfo {
+  const role = slotRoles(size)[slot] ?? SLOT_ROLES[slot] ?? 'MID';
   const wrongGK = (role === 'GK') !== (c.pos === 'GK');
   const posOk = c.pos === role;
   const games = familiarity(c.id);
@@ -46,8 +46,8 @@ export function teamChem(n = LINEUP_SLOTS): number {
 }
 
 /** Multipliers per lineup slot (used to build the home team in a match). */
-export function lineupChemMuls(): number[] {
-  return lineupCards().map((c, i) => (c ? chemMul(playerChem(c, i).points) : 1));
+export function lineupChemMuls(size = LINEUP_SLOTS): number[] {
+  return lineupCards().map((c, i) => (c ? chemMul(playerChem(c, i, size).points) : 1));
 }
 
 /** After a club match: the players who started get more used to each other. */

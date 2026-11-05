@@ -921,7 +921,7 @@ export class Renderer {
     }
     if (p.shield > 0 && (p.shield > 1.2 || Math.floor(time * 10) % 2 === 0)) {
       // force-field bubble
-      const r = 13 + Math.round(Math.sin(time * 8));
+      const r = Math.round(13 * this.m.pitch.area) + Math.round(Math.sin(time * 8));
       const cy = y - 14;
       ctx.globalAlpha = 0.18;
       ctx.fillStyle = '#3bd9ff';

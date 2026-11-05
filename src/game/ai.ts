@@ -15,7 +15,7 @@ export function formationSpot(m: Match, p: Player, mode: 'kickoff' | 'attack' | 
   const P = m.pitch;
   const team = p.team;
   const field = team.players.length - 1;
-  const f = FORMATIONS[field] ?? FORMATIONS[3];
+  const f = team.formation && team.formation.spots.length === field ? team.formation.spots : FORMATIONS[field] ?? FORMATIONS[3];
   let [u, w] = f[(p.idx - 1) % f.length];
   const b = m.ball;
   if (mode === 'kickoff') {
