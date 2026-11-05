@@ -53,6 +53,7 @@ import './ui/monetize.css';
 import './ui/series.css';
 import './ui/facilities.css';
 import './ui/cup.css';
+import './ui/honours.css';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 let ctx = canvas.getContext('2d', { alpha: false })!;

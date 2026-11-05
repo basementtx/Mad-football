@@ -7,10 +7,8 @@ import { profile, clubTeamDef, clubOverall, cardById, freeCrateReady } from '../
 import { itemById, itemName } from '../meta/items';
 import { itemIcon } from '../pixel/icons';
 import { setScreen, bind, esc, paintTag, logoSource, flagTag, crestTag, coinsPill, spriteSource, portraitSource, lookFor, MenuHandlers } from './common';
-import { cardHTML } from './cards';
 import { showSetup, showSettings, showHowTo } from './menus';
-import { showClubEditor, showSquad } from './club';
-import { showCreator } from './creator';
+import { showClubEditor } from './club';
 import { showShop } from './shop';
 import { showCollection } from './collection';
 import { showMarket } from './market';
@@ -21,6 +19,10 @@ import { market, tickMarket } from '../meta/market';
 import { TEAMS } from '../game/teams';
 import { league, positionOf, ROUNDS } from '../meta/league';
 import { showLeague } from './league';
+import { showClubHub } from './clubhub';
+import { showCup } from './cup';
+import { cup } from '../meta/cup';
+import { trophyCanvas } from '../pixel/trophy';
 import { career } from '../career/state';
 import { clubName } from '../career/world';
 import { L2 } from '../career/util';
@@ -64,6 +66,12 @@ export function showHub(h: MenuHandlers) {
   const lang = LANGS.find((l) => l.code === settings.lang)!;
   const claim = claimableCount();
   const chem = teamChem();
+  const tr = settings.lang === 'tr';
+  const rnames = tr ? ['Çeyrek Final', 'Yarı Final', 'Final'] : ['Quarter-final', 'Semi-final', 'Final'];
+  const cupTag = !cup ? { sub: tr ? 'Eleme kupası · yeni!' : 'Knockout cup · new!', badge: 'NEW' }
+    : cup.status === 'running' ? { sub: `#${cup.edition} · ${rnames[cup.round]}`, badge: '' }
+    : cup.status === 'won' ? { sub: tr ? `#${cup.edition} şampiyonu! 🏆` : `#${cup.edition} winners! 🏆`, badge: '' }
+    : { sub: tr ? 'Elendin · yeni kupa hazır' : 'Out · next cup ready', badge: '' };
   setScreen(
     'screen-hub',
     `<div class="hub">
@@ -89,9 +97,11 @@ export function showHub(h: MenuHandlers) {
           <div class="tile-label">${L.myClub}</div>
           <small>${L.squad} • ${profile.cards.length}</small>
         </button>
-        <button class="tile" data-act="player">
-          <div class="tile-art">${me ? cardHTML(me, { club, size: 'sm' }) : '<div class="plus">+</div>'}</div>
-          <div class="tile-label">${me ? L.myPlayer : L.createPlayer}</div>
+        <button class="tile tile-cup ${cupTag.badge ? 'has-badge' : ''}" data-act="cup">
+          <div class="tile-art">${paintTag(() => trophyCanvas('cup', club.primary), 'cup-tile-art')}</div>
+          <div class="tile-label">${settings.lang === 'tr' ? 'KUPA' : 'CUP'}</div>
+          <small>${esc(cupTag.sub)}</small>
+          ${cupTag.badge ? `<div class="badge">${cupTag.badge}</div>` : ''}
         </button>
         <button class="tile ${free || newStoreOffers() ? 'has-badge' : ''}" data-act="shop">
           <div class="tile-art">${crate3D('premium', 'min(112px, 82cqh)')}</div>
@@ -119,9 +129,9 @@ export function showHub(h: MenuHandlers) {
   bind('[data-act=quick]', () => { audio.select(); showSetup(h); });
   bind('[data-act=training]', () => { audio.select(); showTraining(h); });
   bind('[data-act=missions]', () => { audio.select(); showMissions(h); });
-  bind('[data-act=squad]', () => { audio.click(); showSquad(h); });
-  bind('[data-act=club]', () => { audio.click(); showSquad(h); });
-  bind('[data-act=player]', () => { audio.click(); showCreator(h, false); });
+  bind('[data-act=squad]', () => { audio.click(); showClubHub(h); });
+  bind('[data-act=club]', () => { audio.click(); showClubHub(h); });
+  bind('[data-act=cup]', () => { audio.select(); showCup(h); });
   bind('[data-act=shop]', () => { audio.click(); showShop(h, freeCrateReady() || profile.starterCrate || !newStoreOffers() ? 'crates' : 'store'); });
   bind('[data-act=collection]', () => { audio.click(); showCollection(h); });
   bind('[data-act=market]', () => { audio.select(); showMarket(h); });

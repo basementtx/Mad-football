@@ -8,7 +8,7 @@ import type { KitPattern, TeamDef } from '../game/teams';
 import { TEAMS } from '../game/teams';
 import { setScreen, bind, esc, paintTag, paintAll, crestTag, spriteSource, lookFor, ui, toast, MenuHandlers } from './common';
 import { cardHTML } from './cards';
-import { showHub } from './hub';
+import { showClubHub } from './clubhub';
 import { showCreator } from './creator';
 import { PATTERNS as ALL_PATTERNS, cosName, cosFor } from '../meta/cosmetics';
 import { lockTag, isLocked, askUnlock } from './unlock';
@@ -240,7 +240,7 @@ export function showSquad(h: MenuHandlers) {
         <div class="reserves">${reserves.map((c) => `<div data-card="${c.id}">${cardHTML(c, { club, size: 'sm' })}</div>`).join('') || '<div class="hint">—</div>'}</div>
       </div>`,
     );
-    bind('[data-act=back]', () => { audio.click(); showHub(h); });
+    bind('[data-act=back]', () => { audio.click(); showClubHub(h); });
     bind('[data-act=edit]', () => { audio.click(); showClubEditor(h, false); });
     bind('[data-act=formation]', () => { audio.click(); showFormations(h); });
     bind('[data-slot]', (el) => {
