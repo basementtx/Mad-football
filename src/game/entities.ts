@@ -83,6 +83,10 @@ export const DIFF: Record<Difficulty, DiffParams> = {
 
 export type PState = 'run' | 'slide' | 'down' | 'recover' | 'shove' | 'spin' | 'dive' | 'celebrate' | 'sad';
 export type Role = 'GK' | 'DEF' | 'MID' | 'FWD';
+export type Mentality = 'def' | 'bal' | 'att';
+export const MENTALITIES: Mentality[] = ['def', 'bal', 'att'];
+/** -1 defensive, 0 balanced, +1 attacking */
+export const mentK = (t: { mentality: Mentality }) => (t.mentality === 'att' ? 1 : t.mentality === 'def' ? -1 : 0);
 
 export interface TeamStats {
   shots: number;
@@ -109,6 +113,12 @@ export class Team {
   item: string | null = null;
   /** tactical shape (outfield roles + spots); null = the classic default */
   formation: Formation | null = null;
+  /** team mentality (tactic): pushes the shape up or back and sets how hard it presses */
+  mentality: Mentality = 'bal';
+  /** AI: seconds until it reconsiders its mentality */
+  mentT = 12;
+  /** match time of the last change (the HUD flashes it) */
+  mentAt = -99;
   /** seconds the current item has been held (AI uses it after a short wait) */
   itemT = 0;
   /** items this team's mystery boxes can give */

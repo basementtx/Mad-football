@@ -1,6 +1,6 @@
 import type { Match } from './match';
 import type { Player, Team } from './entities';
-import { PHYS } from './entities';
+import { PHYS, mentK } from './entities';
 import { clamp, dist, norm, rand, chance, segDist } from '../engine/math';
 import { SHOT_POWERS } from '../meta/items';
 
@@ -24,6 +24,8 @@ export function formationSpot(m: Match, p: Player, mode: 'kickoff' | 'attack' | 
   }
   const ballU = (b.x * team.side) / P.hw;
   const ballW = b.y / P.hh;
+  // mentality: the whole shape sits higher (attacking) or deeper (defensive)
+  u += mentK(team) * 0.12;
   if (mode === 'attack') {
     u += 0.28 + ballU * 0.35;
     w = w * 1.15 + ballW * 0.15;
@@ -410,7 +412,7 @@ function carrierAI(m: Match, p: Player, decide: boolean) {
 
     // --- shoot when it is worth it (better players and smarter teams pick their moments)
     const xg = shotValue(m, p);
-    const bar = 0.2 - iq * 0.04 + d.passiveness * 0.08 - pressure * 0.06;
+    const bar = 0.2 - iq * 0.04 + d.passiveness * 0.08 - pressure * 0.06 - mentK(team) * 0.015;
     const range = 14 + p.power * 7;
     if (inFront && (dGoal < 6.5 || xg > bar || (dGoal < range && chance(0.03 + (1 - iq) * 0.05)))) {
       // aim away from the keeper, toward where he is NOT moving
@@ -480,7 +482,7 @@ function carrierAI(m: Match, p: Player, decide: boolean) {
       const space = openness(team, px, py, 4);
       const prog = dx * team.side;
       const keep = dx * p.aiDirX + dy * p.aiDirY;
-      const sc = space * (0.25 + iq * 0.15) + prog * 2.2 - Math.abs(k) * 0.08 + keep * 0.35;
+      const sc = space * (0.25 + iq * 0.15) + prog * (2.2 + mentK(team) * 0.25) - Math.abs(k) * 0.08 + keep * 0.35;
       if (sc > bs) { bs = sc; bdx = dx; bdy = dy; }
     }
     p.aiDirX = bdx;
@@ -504,7 +506,7 @@ function supportAI(m: Match, p: Player, decide: boolean) {
   const wave = Math.sin(m.time * 0.5 + p.idx * 1.7);
   if (p.role === 'FWD') {
     // stay ahead of the ball, threaten the space behind the last defender
-    ax = side * clamp(cx * side + 9, P.hw * 0.15, P.hw - 4);
+    ax = side * clamp(cx * side + 9 + mentK(team) * 2, P.hw * 0.15, P.hw - 4);
     ay = clamp(-cy * 0.35 + (p.idx % 2 ? 4 : -4) + wave * 3, -P.hh + 3, P.hh - 3);
   } else if (p.role === 'MID') {
     // a short angle beside / slightly ahead of the carrier
@@ -512,7 +514,7 @@ function supportAI(m: Match, p: Player, decide: boolean) {
     ay = cy + (cy > 0 ? -7 : 7) + wave;
   } else {
     // defenders hold a line behind the ball and offer a safe back pass
-    ax = side * clamp(cx * side - 11, -P.hw * 0.75, P.hw * 0.25);
+    ax = side * clamp(cx * side - 11 + mentK(team) * 4, -P.hw * 0.75, P.hw * (0.25 + mentK(team) * 0.1));
     ay = (p.idx % 2 ? 1 : -1) * P.hh * 0.35 + cy * 0.25;
   }
   if (decide || !p.aiHas) {
@@ -558,7 +560,8 @@ function defendAI(m: Match, p: Player, rank: number, dt: number, carrier?: Playe
   const vsHuman = c.team.human;
   // possession just changed (or the pass is still travelling): stay patient
   const since = carrier && m.ball.owner !== c ? 0 : m.time - c.team.possSince;
-  const settle = vsHuman ? 0.8 + d.react * 4 : 0.25;
+  // attacking teams press straight away, defensive ones sit and wait
+  const settle = (vsHuman ? 0.8 + d.react * 4 : 0.25) * (1 - Math.max(0, mentK(team)) * 0.2);
   const patient = since < settle && !(danger && dGoal < P.boxDepth + 3);
   const lead = 0.15 + iq * 0.3;
   const fx = c.x + c.vx * lead, fy = c.y + c.vy * lead;
@@ -592,7 +595,7 @@ function defendAI(m: Match, p: Player, rank: number, dt: number, carrier?: Playe
       moveTo(p, fx + gx * gap + px * lat, fy + gy * gap + py * lat, sprint, patient ? 1.4 : 0.5);
     } else moveTo(p, fx + gx * gap, fy + gy * gap, sprint, patient ? 1.4 : 0.5);
     if (!patient && m.ball.owner === c && p.tackleCd <= 0 && c.invuln <= 0) {
-      const tk = agg * (vsHuman ? 0.75 : 1) * (1 + iq * 0.35);
+      const tk = agg * (vsHuman ? 0.75 : 1) * (1 + iq * 0.35) * (1 + mentK(team) * 0.15);
       if (dd < 1.35 && chance(tk * dt)) m.shove(p, c);
       else if (dd > 1.3 && dd < 3.2 && (danger || dd < 2)) {
         const [ux, uy] = norm(c.x + c.vx * 0.25 - p.x, c.y + c.vy * 0.25 - p.y);
@@ -602,7 +605,7 @@ function defendAI(m: Match, p: Player, rank: number, dt: number, carrier?: Playe
     }
   } else if (rank === 1) {
     // counter-press: a carrier deep in his own half gets a second man closing the back pass
-    if (!patient && (c.x * c.team.side) < -P.hw * 0.15 && !vsHuman) {
+    if (!patient && mentK(team) >= 0 && (c.x * c.team.side) < -P.hw * (0.15 - mentK(team) * 0.2) && (!vsHuman || mentK(team) > 0)) {
       const [bx, by] = norm(-c.team.side, 0);
       moveTo(p, fx + bx * 1.8 + (p.y > c.y ? 1.2 : -1.2), fy + by * 1.8, true, 0.5);
       return;
@@ -616,7 +619,8 @@ function defendAI(m: Match, p: Player, rank: number, dt: number, carrier?: Playe
       moveTo(p, fx + gx * fwd - gy * lat, fy + gy * fwd + gx * lat, true, 0.5);
       return;
     }
-    let tx = fx + (ownX - fx) * 0.45;
+    // defensive teams keep the cover man closer to goal, attacking ones higher up
+    let tx = fx + (ownX - fx) * (0.45 - mentK(team) * 0.12);
     let ty = fy * 0.5;
     let bestQ: Player | null = null;
     let bq = -Infinity;
@@ -644,7 +648,7 @@ function defendAI(m: Match, p: Player, rank: number, dt: number, carrier?: Playe
       const [bx, by] = norm(c.x - q.x, c.y - q.y);
       const [ux, uy] = norm(gx + bx * (0.4 + iq * 0.6), gy + by * (0.4 + iq * 0.6));
       const you = q === m.human;
-      let tight = dist(q.x, q.y, ownX, 0) < P.hw * 0.8 ? 1.3 : 2.2;
+      let tight = (dist(q.x, q.y, ownX, 0) < P.hw * 0.8 ? 1.3 : 2.2) * (mentK(team) < 0 ? 0.8 : 1);
       // you (off the ball) get a looser marker so you can find space
       if (you) tight = dist(q.x, q.y, ownX, 0) < P.boxDepth + 3 ? 2.2 : 3.4;
       tx = q.x + q.vx * lead + ux * tight;

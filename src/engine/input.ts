@@ -54,6 +54,11 @@ export class Input {
 
   layout: BtnLayout[] = [];
   pauseRect = { x: 0, y: 0, w: 0, h: 0 };
+  /** team tactic switch (3 segments: defensive / balanced / attacking); 0 size = hidden */
+  tacticRect = { x: 0, y: 0, w: 0, h: 0 };
+  tacticOn = false;
+  /** pending tactic change for the match: 0..2 = pick, -1 = next */
+  tacticReq: number | null = null;
   W = 0;
   H = 0;
   insets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -105,6 +110,9 @@ export class Input {
     const ps = 16;
     const top = Math.max(insets.top, 3) + 4;
     this.pauseRect = settings.leftHanded ? { x: W - insets.right - 6 - ps, y: top, w: ps, h: ps } : { x: insets.left + 6, y: top, w: ps, h: ps };
+    // tactic switch in the top corner opposite the pause key
+    const tw = 86, th = 17;
+    this.tacticRect = settings.leftHanded ? { x: insets.left + 6, y: top, w: tw, h: th } : { x: W - insets.right - 6 - tw, y: top, w: tw, h: th };
   }
 
   get joyHome() {
@@ -123,6 +131,14 @@ export class Input {
 
   private onDown(e: PointerEvent) {
     if (e.pointerType === 'touch' || e.pointerType === 'pen') this.touchMode = true;
+    if (this.tacticOn && this.enabled) {
+      const tx = e.clientX / this.k, ty = e.clientY / this.k, tr = this.tacticRect;
+      if (tx >= tr.x - 3 && tx <= tr.x + tr.w + 3 && ty >= tr.y - 5 && ty <= tr.y + tr.h + 7) {
+        e.preventDefault();
+        this.tacticReq = clamp(Math.floor(((tx - tr.x) / tr.w) * 3), 0, 2);
+        return;
+      }
+    }
     if (e.pointerType === 'mouse' && !this.touchMode) return; // desktop uses keyboard; mouse handled by UI
     e.preventDefault();
     try {
@@ -252,6 +268,12 @@ export class Input {
   private onKey(e: KeyboardEvent, down: boolean) {
     if (e.code === 'Escape' || e.code === 'KeyP') {
       if (down) this.onPause?.();
+      return;
+    }
+    if (e.code === 'KeyT') {
+      // cycle the team tactic
+      if (this.enabled) e.preventDefault();
+      if (down && !e.repeat && this.tacticOn) this.tacticReq = -1;
       return;
     }
     if (e.code === 'KeyR') {

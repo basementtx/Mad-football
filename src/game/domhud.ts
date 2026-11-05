@@ -13,6 +13,7 @@ import type { BtnLabel } from './hud';
 import type { Banner } from './fx';
 import { GK_HOLD } from './match';
 import { t } from '../engine/i18n';
+import { settings } from '../engine/storage';
 import { itemById, itemName, ROMAN, TIER_COLOR } from '../meta/items';
 import { itemIcon } from '../pixel/icons';
 import { crestCanvas } from '../pixel/crest';
@@ -35,6 +36,8 @@ const ICONS: Record<string, string> = {
 };
 const svg = (id: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[id] ?? ''}</svg>`;
 const RING_C = 2 * Math.PI * 46;
+const MENTS = ['def', 'bal', 'att'] as const;
+const TAC_NAMES = { tr: ['DEFANS', 'DENGE', 'HÜCUM'], en: ['DEFEND', 'BALANCE', 'ATTACK'] };
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', parent?: HTMLElement, html = '') {
   const e = document.createElement(tag);
@@ -99,6 +102,10 @@ export class DomHud {
   private hints: HTMLElement;
   private replay: HTMLElement;
   private lastScore = [-1, -1];
+  /** team tactic switch (top corner) */
+  private tac: HTMLElement;
+  private tacSegs: HTMLElement[] = [];
+  private tacRival: HTMLElement;
 
   constructor(host: HTMLElement) {
     this.root = el('div', 'dhud');
@@ -111,6 +118,12 @@ export class DomHud {
 
     // pause key (top corner; the canvas Input owns the hit area)
     this.pause = el('div', 'dkey dpause', R, '<i></i><i></i>');
+
+    // team tactic: defensive / balanced / attacking (the canvas Input owns the hit area)
+    this.tac = el('section', 'dtac', R);
+    const segs = el('div', 'dtac-segs', this.tac);
+    for (let i = 0; i < 3; i++) this.tacSegs.push(el('div', 'dtac-seg m' + i, segs, '<i></i><b></b>'));
+    this.tacRival = el('div', 'dtac-rival sh', this.tac);
 
     // me: controlled player, stamina / keeper timer, held item
     this.me = el('section', 'dme', R);
@@ -332,6 +345,32 @@ export class DomHud {
         e = el('div', 'dtoast', this.toasts, `<i style="background:${col}"></i><small>${L.itemBtn}</small><b>${esc(b.text)}</b>`);
       }
       this.banners.set(b, e);
+    }
+
+    // ---- team tactic
+    const me = m.teams[0], rival = m.teams[1];
+    const showTac = input.tacticOn && !replay;
+    setCls(this.tac, 'gone', !showTac);
+    setCls(this.root, 'has-tac', showTac);
+    if (showTac) {
+      const tr = input.tacticRect;
+      setStyle(this.tac, 'left', `${tr.x * k}px`);
+      setStyle(this.tac, 'top', `${tr.y * k}px`);
+      setStyle(this.tac, 'width', `${tr.w * k}px`);
+      setStyle(this.tac, '--th', `${tr.h * k}px`);
+      const names = TAC_NAMES[settings.lang === 'tr' ? 'tr' : 'en'];
+      MENTS.forEach((v, i) => {
+        const seg = this.tacSegs[i];
+        setText(seg.querySelector('b')!, names[i]);
+        setCls(seg, 'on', me.mentality === v);
+      });
+      setCls(this.tac, 'flash', m.time - me.mentAt < 0.5);
+      const ri = MENTS.indexOf(rival.mentality);
+      setText(this.tacRival, `${rival.def.short} · ${names[ri]}`);
+      setCls(this.tacRival, 'r' + 0, ri === 0);
+      setCls(this.tacRival, 'r' + 1, ri === 1);
+      setCls(this.tacRival, 'r' + 2, ri === 2);
+      setCls(this.tacRival, 'flash', m.time - rival.mentAt < 2.5 && rival.mentAt > 0);
     }
 
     // ---- pause key position

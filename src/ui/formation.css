@@ -45,3 +45,32 @@
   #ui .fm-txt small { font-size: 11px; }
   #ui .fm-dot { min-width: 26px; height: 17px; font-size: 9px; }
 }
+
+/* ===================================================================
+   In-match team tactic switch (top corner): DEFEND / BALANCE / ATTACK,
+   with the rival's current tactic underneath
+   =================================================================== */
+.dtac { position: absolute; display: flex; flex-direction: column; gap: calc(4 * var(--u)); }
+.dtac.gone { display: none; }
+.dtac-segs { display: flex; height: var(--th, 26px); background: rgba(21,23,28,0.78); border: 2px solid var(--paper); box-shadow: 0 calc(3 * var(--u)) 0 rgba(21,23,28,0.5); }
+.dtac-seg { flex: 1; display: flex; align-items: center; justify-content: center; gap: calc(3 * var(--u)); color: var(--label);
+  font-family: Oswald, sans-serif; font-weight: 700; font-size: calc(16 * var(--u)); letter-spacing: 0.02em; transition: background .15s, color .15s; }
+.dtac-seg + .dtac-seg { border-left: 1px solid rgba(246,241,230,0.35); }
+/* icon: shield / balance / arrow, drawn with borders */
+.dtac-seg i { width: calc(9 * var(--u)); height: calc(9 * var(--u)); flex: none; }
+.dtac-seg.m0 i { border: calc(2 * var(--u)) solid currentColor; border-radius: 1px 1px 50% 50%; }
+.dtac-seg.m1 i { border-top: calc(2 * var(--u)) solid currentColor; border-bottom: calc(2 * var(--u)) solid currentColor; height: calc(6 * var(--u)); }
+.dtac-seg.m2 i { width: 0; height: 0; border-left: calc(4 * var(--u)) solid transparent; border-right: calc(4 * var(--u)) solid transparent; border-bottom: calc(7 * var(--u)) solid currentColor; }
+.dtac-seg.on { color: var(--ink); }
+.dtac-seg.m0.on { background: #7fc8ff; }
+.dtac-seg.m1.on { background: var(--marker); }
+.dtac-seg.m2.on { background: var(--stamp-lt); }
+.dtac.flash .dtac-segs { animation: dtac-pop .35s ease-out; }
+@keyframes dtac-pop { 40% { transform: scale(1.06); } }
+.dtac-rival { align-self: flex-end; font-family: 'Roboto Condensed', sans-serif; font-weight: 700; font-size: calc(13 * var(--u)); color: var(--label); }
+.dhud.lefty .dtac-rival { align-self: flex-start; }
+.dtac-rival.r0 { color: #9fd6ff; } .dtac-rival.r2 { color: var(--stamp-lt); }
+.dtac-rival.flash { animation: dtac-blink .5s steps(2) 4; }
+@keyframes dtac-blink { 50% { opacity: .25; } }
+/* item / event toasts move below the switch */
+.dhud.has-tac:not(.lefty) .dtoasts { top: calc(max(8px, var(--sat)) + var(--th, 26px) + 34 * var(--u) + 10px); }

@@ -1,4 +1,5 @@
 import { FORMATIONS, formationFor, aiFormation } from './formations';
+import { Mentality, MENTALITIES } from './entities';
 import { Ball, Bomb, Bullet, DIFF, Difficulty, makePitch, MysteryBox, PHYS, Pitch, Player, PState, Role, Team } from './entities';
 import { TeamDef } from './teams';
 import { FX } from './fx';
@@ -372,6 +373,7 @@ export class Match {
       }
       case 'play':
         if ((this.cfg.training && !this.cfg.drill) || this.cfg.showcase) break;
+        this.updateMentality(dt, input);
         this.clock -= dt;
         if (this.clock <= 0) {
           this.clock = 0;
@@ -1022,6 +1024,49 @@ export class Match {
       }
     }
     this.slide(p, ax, ay);
+  }
+
+  // ---------------------------------------------------------------- tactics
+
+  /** True when you manage this team (club / quick match), so its tactic is yours to set. */
+  managed(team: Team) {
+    return team.human && !this.cfg.demo && !this.cfg.lockStar && !this.cfg.training;
+  }
+
+  setMentality(team: Team, v: Mentality) {
+    if (team.mentality === v) return;
+    team.mentality = v;
+    team.mentAt = this.time;
+  }
+
+  /** Your tactic switch, and the rivals changing theirs with the score and the clock. */
+  private updateMentality(dt: number, input: Input | null) {
+    const req = input?.tacticReq;
+    if (input && req != null) {
+      input.tacticReq = null;
+      const me = this.teams[0];
+      if (this.managed(me)) {
+        const i = MENTALITIES.indexOf(me.mentality);
+        this.setMentality(me, req < 0 ? MENTALITIES[(i + 1) % 3] : MENTALITIES[req]);
+        audio.click();
+      }
+    }
+    for (const team of this.teams) {
+      if (this.managed(team)) continue;
+      team.mentT -= dt;
+      if (team.mentT > 0) continue;
+      team.mentT = rand(16, 30);
+      const lead = team.score - team.opp.score;
+      const left = this.cfg.duration > 0 ? this.clock / this.cfg.duration : 1;
+      const late = left < 0.4;
+      let def = 0.22, att = 0.22;
+      if (lead < 0) att += late ? 0.6 : 0.3;
+      else if (lead > 0) def += late ? 0.55 : 0.25;
+      else if (left < 0.25) att += 0.15;
+      const r = Math.random() * (1 + def + att - 0.44);
+      const v: Mentality = r < def ? 'def' : r < def + att ? 'att' : 'bal';
+      this.setMentality(team, v);
+    }
   }
 
   // ---------------------------------------------------------------- actions

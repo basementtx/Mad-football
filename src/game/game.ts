@@ -34,6 +34,11 @@ export class Game {
     this.cam.x = b.x;
     this.cam.y = b.y;
     this.match.start();
+    // your own club / quick match: the tactic switch is yours
+    if (input) {
+      input.tacticOn = this.match.managed(this.match.teams[0]);
+      input.tacticReq = null;
+    }
   }
 
   resize(W: number, H: number) {
