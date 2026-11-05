@@ -134,7 +134,7 @@ export const crateTag = (kind: 'basic' | 'premium' | 'legend', cls = 'crate-ic')
   }, cls);
 
 export function coinsPill() {
-  return `<div class="coins-pill">${coinTag()}<span>${record.coins}</span></div>`;
+  return `<div class="coins-pill" role="button">${coinTag()}<span>${record.coins}</span><i class="cp-plus">+</i></div>`;
 }
 
 let toastT = 0;

@@ -1,4 +1,7 @@
 /** Crate shop and the crate-opening sequence. */
+import { watchAd, adsLeft, AD_DAILY } from '../meta/monetize';
+import { settings as _st } from '../engine/storage';
+const L2 = (en: string, tr: string) => (_st.lang === 'tr' ? tr : en);
 import { t } from '../engine/i18n';
 import { audio, vibrate } from '../engine/audio';
 import { CRATES, CrateDef, openCrate, Reward } from '../meta/crates';
@@ -154,7 +157,7 @@ export function showShop(h: MenuHandlers, tab: ShopTab = shopTab) {
       ${tab === 'boots' ? bootsHTML() : tab === 'store' ? `
       <div class="store">
         <div class="store-bar"><span>${L.newOffersIn} <b id="store-clock">${fmtClock(store.at - Date.now())}</b></span>
-          <button class="btn btn-ghost btn-sm" data-act="refresh">${L.refreshStore} · ${coinTag()} ${STORE_REFRESH_COST}</button></div>
+          <span class="store-acts"><button class="btn btn-ghost btn-sm" data-act="refresh">${L.refreshStore} · ${coinTag()} ${STORE_REFRESH_COST}</button><button class="btn btn-sm ad-mini" data-act="refresh-ad" ${adsLeft('store_refresh') ? '' : 'disabled'}><span class="ad-mini-tv">▶</span>${L2('FREE', 'ÜCRETSİZ')} <small>${adsLeft('store_refresh')}/${AD_DAILY.store_refresh}</small></button></span></div>
         <div class="store-grid">${store.offers.map(offerTile).join('')}</div>
       </div>` : `
       <div class="crates">
@@ -195,6 +198,12 @@ export function showShop(h: MenuHandlers, tab: ShopTab = shopTab) {
   });
   bind('[data-act=refresh]', () => {
     if (!refreshStore()) { toastMsg(L.notEnough); audio.groan(); return; }
+    audio.select();
+    showShop(h, 'store');
+  });
+  bind('[data-act=refresh-ad]', async () => {
+    if (!(await watchAd('store_refresh'))) return;
+    refreshStore(true);
     audio.select();
     showShop(h, 'store');
   });

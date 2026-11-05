@@ -1,0 +1,107 @@
+/* ===================================================================
+   Coin shop, rewarded-ad buttons and the ad overlay
+   =================================================================== */
+:root { --ad-green: #19c46a; --ad-green-dk: #0b7a3e; --ad-gold: #ffd23f; --ad-gold-dk: #c88a00; }
+
+/* ---- coin counter: a "+" that says "tap me" */
+#ui .coins-pill { cursor: pointer; position: relative; }
+#ui .coins-pill .cp-plus { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: 6px; font-style: normal; font-family: var(--display); font-weight: 700; font-size: 16px; line-height: 1;
+  color: #fff; background: var(--ad-green); border: 2px solid var(--ink); border-radius: 50%; box-shadow: 0 2px 0 var(--ad-green-dk); animation: cp-plus 2.4s ease-in-out infinite; }
+@keyframes cp-plus { 0%, 80%, 100% { transform: scale(1); } 88% { transform: scale(1.25); } }
+#ui .mk-wallet { cursor: pointer; position: relative; }
+#ui .mk-wallet::after { content: '+'; position: absolute; right: -9px; top: -9px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font: 700 15px/1 var(--display);
+  color: #fff; background: var(--ad-green); border: 2px solid var(--ink); border-radius: 50%; }
+
+/* ---- small "free with an ad" refresh buttons */
+#ui .ad-mini { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(180deg, #2fe082, var(--ad-green)); color: #062a14; border: 2px solid var(--ink); box-shadow: 0 3px 0 var(--ad-green-dk); font-weight: 700; position: relative; overflow: hidden; }
+#ui .ad-mini::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.65) 48%, transparent 60%); transform: translateX(-120%); animation: ad-shine 2.6s ease-in-out infinite 0.6s; }
+#ui .ad-mini small { font-weight: 700; opacity: .75; }
+#ui .ad-mini .ad-mini-tv { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 14px; font-size: 8px; color: #fff; background: var(--ink); border-radius: 3px; }
+#ui .ad-mini:disabled { filter: grayscale(1) opacity(.55); cursor: default; }
+#ui .ad-mini:disabled::after { display: none; }
+#ui .store-acts { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+#ui .mk-refresh { flex-wrap: wrap; }
+@keyframes ad-shine { 0%, 55% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
+
+/* ---- post-match: "watch an ad, double the coins" — big, bright, bouncing */
+#ui .ad-cta { position: relative; overflow: hidden; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; cursor: pointer; text-align: left;
+  color: #062a14; background: linear-gradient(180deg, #45f095 0%, var(--ad-green) 55%, #12a95a 100%); border: 3px solid var(--ink); border-radius: 6px;
+  box-shadow: 0 5px 0 var(--ad-green-dk), 0 0 0 4px rgba(25,196,106,0.25), 0 0 26px rgba(25,196,106,0.55); animation: ad-bounce 1.6s cubic-bezier(.3,1.6,.5,1) infinite; }
+#ui .ad-cta:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ad-green-dk); animation: none; }
+@keyframes ad-bounce { 0%, 70%, 100% { transform: translateY(0) scale(1); } 80% { transform: translateY(-4px) scale(1.04); } 90% { transform: translateY(0) scale(.99); } }
+#ui .ad-cta-tv { position: relative; flex: none; width: 40px; height: 30px; background: var(--ink); border-radius: 5px; display: flex; align-items: center; justify-content: center; }
+#ui .ad-cta-tv i { position: absolute; inset: 3px; border-radius: 3px; background: linear-gradient(135deg, #3b82ff, #b04cff); }
+#ui .ad-cta-tv b { position: relative; color: #fff; font-size: 13px; }
+#ui .ad-cta-t { display: flex; flex-direction: column; line-height: 1.05; position: relative; z-index: 1; }
+#ui .ad-cta-t small { font: 700 11px/1 var(--ui); letter-spacing: .06em; opacity: .85; }
+#ui .ad-cta-t b { display: flex; align-items: center; gap: 4px; font: 700 22px/1.1 var(--display); color: var(--ink); }
+#ui .ad-cta-t em { font-style: normal; font-size: 15px; color: #fff; background: var(--stamp, #c82d20); border: 2px solid var(--ink); border-radius: 4px; padding: 0 5px; margin-left: 4px; transform: rotate(-6deg); }
+#ui .ad-cta-coin { width: 20px; height: 20px; }
+#ui .ad-cta-shine { position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.7) 47%, transparent 58%); transform: translateX(-120%); animation: ad-shine 2.2s ease-in-out infinite; pointer-events: none; }
+#ui .ad-cta.done { animation: none; background: var(--paper2, #eae2d1); box-shadow: 0 3px 0 rgba(21,23,28,0.4); cursor: default; }
+#ui .coins.bump { animation: m-bump .5s var(--e-spring, ease); }
+
+/* ---- coin shop */
+#ui .bank { width: 100%; max-width: 1000px; height: 100%; min-height: 0; display: flex; flex-direction: column; gap: clamp(6px, 1.6vh, 12px); }
+#ui .bank > .panel-head, #ui .bank > .bk-note { flex: none; }
+#ui .bk-note { font: 600 11px/1.2 var(--ui); color: var(--label); text-align: center; }
+#ui .bk-grid { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 14px; align-content: start; padding: 14px 10px 10px 6px; }
+#ui .bk-pack { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 16px 8px 0; cursor: pointer; overflow: hidden;
+  background: linear-gradient(180deg, #2a2f5a 0%, #171a33 100%); color: #fff; border: 3px solid var(--ink); border-radius: 8px; box-shadow: 0 6px 0 rgba(0,0,0,0.45); transition: transform .25s var(--e-spring, ease); }
+@media (hover: hover) { #ui .bk-pack:hover { transform: translateY(-4px) scale(1.02); } }
+#ui .bk-pack:active { transform: translateY(2px) scale(.98); }
+#ui .bk-glow { position: absolute; left: 50%; top: 34%; width: 150%; aspect-ratio: 1; transform: translate(-50%, -50%); background: radial-gradient(circle, rgba(255,210,63,0.45) 0%, transparent 60%); pointer-events: none; }
+#ui .bk-pack.popular { background: linear-gradient(180deg, #3a2a6a 0%, #1f1640 100%); border-color: #b48cff; }
+#ui .bk-pack.best { background: linear-gradient(180deg, #5a3a08 0%, #2a1a04 100%); border-color: var(--ad-gold); box-shadow: 0 6px 0 rgba(0,0,0,0.45), 0 0 22px rgba(255,210,63,0.45); }
+#ui .bk-pack.best .bk-glow { background: radial-gradient(circle, rgba(255,210,63,0.75) 0%, transparent 62%); animation: bk-pulse 2s ease-in-out infinite; }
+@keyframes bk-pulse { 50% { opacity: .55; transform: translate(-50%, -50%) scale(1.08); } }
+#ui .bk-ribbon { position: absolute; top: 9px; left: -30px; width: 120px; transform: rotate(-35deg); text-align: center; font: 700 10px/18px var(--display); letter-spacing: .05em; color: var(--ink); background: var(--ad-gold); z-index: 2; box-shadow: 0 2px 0 rgba(0,0,0,0.35); }
+#ui .bk-pack.popular .bk-ribbon { background: #b48cff; color: #fff; }
+#ui .bk-bonus { position: absolute; top: 6px; right: 6px; z-index: 2; font: 700 13px/1 var(--display); color: #fff; background: var(--stamp, #c82d20); border: 2px solid var(--ink); border-radius: 4px; padding: 3px 5px; transform: rotate(6deg); }
+#ui .bk-pile { position: relative; z-index: 1; display: flex; flex-direction: column-reverse; align-items: center; height: 74px; justify-content: flex-start; filter: drop-shadow(0 4px 0 rgba(0,0,0,0.35)); }
+#ui .bk-row { display: flex; margin-top: -10px; }
+#ui .bk-coin { width: 24px; height: 24px; margin: 0 -3px; }
+#ui .bk-amt { position: relative; z-index: 1; font: 700 24px/1 var(--display); color: var(--ad-gold); text-shadow: 0 2px 0 rgba(0,0,0,0.5); margin-top: 6px; }
+#ui .bk-was { position: relative; z-index: 1; font: 600 12px/1.2 var(--ui); color: rgba(255,255,255,0.55); min-height: 15px; }
+#ui .bk-price { position: relative; z-index: 1; align-self: stretch; margin: 8px -8px 0; padding: 8px 4px; text-align: center; font: 700 17px/1 var(--display); color: var(--ink); background: linear-gradient(180deg, #45f095, var(--ad-green)); border-top: 3px solid var(--ink); }
+#ui .bk-free { background: linear-gradient(180deg, #0f5a33 0%, #082a18 100%); border-color: #45f095; }
+#ui .bk-free .bk-glow { background: radial-gradient(circle, rgba(69,240,149,0.5) 0%, transparent 60%); }
+#ui .bk-free .bk-ribbon { background: #45f095; }
+#ui .bk-free .bk-amt { color: #9dffc8; }
+#ui .bk-free.used { filter: grayscale(.9) opacity(.6); }
+#ui .bk-tv { position: relative; z-index: 1; width: 70px; height: 52px; margin: 10px 0 12px; background: var(--ink); border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 0 rgba(0,0,0,0.4); animation: ad-bounce 1.8s cubic-bezier(.3,1.6,.5,1) infinite; }
+#ui .bk-tv i { position: absolute; inset: 5px; border-radius: 4px; background: linear-gradient(135deg, #3b82ff, #b04cff); }
+#ui .bk-tv b { position: relative; color: #fff; font-size: 22px; }
+@media (max-height: 430px) {
+  #ui .bk-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 128px), 1fr)); gap: 10px; }
+  #ui .bk-pile { height: 56px; transform: scale(.82); transform-origin: 50% 100%; }
+  #ui .bk-tv { width: 56px; height: 42px; margin: 4px 0 8px; }
+  #ui .bk-amt { font-size: 20px; }
+  #ui .bk-price { font-size: 15px; padding: 6px 4px; }
+}
+
+/* ---- rewarded-ad overlay (placeholder until the ad SDK is plugged in) */
+.ad-layer { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; background: rgba(6,8,14,0.92); animation: ad-in .25s ease-out; font-family: 'Oswald', sans-serif; }
+.ad-layer.out { opacity: 0; transition: opacity .25s; }
+@keyframes ad-in { from { opacity: 0; } }
+.ad-box { width: min(92vw, 560px); max-height: 92vh; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: #15171c; border: 3px solid #f6f1e6; border-radius: 10px; }
+.ad-top { display: flex; align-items: center; gap: 10px; color: #f6f1e6; }
+.ad-tag { font-weight: 700; font-size: 13px; letter-spacing: .1em; background: #f6f1e6; color: #15171c; padding: 2px 8px; border-radius: 3px; }
+.ad-count { margin-left: auto; font-size: 20px; min-width: 24px; text-align: center; }
+.ad-x { width: 32px; height: 32px; border: 2px solid #f6f1e6; background: transparent; color: #f6f1e6; font-size: 20px; border-radius: 50%; cursor: pointer; opacity: .35; }
+.ad-layer.done .ad-x { opacity: 1; }
+.ad-art { position: relative; overflow: hidden; height: min(42vh, 260px); border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 60%, #2a7a36, #0d3a1a); }
+.ad-rays { position: absolute; left: 50%; top: 50%; width: 160%; aspect-ratio: 1; transform: translate(-50%, -50%); background: repeating-conic-gradient(rgba(255,255,255,0.12) 0 10deg, transparent 10deg 20deg); animation: ad-spin 12s linear infinite; }
+@keyframes ad-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+.ad-logo { position: relative; font-size: clamp(34px, 9vh, 64px); font-weight: 700; line-height: .95; text-align: center; color: #ffd23f; text-shadow: 4px 4px 0 #7a2a08, 8px 8px 0 rgba(0,0,0,0.35); transform: rotate(-4deg); }
+.ad-sub { position: relative; margin-top: 12px; font-family: 'Roboto Condensed', sans-serif; font-weight: 700; color: #f6f1e6; font-size: 15px; }
+.ad-bar { height: 6px; background: #2a2d35; border-radius: 3px; overflow: hidden; }
+.ad-bar i { display: block; height: 100%; background: #19c46a; transform-origin: 0 50%; transform: scaleX(0); transition: transform linear; }
+.ad-claim { align-self: center; padding: 10px 26px; border: 3px solid #15171c; border-radius: 6px; font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 18px; color: #062a14; background: #19c46a; box-shadow: 0 4px 0 #0b7a3e; cursor: pointer; }
+.ad-claim:disabled { filter: grayscale(1) opacity(.45); cursor: default; }
+/* post-match: coins and the ad button share one row so the man-of-the-match card keeps its room */
+#ui .res-pay { display: flex; gap: 10px; align-items: stretch; flex: none; }
+#ui .res-pay > .coins { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 6px 14px; }
+#ui .res-pay > .ad-cta { flex: 1; width: auto; padding: 5px 10px; }
+#ui .res-pay .ad-cta-t b { font-size: 19px; }
+#ui .res-side .motm .pcard { --w: clamp(52px, 15.5vh, 104px); }

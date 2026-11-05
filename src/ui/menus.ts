@@ -17,6 +17,9 @@ import { WEATHERS, PITCHES, STADIUMS, makeEnv, Weather, PitchStyle, Stadium } fr
 import { THEMES, GRASS } from '../game/stadium';
 import type { Mission } from '../meta/missions';
 import { missionLabel } from './missions';
+import { watchAd, adsLeft } from '../meta/monetize';
+import { addCoins } from '../meta/profile';
+const L2 = (en: string, tr: string) => (settings.lang === 'tr' ? tr : en);
 
 export type { MenuHandlers };
 
@@ -406,6 +409,8 @@ function cardOf(p: Player): CardData {
 
 export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode = false, done: Mission[] = []) {
   const L = t();
+  // rewarded ad: double the match coins (a small floor so a loss still pays something)
+  const adBonus = m.cfg.training ? 0 : Math.max(coins, 100);
   const [a, b] = m.teams;
   const res = a.score > b.score ? 'win' : a.score < b.score ? 'loss' : 'draw';
   const total = a.stats.possession + b.stats.possession || 1;
@@ -443,7 +448,8 @@ export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode
             <div class="motm-info"><div class="mvp-name">${esc(mvp.name)} <small>#${mvp.number}</small></div>
             <div class="mvp-line"><span>⚽ <b data-count="${mvp.goals}">0</b></span><span>🎯 <b data-count="${mvp.assists}">0</b></span><span>💥 <b data-count="${mvp.knockdowns}">0</b></span>${mvp.isGK ? `<span>🧤 <b data-count="${mvp.saves}">0</b></span>` : ''}</div></div>
           </div>
-          <div class="coins">+${coins} ${coinTag()}</div>
+          <div class="res-pay"><div class="coins" id="res-coins">+${coins} ${coinTag()}</div>
+          ${adBonus > 0 && adsLeft('match_bonus') > 0 ? `<button class="ad-cta" data-act="adx2"><span class="ad-cta-tv"><i></i><b>▶</b></span><span class="ad-cta-t"><small>${L2('WATCH AN AD', 'REKLAM İZLE')}</small><b>+${adBonus} ${coinTag('ad-cta-coin')} <em>×2</em></b></span><span class="ad-cta-shine"></span></button>` : ''}</div>
           ${done.map((d) => `<div class="res-mission">🎯 ${esc(L.missionDone)}: ${esc(missionLabel(d))}</div>`).join('')}
         </div>
       </div>
@@ -462,6 +468,20 @@ export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode
       for (let i = 1; i <= n; i++) setTimeout(() => { el.textContent = String(i); audio.click(); }, i * 160);
     });
   }, 1700);
+  bind('[data-act=adx2]', async (btn) => {
+    if (btn.classList.contains('done')) return;
+    audio.click();
+    if (!(await watchAd('match_bonus'))) return;
+    addCoins(adBonus);
+    audio.horn();
+    audio.cheer(0.5);
+    vibrate([40, 30, 80]);
+    btn.classList.add('done');
+    btn.innerHTML = `<span class="ad-cta-t"><small>${L2('BONUS COLLECTED', 'BONUS ALINDI')}</small><b>✓ +${adBonus} ${coinTag('ad-cta-coin')}</b></span>`;
+    paintAll(btn);
+    const c = document.getElementById('res-coins');
+    if (c) { c.innerHTML = `+${coins + adBonus} ${coinTag()}`; paintAll(c); c.classList.add('bump'); }
+  });
   bind('[data-act=quit]', () => h.quit());
   bind('[data-act=restart]', () => h.restart());
   bind('[data-act=league]', () => h.showLeague());

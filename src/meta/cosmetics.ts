@@ -99,7 +99,7 @@ export function buyCosmetic(id: string): boolean {
 // ------------------------------------------------------------------ the Store (timed offers)
 
 export const STORE_EVERY = 4 * 60 * 60 * 1000;
-export const STORE_REFRESH_COST = 100;
+export const STORE_REFRESH_COST = 175;
 export const ITEM_PRICE: Record<ItemRarity, number> = { common: 450, rare: 1000, epic: 2000, legendary: 3800 };
 
 export interface StoreOffer {
@@ -191,8 +191,8 @@ export function tickStore() {
   }
 }
 
-export function refreshStore(): boolean {
-  if (!spendCoins(STORE_REFRESH_COST)) return false;
+export function refreshStore(free = false): boolean {
+  if (!free && !spendCoins(STORE_REFRESH_COST)) return false;
   rollStore();
   store.seen = true;
   store.at = Date.now() + STORE_EVERY;

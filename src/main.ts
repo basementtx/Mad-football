@@ -32,6 +32,7 @@ import type { Difficulty } from './game/entities';
 import { DIFF_REWARD } from './game/entities';
 import { showPause, showResults, hideUI, MenuHandlers, homeDef } from './ui/menus';
 import { showSplash, showHub } from './ui/hub';
+import { installBankShortcut } from './ui/bank';
 import { profile, lineupCards, loadoutTiers } from './meta/profile';
 import type { CardData } from './meta/cards';
 import { t } from './engine/i18n';
@@ -43,6 +44,7 @@ import { careerHudStart, careerHudStop, careerHudTick } from './ui/career/hud';
 import './ui/career/career.css';
 import './ui/fit.css';
 import './ui/formation.css';
+import './ui/monetize.css';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 let ctx = canvas.getContext('2d', { alpha: false })!;
@@ -433,6 +435,7 @@ async function boot() {
   }
   newDemo();
   input.enabled = false;
+  installBankShortcut(handlers);
   showSplash(handlers);
   initUpdater();
   initNotifications();

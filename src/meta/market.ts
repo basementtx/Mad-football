@@ -12,7 +12,7 @@ export const SQUAD_MAX = 20;
 export const SQUAD_MIN = LINEUP_SLOTS;
 export const MARKET_SIZE = 12;
 export const REFRESH_EVERY = 3 * 60 * 60 * 1000;
-export const REFRESH_COST = 120;
+export const REFRESH_COST = 200;
 export const MAX_ROUNDS = 3;
 
 export type Tag = 'deadline' | 'bargain' | 'wonderkid' | 'veteran' | 'hot';
@@ -179,8 +179,8 @@ function ensureAges() {
   for (const c of profile.cards) if (market.ages[c.id] === undefined) market.ages[c.id] = c.custom ? 22 : randInt(19, 32);
 }
 
-export function refreshMarket(paid = false): boolean {
-  if (paid && !spendCoins(REFRESH_COST)) return false;
+export function refreshMarket(paid = false, free = false): boolean {
+  if (paid && !free && !spendCoins(REFRESH_COST)) return false;
   ensureAges();
   const listings: Listing[] = [];
   for (let i = 0; i < MARKET_SIZE - 2; i++) listings.push(makeListing());

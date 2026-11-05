@@ -3,6 +3,9 @@
  * one paper sheet, folder tabs, a scout file on the left, catalog tiles on the right,
  * haggling with the seller, offers for your own players and a transfer ledger.
  */
+import { watchAd, adsLeft, AD_DAILY } from '../meta/monetize';
+import { settings as _st } from '../engine/storage';
+const L2 = (en: string, tr: string) => (_st.lang === 'tr' ? tr : en);
 import { settings } from '../engine/storage';
 import { audio, vibrate } from '../engine/audio';
 import { t } from '../engine/i18n';
@@ -154,7 +157,7 @@ function listView(_club: TeamDef | null) {
   const filters = `<div class="mk-filters">
       <div class="seg small">${(['ALL', 'GK', 'DEF', 'MID', 'FWD'] as const).map((p) => `<button class="${S.pos === p ? 'on' : ''}" data-pos="${p}">${p === 'ALL' ? L.all : t().pos[p]}</button>`).join('')}</div>
       <div class="seg small">${(['ovr', 'price', 'age'] as const).map((s) => `<button class="${S.sort === s ? 'on' : ''}" data-sort="${s}">${s === 'ovr' ? L.sortOvr : s === 'price' ? L.sortPrice : L.sortAge}</button>`).join('')}</div>
-      <div class="mk-refresh"><span class="kick">${L.refreshIn}</span><b id="mk-timer">${mmss(market.refreshAt - Date.now())}</b><button class="btn btn-ghost btn-sm" data-act="refresh">${L.refresh} · ${coinTag()}${REFRESH_COST}</button></div>
+      <div class="mk-refresh"><span class="kick">${L.refreshIn}</span><b id="mk-timer">${mmss(market.refreshAt - Date.now())}</b><button class="btn btn-ghost btn-sm" data-act="refresh">${L.refresh} · ${coinTag()}${REFRESH_COST}</button><button class="btn btn-sm ad-mini" data-act="refresh-ad" ${adsLeft('market_refresh') ? '' : 'disabled'}><span class="ad-mini-tv">▶</span>${L2('FREE', 'ÜCRETSİZ')} <small>${adsLeft('market_refresh')}/${AD_DAILY.market_refresh}</small></button></div>
     </div>`;
   const tiles = items.map((l) => listingTile(l)).join('');
   return `<div class="mk-detail">${sel ? listingDetail(sel) : `<p class="mk-empty">${L.pickOne}</p>`}</div>
@@ -300,6 +303,13 @@ function wire(h: MenuHandlers) {
   });
   bind('[data-act=refresh]', () => {
     if (!refreshMarket(true)) { toast(L.poor); audio.groan(); return; }
+    S.sel = ''; S.reply = null; S.offering = false;
+    audio.whoosh();
+    again();
+  });
+  bind('[data-act=refresh-ad]', async () => {
+    if (!(await watchAd('market_refresh'))) return;
+    refreshMarket(true, true);
     S.sel = ''; S.reply = null; S.offering = false;
     audio.whoosh();
     again();
