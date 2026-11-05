@@ -708,8 +708,9 @@ export class Match {
       }
       // swipe-up armed: show where the cross / chip will drop
       if (!keeper && hp.chargeKind === 'pass' && inp.btn.b.flick) {
-        const ct = this.crossTarget(hp, ndx, ndy);
-        this.aim = { x: ct.x, y: ct.y, kind: 'cross' };
+        const lp = this.planLift(hp, ndx, ndy, hp.charge);
+        this.aim = { x: lp.x, y: lp.y, kind: 'cross' };
+        if (lp.q) this.passHint = lp.q;
         this.aimPath = null;
       } else if (!keeper && shooting && inp.btn.a.flick) {
         const gt = this.aimAtGoal(hp, this.lockX, this.lockY) ?? [hp.x + this.lockX * 18, hp.y + this.lockY * 18];
@@ -767,22 +768,23 @@ export class Match {
       if (!hasBall || !hp.canAct) hp.chargeKind = 'none';
       else if (inp.btn.b.down) hp.charge = Math.min(1, hp.charge + dt / 0.7);
       else if (inp.btn.b.flick && !keeper) {
-        const q = this.cross(hp, ndx, ndy, hp.charge);
+        // swipe up: the only way to get the ball in the air (cross / lofted pass)
+        const q = this.liftedPass(hp, ndx, ndy, hp.charge);
         if (q && !q.isGK && !lock) this.setHuman(q);
         hp.chargeKind = 'none';
         hp.charge = 0;
       } else {
-        const lob = hp.charge > 0.28;
-        if (keeper) this.gkThrow(hp, ndx, ndy, lob, hp.charge);
+        // tap or hold: always a ground pass (holding only adds pace)
+        if (keeper) this.gkThrow(hp, ndx, ndy, inp.btn.b.flick, hp.charge);
         else {
           const q = this.assistTarget(hp, ndx, ndy);
           if (q) {
-            this.passTo(hp, q, lob);
+            this.passTo(hp, q, false);
             if (!q.isGK && !lock) this.setHuman(q);
           } else {
             // no assist: the ball goes exactly where you point
-            const sp = lob ? 11 + hp.charge * 9 : 15;
-            this.kick(hp, ndx * sp, ndy * sp, lob ? 5 + hp.charge * 4 : 0.3, 0.4);
+            const sp = 13 + hp.charge * 10;
+            this.kick(hp, ndx * sp, ndy * sp, 0.3, 0.4);
           }
         }
         hp.chargeKind = 'none';
@@ -1535,6 +1537,61 @@ export class Match {
     return { x: gx - side * P.boxDepth * 0.6, y: fy, q: null };
   }
 
+  /**
+   * What a swipe-up pass does, in the direction you aim:
+   * - in the attacking end with a runner that way (or aimed at the box): a cross,
+   * - otherwise a lofted pass to the teammate you aim at,
+   * - nobody there: a lofted ball into space, longer the longer you hold.
+   */
+  planLift(p: Player, dx: number, dy: number, charge: number): { kind: 'cross' | 'lob' | 'free'; x: number; y: number; q: Player | null } {
+    const P = this.pitch;
+    const side = p.team.side;
+    const gx = side * P.hw;
+    if (Math.abs(gx - p.x) < P.hw * 0.85) {
+      const ct = this.crossTarget(p, dx, dy);
+      if (ct.q) {
+        const d = Math.max(0.1, dist(p.x, p.y, ct.q.x, ct.q.y));
+        const cos = ((ct.q.x - p.x) * dx + (ct.q.y - p.y) * dy) / d;
+        if (cos > 0.3) return { kind: 'cross', x: ct.x, y: ct.y, q: ct.q };
+      } else if (dx * side > 0.35) return { kind: 'cross', x: ct.x, y: ct.y, q: null };
+    }
+    let best: Player | null = null;
+    let bs = -Infinity;
+    for (const q of p.team.players) {
+      if (q === p || q.isGK || q.state === 'down') continue;
+      const d = dist(p.x, p.y, q.x, q.y);
+      if (d < 5 || d > 40) continue;
+      const cos = ((q.x - p.x) * dx + (q.y - p.y) * dy) / d;
+      if (cos < 0.82) continue;
+      const sc = cos * 3 - d * 0.01;
+      if (sc > bs) {
+        bs = sc;
+        best = q;
+      }
+    }
+    if (best) {
+      const T = clamp(0.65 + dist(p.x, p.y, best.x, best.y) * 0.035, 0.8, 1.6);
+      return { kind: 'lob', x: best.x + best.vx * T * 0.8, y: best.y + best.vy * T * 0.8, q: best };
+    }
+    const L = 12 + Math.min(1, charge) * 14;
+    return { kind: 'free', x: clamp(p.x + dx * L, -P.hw - 1, P.hw + 1), y: clamp(p.y + dy * L, -P.hh + 0.5, P.hh - 0.5), q: null };
+  }
+
+  /** Swipe-up pass (see planLift). Returns the intended receiver. */
+  liftedPass(p: Player, dx: number, dy: number, charge: number): Player | null {
+    const lp = this.planLift(p, dx, dy, charge);
+    if (lp.kind === 'cross') return this.cross(p, dx, dy, charge);
+    if (lp.kind === 'lob' && lp.q) {
+      this.passTo(p, lp.q, true);
+      return lp.q;
+    }
+    const d = dist(p.x, p.y, lp.x, lp.y);
+    const T = clamp(0.65 + d * 0.035, 0.8, 1.6);
+    const [ux, uy] = norm(lp.x - p.x, lp.y - p.y);
+    this.kick(p, ux * (d / T), uy * (d / T), (PHYS.gravity * T) / 2, 0.6);
+    return null;
+  }
+
   /** Lofted cross that drops at head height. Returns the intended receiver. */
   cross(p: Player, dx: number, dy: number, charge: number): Player | null {
     const tgt = this.crossTarget(p, dx, dy);
@@ -1566,8 +1623,19 @@ export class Match {
     const ang = Math.atan2(ty - sy, tx - sx) + gauss() * err;
     const d = dist(sx, sy, tx, ty);
     // softer chips hang longer; full power is flatter and quicker
-    const T = clamp((0.55 + d * 0.032) * (1.12 - power * 0.25), 0.7, 1.7);
-    const zt = tgt ? P.goalHeight * 0.62 : 0.4;
+    let T = clamp((0.55 + d * 0.032) * (1.12 - power * 0.25), 0.7, 1.7);
+    // drop just under the bar: a keeper standing on his line reaches 2.6 m, so a
+    // chip only beats him by coming down steeply behind him
+    const zt = tgt ? P.goalHeight * 0.86 : 0.4;
+    if (tgt) {
+      // the arc must be over the keeper's reach where it passes him:
+      // z(u) = u*zt + g*T^2/2 * u*(1-u)  for u = fraction of the way to the target
+      const gk = p.team.opp.gk;
+      const uk = clamp(dist(sx, sy, gk.x, gk.y) / Math.max(1, d), 0.15, 0.85);
+      const clear = 3.1;
+      const need = Math.sqrt((2 * Math.max(0, clear - uk * zt)) / (PHYS.gravity * uk * (1 - uk)));
+      T = clamp(Math.max(T, need), 0.7, 1.9);
+    }
     const h = (d / T) * rand(0.97, 1.03);
     const vz = (zt + (PHYS.gravity * T * T) / 2) / T + over * 9;
     this.kick(p, Math.cos(ang) * h, Math.sin(ang) * h, vz, power * 0.8);
@@ -2296,7 +2364,9 @@ export class Match {
       }
       if (p.state === 'dive' || p.state === 'shove') continue;
       // airborne ball: header / volley / chest
-      if (b.z > 0.85 && b.z < 2.3 && (d < 0.8 || (b.cross && p.volleyT > 0 && d < 1.4))) {
+      // a rival's shot is only blocked by a body square in its path, not by anyone nearby
+      const shotAt = !!b.shotBy && b.shotBy !== p.team && b.speed > 9;
+      if (b.z > 0.85 && b.z < 2.3 && (d < (shotAt ? 0.55 : 0.8) || (b.cross && p.volleyT > 0 && d < 1.4))) {
         this.airTouch(p);
         return;
       }
@@ -2305,7 +2375,7 @@ export class Match {
         b.vx += ((p.x - b.x) / d) * 7 * dt;
         b.vy += ((p.y - b.y) / d) * 7 * dt;
       }
-      const reach = p === this.human ? 1.0 : PHYS.pickupR;
+      const reach = p === this.human ? 1.0 : shotAt ? 0.55 : PHYS.pickupR;
       if (b.z <= (p === this.human ? 1.0 : 0.85) && d < reach && d < bd) {
         bd = d;
         best = p;
@@ -2422,9 +2492,11 @@ export class Match {
     const diving = g.state === 'dive';
     if (!g.canAct && !diving) return false;
     const reach = diving ? 1.35 : 0.95;
-    const hmax = diving ? 2.0 : 2.6;
-    if (d > reach || b.z > hmax) return false;
     const ownX = -g.team.side * P.hw;
+    // a ball dropping in behind him (a chip over his head) is hard to reach backwards
+    const behind = b.vz < -2 && Math.abs(b.x - ownX) < Math.abs(g.x - ownX) - 0.6;
+    const hmax = diving ? 2.0 : behind ? 1.9 : 2.6;
+    if (d > reach || b.z > hmax) return false;
     const inBox = Math.abs(b.x - ownX) < P.boxDepth + 0.6 && Math.abs(b.y) < P.boxHalf + 0.6;
     const backPass = !!b.lastTouch && b.lastTouch.team === g.team && b.lastTouch !== g && b.z < 0.6 && !diving;
     if (!inBox) {

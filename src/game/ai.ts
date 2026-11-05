@@ -238,7 +238,7 @@ export function runTeamAI(m: Match, team: Team, dt: number) {
     // a little off-ball chaos, only near the action and rarely
     if (p.canAct && p.tackleCd <= 0 && chance(team.diff.aggression * 0.07 * dt)) {
       const [q, d] = nearestOpp(p, team);
-      if (q && d < 1.2 && q !== b.owner && dist(p.x, p.y, b.x, b.y) < 6 && !q.isGK) m.shove(p, q);
+      if (q && d < 1.2 && q !== b.owner && dist(p.x, p.y, b.x, b.y) < 6 && !q.isGK && (q !== m.human || dist(q.x, q.y, b.x, b.y) < 2.5)) m.shove(p, q);
     }
   });
 
@@ -569,12 +569,27 @@ function defendAI(m: Match, p: Player, rank: number, dt: number, carrier?: Playe
     const dd = dist(p.x, p.y, c.x, c.y);
     let gap = patient ? 3.4 : dGoal > P.hw * 1.25 ? 2.6 : danger ? 1.3 : 1.8;
     if (!vsHuman && !patient) gap = Math.min(gap, 1.4);
+    // against you: give a yard of room so you can still get a shot away; only
+    // right at the edge of our box does he get tight
+    if (vsHuman) gap = Math.max(gap, dGoal < P.boxDepth + 2 ? 1.9 : 2.6);
     // beaten (the attacker is goal-side of us): recover at full speed toward the goal, not the man
     const beaten = (p.x - c.x) * -team.side < -0.5 && dd > 1.5;
     const sprint = beaten || dd > (vsHuman ? 7 : 3.5);
     if (beaten && iq > 0.6) {
       const tx = c.x + (ownX - c.x) * 0.35, ty = c.y * 0.6;
       moveTo(p, tx, ty, true, 0.5);
+    } else if (vsHuman && c.chargeKind === 'shot') {
+      // you are winding up a shot: he holds his ground (no instant step into the line);
+      // a sharp defender may still close a little toward you
+      const hold = 0.35 + iq * 0.25;
+      moveTo(p, p.x + (c.x - p.x) * hold * 0.2, p.y + (c.y - p.y) * hold * 0.2, false, 0.8);
+    } else if (vsHuman) {
+      // against you he shows you outside: he stands a step to the inside of the line to
+      // goal, so the far-post angle is covered but the near side stays open for a shot
+      const s = Math.abs(c.y) > 0.8 ? -Math.sign(c.y) : Math.sign(p.y - c.y) || 1;
+      const [px, py] = gx * s > 0 ? [-gy, gx] : [gy, -gx];
+      const lat = 1.1;
+      moveTo(p, fx + gx * gap + px * lat, fy + gy * gap + py * lat, sprint, patient ? 1.4 : 0.5);
     } else moveTo(p, fx + gx * gap, fy + gy * gap, sprint, patient ? 1.4 : 0.5);
     if (!patient && m.ball.owner === c && p.tackleCd <= 0 && c.invuln <= 0) {
       const tk = agg * (vsHuman ? 0.75 : 1) * (1 + iq * 0.35);
@@ -595,7 +610,10 @@ function defendAI(m: Match, p: Player, rank: number, dt: number, carrier?: Playe
     // a carrier in our box gets doubled; otherwise cover and cut the most dangerous lane
     if (iq > 0.75 && dGoal < P.boxDepth + 2 && !patient) {
       const [gx, gy] = norm(ownX - fx, -fy);
-      moveTo(p, fx + gx * 1.6 - gy * 1.2, fy + gy * 1.6 + gx * 1.2, true, 0.5);
+      // against you he covers the far-post side a stride away instead of planting himself
+      // right in front of the ball, so a well-aimed shot still has a way through
+      const fwd = vsHuman ? 2.6 : 1.6, lat = vsHuman ? 2.4 : 1.2;
+      moveTo(p, fx + gx * fwd - gy * lat, fy + gy * fwd + gx * lat, true, 0.5);
       return;
     }
     let tx = fx + (ownX - fx) * 0.45;
@@ -625,9 +643,20 @@ function defendAI(m: Match, p: Player, rank: number, dt: number, carrier?: Playe
       const [gx, gy] = norm(ownX - q.x, -q.y);
       const [bx, by] = norm(c.x - q.x, c.y - q.y);
       const [ux, uy] = norm(gx + bx * (0.4 + iq * 0.6), gy + by * (0.4 + iq * 0.6));
-      const tight = dist(q.x, q.y, ownX, 0) < P.hw * 0.8 ? 1.3 : 2.2;
+      const you = q === m.human;
+      let tight = dist(q.x, q.y, ownX, 0) < P.hw * 0.8 ? 1.3 : 2.2;
+      // you (off the ball) get a looser marker so you can find space
+      if (you) tight = dist(q.x, q.y, ownX, 0) < P.boxDepth + 3 ? 2.2 : 3.4;
       tx = q.x + q.vx * lead + ux * tight;
       ty = q.y + q.vy * lead + uy * tight;
+      // far from the ball he holds the zone instead of following you everywhere
+      const away = dist(q.x, q.y, c.x, c.y);
+      if (you && away > 12) {
+        const [zx, zy] = formationSpot(m, p, 'defend');
+        const k = clamp((away - 12) / 10, 0, 0.7);
+        tx += (zx - tx) * k;
+        ty += (zy - ty) * k;
+      }
     } else {
       [tx, ty] = formationSpot(m, p, 'defend');
     }

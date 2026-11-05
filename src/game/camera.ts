@@ -2,7 +2,7 @@ import { clamp, damp, sign } from '../engine/math';
 import type { Pitch } from './entities';
 
 /** Pixels per meter on the virtual (low-res) framebuffer. */
-export const PPM = 16;
+export const PPM = 15;
 /** Ground y squash (tilted broadcast angle): 1 m of depth = 12 px. */
 export const YS = 0.75;
 

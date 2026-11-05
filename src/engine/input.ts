@@ -13,7 +13,7 @@ export interface Button {
 const mkBtn = (): Button => ({ down: false, pressed: false, released: false, held: 0, flick: false });
 
 /** Upward finger travel (virtual px) on a held button that counts as a swipe. */
-const FLICK_PX = 11;
+const FLICK_PX = 15;
 
 export type BtnId = 'a' | 'b' | 'c' | 'd' | 'e';
 const BTN_IDS: BtnId[] = ['a', 'b', 'c', 'd', 'e'];
@@ -171,7 +171,7 @@ export class Input {
       const st = this.ptrStart.get(e.pointerId)!;
       const x = e.clientX / this.k, y = e.clientY / this.k;
       const up = st.y - y, side = Math.abs(x - st.x);
-      if (up > FLICK_PX && up > side * 0.8) this.btn[bid].flick = true;
+      if (up > FLICK_PX && up > side * 1.1) this.btn[bid].flick = true;
       else if (up < FLICK_PX * 0.4) this.btn[bid].flick = false;
       e.preventDefault();
       return;

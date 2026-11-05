@@ -21,8 +21,8 @@ export interface Pitch {
 export function makePitch(size: number): Pitch {
   const s = size <= 3 ? 0.84 : size === 4 ? 1 : 1.14;
   return {
-    hw: 30 * s,
-    hh: 18.5 * s,
+    hw: 32 * s,
+    hh: 19.5 * s,
     goalHalf: 3.7,
     goalDepth: 2.2,
     goalHeight: 2.45,
