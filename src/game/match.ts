@@ -2528,11 +2528,14 @@ export class Match {
       this.fx.impact(b.x, b.y, b.z);
       this.fx.text(p.x, p.y, 0.6, header ? (p === this.human ? t().header + '!' : '') : 'VOLLEY!', '#fff', 0.9);
     } else {
-      // chest / head control: kill the ball
-      b.vx = b.vx * 0.2 + p.vx * 0.5;
-      b.vy = b.vy * 0.2 + p.vy * 0.5;
-      b.vz = Math.min(b.vz, 0) * 0.3;
-      b.lockPlayer = null;
+      // chest / head control: kill the ball and let it drop to his feet. He must not
+      // touch it again on the way down, or it gets "cushioned" every frame and
+      // floats on his head for seconds.
+      b.vx = b.vx * 0.15 + p.vx * 0.85 + p.faceX * 1.2;
+      b.vy = b.vy * 0.15 + p.vy * 0.85 + p.faceY * 1.2;
+      b.vz = Math.min(b.vz, 0) * 0.3 - 1.5;
+      b.lockPlayer = p;
+      b.lockTime = clamp(Math.sqrt((2 * Math.max(0, b.z - 0.8)) / PHYS.gravity) + 0.04, 0.12, 0.4);
       b.prevTouch = b.lastTouch;
       b.lastTouch = p;
       b.shotBy = null;
