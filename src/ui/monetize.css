@@ -105,3 +105,5 @@
 #ui .res-pay > .ad-cta { flex: 1; width: auto; padding: 5px 10px; }
 #ui .res-pay .ad-cta-t b { font-size: 19px; }
 #ui .res-side .motm .pcard { --w: clamp(52px, 15.5vh, 104px); }
+#ui .bk-grid { grid-auto-rows: max-content; }
+#ui .bk-pack { min-height: max-content; }
