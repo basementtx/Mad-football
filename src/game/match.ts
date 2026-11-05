@@ -22,6 +22,8 @@ export interface MatchConfig {
   duration: number;
   difficulty: Difficulty;
   demo: boolean;
+  /** club fitness centre: stamina drain multiplier for the home players */
+  homeStamina?: number;
   /** formation id for the home side (the user's choice); rivals get their own */
   homeFormation?: string | null;
   /** home squad from the user's club (slot 0 = GK) */
@@ -234,6 +236,7 @@ export class Match {
         }
       }
     }
+    if (cfg.homeStamina) for (const p of home.players) p.staminaDrain *= cfg.homeStamina;
     this.star = home.players.find((p) => p.star) ?? null;
     if (this.star && cfg.starPerks) {
       const k = cfg.starPerks;

@@ -6,6 +6,7 @@
 import { CardData, CardRarity, overall, randomCard, rarityOf, uid, Pos, seriesCard, randomSeries } from './cards';
 import { profile, saveProfile, autoLineup, cardById, LINEUP_SLOTS, coins, spendCoins, addCoins } from './profile';
 import { league } from './league';
+import { scoutDiscount } from './facilities';
 import { pick, rand, randInt, clamp } from '../engine/math';
 
 export const SQUAD_MAX = 20;
@@ -146,6 +147,8 @@ function makeListing(deadline = false, special = false): Listing {
   if (age >= 32) tags.push('veteran');
   const r = rarityOf(card);
   if (r === 'hero' || r === 'legend') tags.push('hot');
+  // your scouting network finds cheaper deals
+  price *= scoutDiscount();
   price = Math.round(price / 10) * 10;
   return {
     id: uid(),

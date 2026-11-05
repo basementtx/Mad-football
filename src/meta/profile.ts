@@ -40,6 +40,10 @@ export interface Profile {
   fam: Record<string, number>;
   /** chosen formation id per match size (3 / 4 / 5); missing = the classic one */
   formations: Record<number, string>;
+  /** facility levels (1..5) */
+  facilities: Record<string, number>;
+  /** when the next academy graduate is ready (ms) */
+  academyAt: number;
 }
 
 const KEY = 'mf.profile';
@@ -47,6 +51,8 @@ const KEY = 'mf.profile';
 function fresh(): Profile {
   return {
     formations: {},
+    facilities: {},
+    academyAt: 0,
     v: 1,
     club: null,
     cards: [],

@@ -33,6 +33,7 @@ import { DIFF_REWARD } from './game/entities';
 import { showPause, showResults, hideUI, MenuHandlers, homeDef } from './ui/menus';
 import { showSplash, showHub } from './ui/hub';
 import { installBankShortcut } from './ui/bank';
+import { stadiumIncome, trainingBoost, fitnessDrain } from './meta/facilities';
 import { profile, lineupCards, loadoutTiers } from './meta/profile';
 import type { CardData } from './meta/cards';
 import { t } from './engine/i18n';
@@ -46,6 +47,7 @@ import './ui/fit.css';
 import './ui/formation.css';
 import './ui/monetize.css';
 import './ui/series.css';
+import './ui/facilities.css';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 let ctx = canvas.getContext('2d', { alpha: false })!;
@@ -149,7 +151,8 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
     {
       home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty, demo: false,
       homeCards: homeCards && homeCards.length >= lastSetup.size ? homeCards : undefined,
-      homeChem: useClub ? lineupChemMuls(lastSetup.size) : undefined,
+      homeChem: useClub ? lineupChemMuls(lastSetup.size).map((x) => x * trainingBoost()) : undefined,
+      homeStamina: useClub ? fitnessDrain() : undefined,
       homeFormation: profile.formations?.[lastSetup.size] ?? null,
       starId: useClub ? profile.myPlayer : null,
       loadout: { goalfx: profile.equipped.goalfx, trail: profile.equipped.trail, powers: profile.loadout, tiers: loadoutTiers(), boots: profile.equipped.boots },
@@ -325,7 +328,8 @@ function endMatch() {
   record.goalsAgainst += b.score;
   record.knockdowns += a.stats.knockdowns;
   const diffMul = DIFF_REWARD[m.cfg.difficulty] ?? 1;
-  const coins = Math.round(((res === 'w' ? 100 : res === 'd' ? 40 : 15) + a.score * 10 + a.stats.knockdowns * 2) * diffMul);
+  // your stadium pays more for club matches
+  const coins = Math.round(((res === 'w' ? 100 : res === 'd' ? 40 : 15) + a.score * 10 + a.stats.knockdowns * 2) * diffMul * (m.cfg.homeCards ? stadiumIncome() : 1));
   record.coins += coins;
   saveRecord();
   if (matchMode === 'league') recordUserResult(a.score, b.score);
