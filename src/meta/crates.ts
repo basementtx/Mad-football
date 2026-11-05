@@ -1,5 +1,5 @@
 /** Crates: buy with coins, roll cards and items. */
-import { CardData, CardRarity, randomCard } from './cards';
+import { CardData, CardRarity, randomCard, seriesCard, randomSeries, SeriesId } from './cards';
 import { ITEMS, Item, ItemRarity, LOADOUT_MAX } from './items';
 import { profile, saveProfile, addCard, addCoins, autoLineup, addCopy, tierNeed } from './profile';
 
@@ -13,12 +13,14 @@ export interface CrateDef {
   cardChance: number;
   /** at least one item/card of this tier or better */
   guarantee?: ItemRarity;
+  /** chance that a card roll is a special-series card */
+  seriesChance?: number;
 }
 
 export const CRATES: CrateDef[] = [
   { id: 'basic', price: 250, rolls: 3, color: '#b8763a', itemOdds: { common: 70, rare: 25, epic: 5, legendary: 0 }, cardOdds: { bronze: 60, silver: 35, gold: 5 }, cardChance: 0.6 },
-  { id: 'premium', price: 700, rolls: 4, color: '#6c8cff', itemOdds: { common: 35, rare: 42, epic: 19, legendary: 4 }, cardOdds: { bronze: 15, silver: 50, gold: 31, hero: 4 }, cardChance: 0.5, guarantee: 'rare' },
-  { id: 'legend', price: 1800, rolls: 5, color: '#ffb21f', itemOdds: { common: 5, rare: 40, epic: 38, legendary: 17 }, cardOdds: { silver: 15, gold: 55, hero: 24, legend: 6 }, cardChance: 0.5, guarantee: 'epic' },
+  { id: 'premium', price: 700, rolls: 4, color: '#6c8cff', itemOdds: { common: 35, rare: 42, epic: 19, legendary: 4 }, cardOdds: { bronze: 15, silver: 50, gold: 31, hero: 4 }, cardChance: 0.5, guarantee: 'rare', seriesChance: 0.05 },
+  { id: 'legend', price: 1800, rolls: 5, color: '#ffb21f', itemOdds: { common: 5, rare: 40, epic: 38, legendary: 17 }, cardOdds: { silver: 15, gold: 55, hero: 24, legend: 6 }, cardChance: 0.5, guarantee: 'epic', seriesChance: 0.18 },
 ];
 
 export type Reward =
@@ -57,14 +59,17 @@ function pickItem(rarity: ItemRarity): Item {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-type Roll = { kind: 'card'; rarity: CardRarity } | { kind: 'item'; item: Item };
+type Roll = { kind: 'card'; rarity: CardRarity; series?: SeriesId } | { kind: 'item'; item: Item };
 const rank = (r: Roll) => ITEM_ORDER.indexOf(r.kind === 'card' ? CARD_TO_ITEM[r.rarity] : r.item.rarity);
 
 export function openCrate(def: CrateDef): Reward[] {
   // decide everything first, then apply in order (so duplicates inside one crate are detected)
   const rolls: Roll[] = [];
   for (let i = 0; i < def.rolls; i++) {
-    if (Math.random() < def.cardChance) rolls.push({ kind: 'card', rarity: weighted(def.cardOdds) });
+    if (Math.random() < def.cardChance) {
+      if (def.seriesChance && Math.random() < def.seriesChance) rolls.push({ kind: 'card', rarity: 'legend', series: randomSeries() });
+      else rolls.push({ kind: 'card', rarity: weighted(def.cardOdds) });
+    }
     else rolls.push({ kind: 'item', item: pickItem(weighted(def.itemOdds)) });
   }
   if (def.guarantee && Math.max(...rolls.map(rank)) < ITEM_ORDER.indexOf(def.guarantee)) {
@@ -74,7 +79,7 @@ export function openCrate(def: CrateDef): Reward[] {
   rolls.sort((a, b) => rank(a) - rank(b));
   const out: Reward[] = rolls.map((r) => {
     if (r.kind === 'card') {
-      const card = randomCard(r.rarity);
+      const card = r.series ? seriesCard(r.series) : randomCard(r.rarity);
       addCard(card);
       return { kind: 'card', card };
     }

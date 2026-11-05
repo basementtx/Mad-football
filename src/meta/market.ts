@@ -3,7 +3,7 @@
  * division), haggling with sellers, offers from other clubs for your own
  * players, deadline-day deals and a transfer ledger.
  */
-import { CardData, CardRarity, overall, randomCard, rarityOf, uid, Pos } from './cards';
+import { CardData, CardRarity, overall, randomCard, rarityOf, uid, Pos, seriesCard, randomSeries } from './cards';
 import { profile, saveProfile, autoLineup, cardById, LINEUP_SLOTS, coins, spendCoins, addCoins } from './profile';
 import { league } from './league';
 import { pick, rand, randInt, clamp } from '../engine/math';
@@ -90,6 +90,8 @@ export function saveMarket() {
 export function valueOf(c: CardData, age = 25) {
   const o = overall(c);
   let v = 120 + Math.pow(Math.max(0, o - 48), 2) * 3.1;
+  // special series are collector's items
+  if (c.series) v *= c.series === 'icon' ? 1.6 : 1.3;
   if (age <= 21) v *= 1.18;
   else if (age >= 32) v *= 0.72;
   else if (age >= 29) v *= 0.9;
@@ -123,11 +125,13 @@ function weighted<K extends string>(odds: Partial<Record<K, number>>): K {
   return e[e.length - 1][0];
 }
 
-function makeListing(deadline = false): Listing {
+function makeListing(deadline = false, special = false): Listing {
   const div = league?.div ?? 5;
-  const card = randomCard(weighted(DIV_ODDS[div] ?? DIV_ODDS[5]));
+  const card = special ? seriesCard(randomSeries()) : randomCard(weighted(DIV_ODDS[div] ?? DIV_ODDS[5]));
   const roll = Math.random();
-  const age = roll < 0.18 ? randInt(18, 21) : roll > 0.85 ? randInt(31, 35) : randInt(22, 30);
+  let age = roll < 0.18 ? randInt(18, 21) : roll > 0.85 ? randInt(31, 35) : randInt(22, 30);
+  if (card.series === 'future') age = randInt(17, 20);
+  if (card.series === 'icon') age = randInt(33, 36);
   const value = valueOf(card, age);
   const tags: Tag[] = [];
   let price = value * rand(0.95, 1.3);
@@ -185,6 +189,8 @@ export function refreshMarket(paid = false, free = false): boolean {
   const listings: Listing[] = [];
   for (let i = 0; i < MARKET_SIZE - 2; i++) listings.push(makeListing());
   listings.push(makeListing(true), makeListing(true));
+  // one special-series player on every list
+  listings[0] = makeListing(false, true);
   listings.sort((a, b) => overall(b.card) - overall(a.card));
   market.listings = listings;
   market.offers = makeOffers();

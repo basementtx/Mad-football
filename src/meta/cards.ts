@@ -28,6 +28,51 @@ export interface CardData {
   look: CardLook;
   /** created by the player in the player creator */
   custom?: boolean;
+  /** special card series (own design, boosted ratings) */
+  series?: SeriesId;
+}
+
+// ------------------------------------------------------------------ special series
+
+export type SeriesId = 'totw' | 'fire' | 'future' | 'icon';
+export interface SeriesDef {
+  id: SeriesId;
+  /** overall range of the series */
+  range: [number, number];
+  name: { tr: string; en: string };
+  short: string;
+  desc: { tr: string; en: string };
+}
+export const SERIES: SeriesDef[] = [
+  { id: 'future', range: [78, 86], short: 'FS', name: { tr: 'Geleceğin Yıldızları', en: 'Future Stars' }, desc: { tr: 'Genç ve parlak yetenekler.', en: 'Young, dazzling talents.' } },
+  { id: 'totw', range: [82, 89], short: 'TOTW', name: { tr: 'Haftanın Takımı', en: 'Team of the Week' }, desc: { tr: 'Haftanın en iyileri, güçlendirilmiş.', en: 'The best of the week, boosted.' } },
+  { id: 'fire', range: [84, 91], short: '🔥', name: { tr: 'Formda', en: 'On Fire' }, desc: { tr: 'Alev alev formda oyuncular.', en: 'Players in red-hot form.' } },
+  { id: 'icon', range: [90, 96], short: 'ICON', name: { tr: 'İkonlar', en: 'Icons' }, desc: { tr: 'Oyunun efsaneleri.', en: 'Legends of the game.' } },
+];
+export const seriesDef = (id?: SeriesId) => SERIES.find((s) => s.id === id);
+
+/** fictional legends for the Icon series */
+const ICON_NAMES = ['Ronaldão Pixel', 'Zico Thunder', 'Kaiser Brandt', 'El Mago Ruiz', 'Hakan Fırtına', 'Paolo Muro', 'Johan Kruis', 'Lev Yashkin', 'Didi Sombra', 'Gerd Bomber', 'Bobby Charm', 'Ferenc Puskar', 'Eusébio Raio', 'Metin Usta', 'Garrincha Voa', 'Lothar Stahl'];
+
+/** A card of a special series: a normal card lifted into the series' rating band. */
+export function seriesCard(id: SeriesId, pos?: Pos): CardData {
+  const def = seriesDef(id)!;
+  const c = randomCard('gold', pos);
+  const target = randInt(def.range[0], def.range[1]);
+  for (let i = 0; i < 60; i++) {
+    const o = overall(c);
+    if (o >= target) break;
+    for (const k of STAT_KEYS) c.stats[k] = clamp(c.stats[k] + 1, 20, 99);
+  }
+  c.series = id;
+  if (id === 'icon') c.name = pick(ICON_NAMES);
+  return c;
+}
+
+/** A random series, rarer the stronger it is. */
+export function randomSeries(): SeriesId {
+  const r = Math.random();
+  return r < 0.4 ? 'future' : r < 0.72 ? 'totw' : r < 0.92 ? 'fire' : 'icon';
 }
 
 export const SKINS = ['#f3d2b5', '#e5b48f', '#c98d63', '#a8714a', '#7a4d30', '#5a3722'];

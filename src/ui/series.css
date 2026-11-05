@@ -1,0 +1,75 @@
+/* ===================================================================
+   Special card series: Future Stars, Team of the Week, On Fire, Icons.
+   Each has its own palette (the card's --bg/--lt/--dk/--tx vars), an art
+   layer behind the content (.pc-art) and a corner badge. All motion is
+   transform / opacity only.
+   =================================================================== */
+.pcard.series { isolation: isolate; }
+.pcard.series .pc-art { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.pcard.series .pc-art::before, .pcard.series .pc-art::after { content: ''; position: absolute; pointer-events: none; }
+.pcard.series .pc-ovr, .pcard.series .pc-name { text-shadow: 1px 1px 0 rgba(0,0,0,0.55); }
+.pcard.series .pc-pos { border-color: var(--lt); }
+.pcard.series .pc-tier { background: var(--lt); color: var(--bg); letter-spacing: .06em; box-shadow: 0 0 0 1px rgba(0,0,0,0.35); }
+.pc-sbadge { position: absolute; z-index: 4; top: calc(var(--w) * 0.07); right: calc(var(--w) * 0.05); font-family: var(--display); font-weight: 700; font-size: calc(var(--w) * 0.075); line-height: 1;
+  padding: calc(var(--w) * 0.018) calc(var(--w) * 0.035); color: var(--bg); background: var(--lt); border-radius: calc(var(--w) * 0.02); box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 calc(var(--w) * 0.012) 0 rgba(0,0,0,0.35); }
+.pcard.sm .pc-sbadge { font-size: calc(var(--w) * 0.1); }
+/* the rare shine on every series card */
+.pcard.series .pc-shine::before { background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,0.42) 40% 45%, transparent 45% 48%, rgba(255,255,255,0.22) 48% 49%, transparent 49%); animation-duration: 2.4s; }
+
+/* ---- Future Stars: midnight blue, neon cyan / magenta, rotating holo */
+.pcard.s-future { --bg: #160d3f; --lt: #5ff0ff; --dk: #d24cff; --tx: #eafcff; --glow: rgba(95,240,255,0.65); --plate: rgba(0,0,0,0.35);
+  background: linear-gradient(170deg, #2a1470 0%, #160d3f 55%, #0b0626 100%); }
+.s-future .pc-art::before { left: 50%; top: 42%; width: 190%; aspect-ratio: 1; transform: translate(-50%, -50%);
+  background: conic-gradient(from 0deg, rgba(95,240,255,0.0), rgba(95,240,255,0.35), rgba(210,76,255,0.0), rgba(210,76,255,0.38), rgba(95,240,255,0.0)); animation: s-spin 7s linear infinite; }
+.s-future .pc-art::after { inset: 0; background:
+  radial-gradient(circle at 20% 22%, #fff 0 1px, transparent 1.6px), radial-gradient(circle at 76% 36%, #fff 0 1px, transparent 1.6px),
+  radial-gradient(circle at 34% 70%, #5ff0ff 0 1px, transparent 1.6px), radial-gradient(circle at 84% 78%, #d24cff 0 1px, transparent 1.6px),
+  linear-gradient(transparent 62%, rgba(95,240,255,0.18) 62% 63%, transparent 63% 70%, rgba(210,76,255,0.18) 70% 71%, transparent 71%);
+  animation: twinkle 1.8s ease-in-out infinite; }
+.s-future .pc-sbadge { background: linear-gradient(90deg, #5ff0ff, #d24cff); color: #0b0626; }
+
+/* ---- Team of the Week: black card, gold trim and pinstripes */
+.pcard.s-totw { --bg: #121216; --lt: #f2c64c; --dk: #8a6410; --tx: #f7e9b8; --glow: rgba(242,198,76,0.6); --plate: rgba(242,198,76,0.16);
+  background: linear-gradient(170deg, #26262e 0%, #121216 60%, #08080a 100%); }
+.s-totw .pc-art::before { inset: 0; background: repeating-linear-gradient(120deg, rgba(242,198,76,0.10) 0 1px, transparent 1px 7px); }
+.s-totw .pc-art::after { inset: calc(var(--w) * 0.04); border: 1px solid rgba(242,198,76,0.55); clip-path: polygon(0 6%, 6% 0, 94% 0, 100% 6%, 100% 92%, 50% 100%, 0 92%); }
+.s-totw .pc-ovr { color: #f2c64c; }
+
+/* ---- On Fire: deep red, flames licking up from the bottom */
+.pcard.s-fire { --bg: #5a0d06; --lt: #ffcf5a; --dk: #ff5a1f; --tx: #fff0d8; --glow: rgba(255,138,31,0.7); --plate: rgba(0,0,0,0.3);
+  background: linear-gradient(180deg, #8a1a0a 0%, #5a0d06 55%, #2a0602 100%); }
+.s-fire .pc-art::before { left: -10%; right: -10%; bottom: -8%; height: 70%; transform-origin: 50% 100%;
+  background:
+    radial-gradient(ellipse 18% 60% at 12% 100%, rgba(255,207,90,0.75), transparent 70%),
+    radial-gradient(ellipse 16% 75% at 34% 100%, rgba(255,138,31,0.7), transparent 70%),
+    radial-gradient(ellipse 20% 55% at 55% 100%, rgba(255,207,90,0.7), transparent 70%),
+    radial-gradient(ellipse 16% 80% at 76% 100%, rgba(255,90,31,0.75), transparent 70%),
+    radial-gradient(ellipse 18% 60% at 94% 100%, rgba(255,207,90,0.7), transparent 70%);
+  animation: s-flame 0.9s ease-in-out infinite alternate; }
+.s-fire .pc-art::after { left: -10%; right: -10%; bottom: -8%; height: 55%; transform-origin: 50% 100%;
+  background:
+    radial-gradient(ellipse 14% 70% at 22% 100%, rgba(255,90,31,0.6), transparent 70%),
+    radial-gradient(ellipse 16% 60% at 46% 100%, rgba(255,207,90,0.55), transparent 70%),
+    radial-gradient(ellipse 14% 75% at 66% 100%, rgba(255,138,31,0.6), transparent 70%),
+    radial-gradient(ellipse 14% 65% at 86% 100%, rgba(255,90,31,0.55), transparent 70%);
+  animation: s-flame 0.7s ease-in-out infinite alternate-reverse; }
+.s-fire .pc-sbadge { background: #ffcf5a; }
+@keyframes s-flame { from { transform: scaleY(0.82) translateX(-2%); opacity: .8; } to { transform: scaleY(1.08) translateX(2%); opacity: 1; } }
+
+/* ---- Icons: ivory marble, gold frame and a slow golden light sweep */
+.pcard.s-icon { --bg: #efe6d2; --lt: #c9a227; --dk: #8a6a10; --tx: #2a2010; --glow: rgba(255,226,140,0.8); --plate: rgba(201,162,39,0.22);
+  background: linear-gradient(170deg, #fffaf0 0%, #efe6d2 55%, #d8cbb0 100%); }
+.s-icon .pc-art::before { inset: 0; background:
+  linear-gradient(115deg, transparent 20%, rgba(150,130,100,0.18) 21%, transparent 23%),
+  linear-gradient(65deg, transparent 55%, rgba(150,130,100,0.14) 56%, transparent 58%),
+  linear-gradient(150deg, transparent 70%, rgba(150,130,100,0.16) 71%, transparent 73%),
+  radial-gradient(circle at 50% 30%, rgba(255,226,140,0.55), transparent 60%); }
+.s-icon .pc-art::after { inset: calc(var(--w) * 0.035); border: calc(var(--w) * 0.018) solid #c9a227; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.7);
+  clip-path: polygon(0 6%, 6% 0, 94% 0, 100% 6%, 100% 92%, 50% 100%, 0 92%); }
+.s-icon .pc-ovr, .s-icon .pc-name { text-shadow: 1px 1px 0 rgba(255,255,255,0.7); color: #5a4408; }
+.s-icon .pc-sbadge { background: linear-gradient(180deg, #ffe58a, #c9a227); color: #2a2010; }
+.s-icon .pc-tier { background: #2a2010; color: #ffe58a; }
+
+@keyframes s-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+.pcard.series::before { display: none; }
+.pcard.series { animation: none; }

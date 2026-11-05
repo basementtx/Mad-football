@@ -45,6 +45,7 @@ import './ui/career/career.css';
 import './ui/fit.css';
 import './ui/formation.css';
 import './ui/monetize.css';
+import './ui/series.css';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 let ctx = canvas.getContext('2d', { alpha: false })!;

@@ -1,5 +1,6 @@
 /** Collectible player card (pixel-art trading-card style). */
-import { CardData, overall, rarityOf, shortName, STAT_KEYS } from '../meta/cards';
+import { CardData, overall, rarityOf, shortName, STAT_KEYS, seriesDef } from '../meta/cards';
+import { settings } from '../engine/storage';
 import { t } from '../engine/i18n';
 import type { TeamDef } from '../game/teams';
 import { TEAMS } from '../game/teams';
@@ -21,8 +22,10 @@ export function cardHTML(c: CardData, o: CardOpts = {}) {
   const r = rarityOf(c);
   const kit = o.club ?? NEUTRAL;
   const ovr = overall(c);
+  const sd = c.custom ? undefined : seriesDef(c.series);
   return `
-  <div class="pcard r-${r} ${o.size ?? 'md'} ${o.selected ? 'sel' : ''} ${c.custom ? 'custom' : ''}" ${o.attrs ?? ''}>
+  <div class="pcard r-${r} ${o.size ?? 'md'} ${o.selected ? 'sel' : ''} ${c.custom ? 'custom' : ''} ${sd ? 'series s-' + sd.id : ''}" ${o.attrs ?? ''}>
+    ${sd ? `<div class="pc-art"></div><div class="pc-sbadge">${sd.short}</div>` : ''}
     <div class="pc-shine"></div>
     <div class="pc-top">
       <div class="pc-head">
@@ -36,7 +39,7 @@ export function cardHTML(c: CardData, o: CardOpts = {}) {
     <div class="pc-stats">
       ${STAT_KEYS.map((k) => `<span><b>${c.stats[k]}</b><i>${L.stat[k]}</i></span>`).join('')}
     </div>
-    <div class="pc-tier">${c.custom ? L.you : L.cardRarity[r]}</div>
+    <div class="pc-tier">${c.custom ? L.you : sd ? (settings.lang === 'tr' ? sd.name.tr : sd.name.en).toUpperCase() : L.cardRarity[r]}</div>
     ${o.badge ? `<div class="pc-badge">${o.badge}</div>` : ''}
   </div>`;
 }
