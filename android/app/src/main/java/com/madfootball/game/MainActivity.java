@@ -6,13 +6,16 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.WindowManager;
+import android.content.SharedPreferences;
 import android.webkit.JavascriptInterface;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
 import androidx.core.content.FileProvider;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.WebViewListener;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -36,6 +39,45 @@ public class MainActivity extends BridgeActivity {
         WebView wv = getBridge().getWebView();
         // the Google Play build is updated through the Play Store only
         if (BuildConfig.SELF_UPDATE) wv.addJavascriptInterface(new Updater(), "MFNative");
+        getBridge().addWebViewListener(new CrashGuard());
+    }
+
+    /**
+     * If Android kills or crashes the WebView's renderer (usually low memory mid-match),
+     * Capacitor's default lets the whole app die. Instead: note why, and rebuild the
+     * activity so the game comes back (saved progress lives in localStorage).
+     * The reason is written to mf.lastError, which Settings shows.
+     */
+    private class CrashGuard extends WebViewListener {
+        @Override
+        public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+            boolean crashed = Build.VERSION.SDK_INT >= 26 && detail != null && detail.didCrash();
+            String why = crashed ? "renderer crashed" : "renderer killed (low memory)";
+            getSharedPreferences("mf", MODE_PRIVATE).edit()
+                .putString("gone", why)
+                .putLong("goneAt", System.currentTimeMillis())
+                .apply();
+            runOnUiThread(() -> {
+                try {
+                    recreate();
+                } catch (Exception e) {
+                    finish();
+                }
+            });
+            return true;
+        }
+
+        @Override
+        public void onPageLoaded(WebView webView) {
+            SharedPreferences sp = getSharedPreferences("mf", MODE_PRIVATE);
+            String why = sp.getString("gone", null);
+            if (why == null) return;
+            long at = sp.getLong("goneAt", 0);
+            sp.edit().remove("gone").remove("goneAt").apply();
+            String js = "try{localStorage.setItem('mf.lastError',JSON.stringify({at:new Date(" + at + ").toISOString(),"
+                + "where:'android',msg:'" + why + " - game restarted',v:'native'}))}catch(e){}";
+            webView.evaluateJavascript(js, null);
+        }
     }
 
     @Override
