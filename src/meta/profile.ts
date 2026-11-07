@@ -148,8 +148,9 @@ export function saveProfile() {
   }
 }
 
-export const LINEUP_SLOTS = 5;
-export const SLOT_ROLES = ['GK', 'DEF', 'DEF', 'MID', 'FWD'] as const;
+/** 7v7: a keeper and six outfield players start */
+export const LINEUP_SLOTS = 7;
+export const SLOT_ROLES = ['GK', 'DEF', 'DEF', 'MID', 'MID', 'MID', 'FWD'] as const;
 
 /** Role of every lineup slot for a match size, from the chosen formation. */
 export function slotRoles(size = LINEUP_SLOTS): Role[] {
@@ -172,9 +173,23 @@ export function clubOverall() {
 
 /** Give a brand-new club a starting squad of bronze/silver players. */
 export function ensureStarterSquad() {
-  if (profile.cards.length >= LINEUP_SLOTS) return;
+  if (profile.cards.length >= LINEUP_SLOTS) {
+    // older clubs (5-a-side squads): fill the new starting places from the reserves,
+    // and top the squad up with young players so a full seven can start
+    let added = false;
+    while (profile.cards.length < LINEUP_SLOTS + 2) {
+      profile.cards.push(randomCard('bronze', profile.cards.length % 2 ? 'MID' : 'DEF'));
+      added = true;
+    }
+    if (added || profile.lineup.filter((id) => cardById(id)).length < LINEUP_SLOTS) {
+      autoLineup();
+      saveProfile();
+    }
+    return;
+  }
   const plan: [CardRarity, CardData['pos']][] = [
-    ['silver', 'GK'], ['bronze', 'DEF'], ['silver', 'DEF'], ['bronze', 'MID'], ['silver', 'FWD'], ['bronze', 'MID'], ['bronze', 'FWD'],
+    ['silver', 'GK'], ['bronze', 'DEF'], ['silver', 'DEF'], ['bronze', 'MID'], ['silver', 'MID'], ['bronze', 'MID'], ['silver', 'FWD'],
+    ['bronze', 'DEF'], ['bronze', 'FWD'], ['bronze', 'GK'],
   ];
   for (const [r, p] of plan) profile.cards.push(randomCard(r, p));
   autoLineup();
@@ -261,3 +276,6 @@ export function addCoins(n: number) {
 
 export const FREE_CRATE_EVERY = 4 * 60 * 60 * 1000;
 export const freeCrateReady = () => Date.now() >= profile.freeCrateAt;
+
+// clubs from the 5-a-side days: give them a full 7v7 squad on load
+if (profile.club) ensureStarterSquad();

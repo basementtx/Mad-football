@@ -105,14 +105,20 @@ export const saveSettings = () => save('mf.settings', settings);
 export const saveRecord = () => save('mf.record', record);
 
 export const lastSetup = load('mf.setup', {
-  home: -1, away: 1, size: 4, duration: 180, difficulty: 'normal' as string,
+  home: -1, away: 1, size: 7, duration: 180, difficulty: 'normal' as string,
   /** venue choices: an id or 'random' (see game/env.ts) */
   weather: 'random' as string, pitch: 'random' as string, stadium: 'random' as string,
-  v: 3,
+  v: 4,
 });
 // v0.3: home side defaults to the user's own club
 if ((lastSetup.v ?? 0) < 3) {
   lastSetup.home = -1;
   lastSetup.v = 3;
+}
+// v4: 7v7 is the main format
+if ((lastSetup.v ?? 0) < 4) {
+  lastSetup.size = 7;
+  lastSetup.v = 4;
+  save('mf.setup', lastSetup);
 }
 export const saveSetup = () => save('mf.setup', lastSetup);

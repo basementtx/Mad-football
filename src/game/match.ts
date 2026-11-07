@@ -82,6 +82,7 @@ const ROLES: Record<number, Role[]> = {
   3: ['GK', 'DEF', 'FWD'],
   4: ['GK', 'DEF', 'MID', 'FWD'],
   5: ['GK', 'DEF', 'DEF', 'MID', 'FWD'],
+  7: ['GK', 'DEF', 'DEF', 'MID', 'MID', 'MID', 'FWD'],
 };
 
 const rgb = (h: string) => {
@@ -103,6 +104,13 @@ function awayKit(home: TeamDef, away: TeamDef): TeamDef {
   const secondary = kitDist(primary, away.primary) > 120 ? away.primary : primary === '#1b1b22' ? '#f4f4f4' : '#1b1b22';
   return { ...away, id: away.id + '-alt', primary, secondary, shorts: secondary, socks: primary };
 }
+
+const rot2 = (x: number, y: number, a: number): [number, number] => {
+  const c = Math.cos(a), s = Math.sin(a);
+  return [x * c - y * s, x * s + y * c];
+};
+/** running flat out (sprint key / AI sprint and actually fast) */
+const sprintFlag = (p: Player) => p.wantSprint && !p.exhausted && Math.hypot(p.vx, p.vy) > 5;
 
 export class Match {
   pitch: Pitch;
@@ -1453,6 +1461,10 @@ export class Match {
 
   shootDir(p: Player, dx: number, dy: number, power: number, err: number, over = 0) {
     const speed = (14 + power * 18) * (0.92 + p.power * 0.16);
+    // off balance: at full sprint, or striking across the way the body is going
+    const run = Math.hypot(p.vx, p.vy);
+    const across = run > 1 ? (1 - (p.vx * dx + p.vy * dy) / (run * Math.hypot(dx, dy) || 1)) / 2 : 0;
+    err *= 1 + Math.min(1, run / PHYS.sprintSpeed) * 0.25 + across * Math.min(1, run / 5) * 0.8;
     const ang = Math.atan2(dy, dx) + gauss() * err;
     let vz = 0.6 + power * 2.3 + over * 38 * rand(0.8, 1.2);
     if (power > 0.9 && over === 0) vz += rand(0, 1.5);
@@ -1779,7 +1791,7 @@ export class Match {
     const b = this.ball;
     // ---- boxes
     if (!this.cfg.showcase) this.boxT -= dt;
-    const maxBoxes = this.cfg.size >= 5 ? 3 : 2;
+    const maxBoxes = this.cfg.size >= 7 ? 4 : this.cfg.size >= 5 ? 3 : 2;
     if (this.boxT <= 0) {
       this.boxT = rand(5, 9);
       if (this.boxes.length < maxBoxes) this.spawnBox();
@@ -2107,11 +2119,17 @@ export class Match {
 
   passTo(p: Player, q: Player, lob: boolean) {
     const d0 = dist(p.x, p.y, q.x, q.y);
+    // a pass is not a laser: pressure, a long ball, a sprint or passing across the body all cost accuracy
+    const run = Math.hypot(p.vx, p.vy);
+    const aim = Math.atan2(q.y - p.y, q.x - p.x);
+    const across = run > 1 ? (1 - Math.cos(aim - Math.atan2(p.vy, p.vx))) / 2 : 0;
+    const perr = p.isGK ? 0.01 : (0.008 + (1 - p.skill) * 0.03 + this.pressureOn(p) * 0.035 + d0 * 0.0006 + across * Math.min(1, run / 5) * 0.03) * (p.team.human ? 1 : 0.8);
     if (lob) {
       const T = clamp(0.65 + d0 * 0.035, 0.8, 1.6);
       const tx = q.x + q.vx * T * 0.8, ty = q.y + q.vy * T * 0.8;
       const d = dist(p.x, p.y, tx, ty);
-      const [ux, uy] = norm(tx - p.x, ty - p.y);
+      let [ux, uy] = norm(tx - p.x, ty - p.y);
+      [ux, uy] = rot2(ux, uy, gauss() * perr * 1.3);
       const h = (d / T) * 0.97;
       this.kick(p, ux * h, uy * h, (PHYS.gravity * T) / 2, 0.6);
     } else {
@@ -2120,7 +2138,8 @@ export class Match {
       const tx = q.x + q.vx * tt * 0.75, ty = q.y + q.vy * tt * 0.75;
       const d = dist(p.x, p.y, tx, ty);
       sp = clamp(8 + d * 0.72, 10, 25);
-      const [ux, uy] = norm(tx - p.x, ty - p.y);
+      let [ux, uy] = norm(tx - p.x, ty - p.y);
+      [ux, uy] = rot2(ux, uy, gauss() * perr);
       this.kick(p, ux * sp, uy * sp, 0.4, 0.35);
     }
     this.ball.passTarget = q;
@@ -2324,6 +2343,7 @@ export class Match {
     p.kickAnim = Math.max(0, p.kickAnim - dt);
     p.hitByFire = Math.max(0, p.hitByFire - dt);
     p.bite = Math.max(0, p.bite - dt);
+    p.touchT = Math.max(0, p.touchT - dt);
     const b = this.ball;
     const hasBall = b.owner === p;
     p.sprinting = false;
@@ -2437,7 +2457,9 @@ export class Match {
         const sprint = p.wantSprint && !p.exhausted && m > 0.3 && p.state !== 'sad';
         const diffMul = p.team.human ? 1 : p.team.diff.speedMul;
         let max = (sprint ? PHYS.sprintSpeed : PHYS.runSpeed) * (0.9 + p.pace * 0.18) * diffMul;
-        if (hasBall) max *= 0.93;
+        // with the ball: close control is slower, a sprint dribble pushes it out in front
+        if (hasBall) max *= sprintFlag(p) ? 0.92 : 0.86;
+        if (p.touchT > 0) max *= 0.82;
         if (p.chargeKind !== 'none') max *= 0.75;
         if (p.state === 'spin') max *= 1.12;
         if (p.turbo > 0) max *= 1.5;
@@ -2449,15 +2471,27 @@ export class Match {
         max *= this.ep.speed;
         const tvx = mx * max, tvy = my * max;
         let dvx = tvx - p.vx, dvy = tvy - p.vy;
-        const dv = Math.hypot(dvx, dvy);
-        const acc = (hasBall ? 26 : PHYS.accel) * this.ep.grip * dt;
-        if (dv > acc) {
-          dvx *= acc / dv;
-          dvy *= acc / dv;
+        // a body has momentum: it speeds up gradually, brakes harder than it accelerates
+        // and the faster it runs the wider it has to turn (skill moves cut sharper)
+        const spd0 = Math.hypot(p.vx, p.vy);
+        const g = this.ep.grip * dt * (p.move !== 'none' ? 1.6 : 1) * (p.state === 'spin' ? 1.4 : 1);
+        if (spd0 < 1.2) {
+          const dv = Math.hypot(dvx, dvy), acc = (hasBall ? 20 : 24) * g;
+          if (dv > acc) { dvx *= acc / dv; dvy *= acc / dv; }
+        } else {
+          const ux = p.vx / spd0, uy = p.vy / spd0;
+          let par = dvx * ux + dvy * uy;
+          let per = -dvx * uy + dvy * ux;
+          const up = (11 + p.pace * 7) * g, brake = (hasBall ? 20 : 25) * g;
+          const turn = (hasBall ? 17 : 22) * (1.15 - 0.55 * Math.min(1, spd0 / PHYS.sprintSpeed)) * (0.85 + p.skill * 0.3) * g;
+          par = clamp(par, -brake, up);
+          per = clamp(per, -turn, turn);
+          dvx = par * ux - per * uy;
+          dvy = par * uy + per * ux;
         }
         p.vx += dvx;
         p.vy += dvy;
-        if (m > 0.12 && p.move !== 'drag' && p.move !== 'bike' && p.move !== 'roulette' && !(p.move === 'stepover' && p.moveT < p.moveDur * 0.55)) p.face = rotateToward(p.face, Math.atan2(my, mx), (hasBall ? 11 : 16) * dt);
+        if (m > 0.12 && p.move !== 'drag' && p.move !== 'bike' && p.move !== 'roulette' && !(p.move === 'stepover' && p.moveT < p.moveDur * 0.55)) p.face = rotateToward(p.face, Math.atan2(my, mx), (hasBall ? 10 : 15) * (1.15 - 0.5 * Math.min(1, Math.hypot(p.vx, p.vy) / PHYS.sprintSpeed)) * dt);
         if (this.phase === 'play' && Math.random() < (sprint ? 0.25 : 0.06) * Math.min(1, Math.hypot(p.vx, p.vy) / 5)) {
           this.wear(p.x + rand(-0.15, 0.15), p.y + 0.15, p.isGK ? 0.3 : 0.2, sprint ? 12 : 7, 0);
         }
@@ -2655,8 +2689,14 @@ export class Match {
         b.y = o.y + o.diveDirY * 0.6;
         b.z = o.z + 0.3;
       } else {
-        let tx = o.x + o.faceX * PHYS.dribbleDist;
-        let ty = o.y + o.faceY * PHYS.dribbleDist;
+        // dribbling: close control at a jog, at full speed the ball is knocked a stride or
+        // two ahead and the player runs onto it (an exposed ball can be nicked)
+        const ospd = Math.hypot(o.vx, o.vy);
+        const fast = clamp((ospd - 5.2) / 3, 0, 1);
+        const stride = ((o.runPhase / (Math.PI * 4)) % 1 + 1) % 1;
+        const reach = PHYS.dribbleDist - 0.07 + fast * (0.3 + (1 - stride) * (0.75 - o.skill * 0.3));
+        let tx = o.x + o.faceX * reach;
+        let ty = o.y + o.faceY * reach;
         const mk = o.moveT / Math.max(0.01, o.moveDur);
         if (o.move === 'roulette') {
           // the sole rolls the ball round the body while he turns
@@ -2673,7 +2713,8 @@ export class Match {
           tx = o.x + o.moveFX * 0.42;
           ty = o.y + o.moveFY * 0.42;
         }
-        const k = 1 - Math.exp(-25 * dt);
+        // the faster he runs, the more the ball lags in a turn
+        const k = 1 - Math.exp(-(25 - fast * 13) * dt);
         b.x += (tx - b.x) * k;
         b.y += (ty - b.y) * k;
         b.z = Math.abs(Math.sin(o.runPhase * 0.5)) * 0.14;
@@ -2950,7 +2991,26 @@ export class Match {
         this.airTouch(p);
         return;
       }
+      // first touch: a firm ball is harder to kill. A poor touch runs a yard or two away
+      const hard = rel / limit;
+      if (!p.isGK && hard > 0.62 && Math.random() < clamp((hard - 0.62) * 2.2 * (1.25 - p.skill), 0, 0.75)) {
+        const [mxd, myd] = norm(b.vx * 0.5 + p.vx, b.vy * 0.5 + p.vy);
+        const sp = 3 + rel * 0.18;
+        b.vx = mxd * sp + rand(-1, 1);
+        b.vy = myd * sp + rand(-1, 1);
+        b.vz = Math.max(b.vz, 1.2);
+        b.lockPlayer = p;
+        b.lockTime = 0.22;
+        b.prevTouch = b.lastTouch;
+        b.lastTouch = p;
+        b.shotBy = null;
+        b.passTarget = p;
+        audio.touch();
+        return;
+      }
       this.setOwner(p);
+      // cushioning it takes a moment
+      p.touchT = clamp(hard, 0, 1) * 0.3;
     }
   }
 

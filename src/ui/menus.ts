@@ -79,7 +79,7 @@ export function showSetup(h: MenuHandlers) {
         <div class="options">
           <div class="opt">
             <div class="opt-label">${L.teamSize}</div>
-            <div class="seg">${[3, 4, 5].map((n) => `<button class="${lastSetup.size === n ? 'on' : ''}" data-size="${n}">${n}v${n}</button>`).join('')}</div>
+            <div class="seg">${[3, 4, 5, 7].map((n) => `<button class="${lastSetup.size === n ? 'on' : ''}" data-size="${n}">${n}v${n}</button>`).join('')}</div>
           </div>
           <div class="opt">
             <div class="opt-label">${L.duration}</div>

@@ -28,7 +28,7 @@ function formationPitch(f: Formation) {
 }
 
 /** Formation picker: one choice per match size (3v3 / 4v4 / 5v5). */
-export function showFormations(h: MenuHandlers, size = FORMATIONS[lastSetup.size] ? lastSetup.size : 5) {
+export function showFormations(h: MenuHandlers, size = FORMATIONS[lastSetup.size] ? lastSetup.size : 7) {
   const cur = formationFor(size, profile.formations?.[size]);
   setScreen(
     'screen-formation',
@@ -38,7 +38,7 @@ export function showFormations(h: MenuHandlers, size = FORMATIONS[lastSetup.size
         <div class="panel-title">${L2('FORMATION', 'DİZİLİŞ')}</div>
         <div class="fm-cur">${cur.id}</div>
       </div>
-      <div class="tabs">${[3, 4, 5].map((n) => `<button class="tab ${n === size ? 'on' : ''}" data-size="${n}">${n}v${n} <small>${formationFor(n, profile.formations?.[n]).id}</small></button>`).join('')}</div>
+      <div class="tabs">${[7, 5, 4, 3].map((n) => `<button class="tab ${n === size ? 'on' : ''}" data-size="${n}">${n}v${n} <small>${formationFor(n, profile.formations?.[n]).id}</small></button>`).join('')}</div>
       <div class="fm-grid">
         ${FORMATIONS[size].map((f) => `<button class="fm-card ${f.id === cur.id ? 'on' : ''}" data-fm="${f.id}">
           ${formationPitch(f)}
@@ -220,7 +220,7 @@ export function showSquad(h: MenuHandlers) {
         <div class="panel-head">
           <button class="btn btn-ghost btn-sm" data-act="back">‹ ${L.back}</button>
           <div class="squad-title">${crestTag(club, 'crest-sm')}<span>${esc(club.name)}</span><small>${L.ovr} ${clubOverall()}</small></div>
-          <div class="sq-acts"><button class="btn btn-primary btn-sm" data-act="formation">⚽ ${L2('FORMATION', 'DİZİLİŞ')} <small>${formationFor(5, profile.formations?.[5]).id}</small></button><button class="btn btn-ghost btn-sm" data-act="edit">${L.editClub}</button></div>
+          <div class="sq-acts"><button class="btn btn-primary btn-sm" data-act="formation">⚽ ${L2('FORMATION', 'DİZİLİŞ')} <small>${formationFor(7, profile.formations?.[7]).id}</small></button><button class="btn btn-ghost btn-sm" data-act="edit">${L.editClub}</button></div>
         </div>
         <div class="chem-bar" style="--cc:${chemColor(teamChem())}"><b>${L.chemistry}</b><div class="cb"><i style="width:${teamChem()}%"></i></div><span>${teamChem()}</span><small>${esc(L.chemHint)}</small></div>
         <div class="sec-label">${L.lineup} <small>${L.slotsHint}</small></div>

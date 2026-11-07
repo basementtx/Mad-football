@@ -419,8 +419,8 @@ function carrierAI(m: Match, p: Player, decide: boolean) {
 
     // --- shoot when it is worth it (better players and smarter teams pick their moments)
     const xg = shotValue(m, p);
-    const bar = 0.2 - iq * 0.04 + d.passiveness * 0.08 - pressure * 0.06 - mentK(team) * 0.015;
-    const range = 15.5 + p.power * 7.5;
+    const bar = 0.17 - iq * 0.04 + d.passiveness * 0.08 - pressure * 0.06 - mentK(team) * 0.015;
+    const range = 17 + p.power * 8;
     if (inFront && (dGoal < 6.5 || xg > bar || (dGoal < range && chance(0.03 + (1 - iq) * 0.05)))) {
       // aim away from the keeper, toward where he is NOT moving
       const ky = gk ? gk.y + gk.vy * 0.25 : 0;

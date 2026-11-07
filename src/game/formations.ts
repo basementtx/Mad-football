@@ -45,6 +45,19 @@ export const FORMATIONS: Record<number, Formation[]> = {
     { id: '1-1-2', roles: ['DEF', 'MID', 'FWD', 'FWD'], spots: [[-0.5, 0], [-0.1, 0], [0.22, -0.42], [0.22, 0.42]],
       name: { tr: 'Saldırı', en: 'Attack' }, desc: { tr: 'Önde iki forvet, arkada tek defans.', en: 'Two strikers, a single defender.' } },
   ],
+  // 7v7: six outfield players
+  7: [
+    { id: '2-3-1', roles: ['DEF', 'DEF', 'MID', 'MID', 'MID', 'FWD'], spots: [[-0.55, -0.32], [-0.55, 0.32], [-0.18, -0.62], [-0.22, 0], [-0.18, 0.62], [0.22, 0]],
+      name: { tr: 'Klasik', en: 'Classic' }, desc: { tr: 'İki stoper, üçlü orta saha, santrfor.', en: 'Two centre-backs, a midfield three, a striker.' } },
+    { id: '3-2-1', roles: ['DEF', 'DEF', 'DEF', 'MID', 'MID', 'FWD'], spots: [[-0.56, -0.5], [-0.6, 0], [-0.56, 0.5], [-0.2, -0.32], [-0.2, 0.32], [0.22, 0]],
+      name: { tr: 'Üçlü Savunma', en: 'Back Three' }, desc: { tr: 'Sağlam arka hat, iki merkez orta saha.', en: 'A solid back line, two central midfielders.' } },
+    { id: '2-2-2', roles: ['DEF', 'DEF', 'MID', 'MID', 'FWD', 'FWD'], spots: [[-0.55, -0.32], [-0.55, 0.32], [-0.2, -0.45], [-0.2, 0.45], [0.2, -0.3], [0.2, 0.3]],
+      name: { tr: 'İkili Forvet', en: 'Twin Strikers' }, desc: { tr: 'Her hatta iki oyuncu, önde ikili.', en: 'Two in every line, a strike pair.' } },
+    { id: '2-1-2-1', roles: ['DEF', 'DEF', 'MID', 'MID', 'MID', 'FWD'], spots: [[-0.56, -0.34], [-0.56, 0.34], [-0.34, 0], [-0.08, -0.55], [-0.08, 0.55], [0.24, 0]],
+      name: { tr: 'Elmas', en: 'Diamond' }, desc: { tr: 'Ön libero, iki kanat, santrfor.', en: 'A holding midfielder, two wide men, a striker.' } },
+    { id: '3-1-2', roles: ['DEF', 'DEF', 'DEF', 'MID', 'FWD', 'FWD'], spots: [[-0.56, -0.5], [-0.6, 0], [-0.56, 0.5], [-0.24, 0], [0.18, -0.32], [0.18, 0.32]],
+      name: { tr: 'Kontra', en: 'Counter' }, desc: { tr: 'Geride üçlü, önde hızlı ikili.', en: 'Three at the back, a quick pair up top.' } },
+  ],
 };
 
 /** The formation `id` for a match size (falls back to the classic one). */

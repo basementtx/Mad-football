@@ -22,19 +22,20 @@ export interface Pitch {
 }
 
 export function makePitch(size: number): Pitch {
-  const s = size <= 3 ? 0.84 : size === 4 ? 1 : 1.14;
+  // 7v7: a proper mid-size pitch (about 100 x 61 m inside the boards)
+  const s = size <= 3 ? 0.84 : size === 4 ? 1 : size === 5 ? 1.14 : 1.39;
   // a wider pitch (36 x 22 half-size) leaves room to pass and to play tactics, and a
   // wider goal (9.2 m) gives curled and placed shots a real target
   return {
     hw: 36 * s,
     hh: 22 * s,
-    goalHalf: 4.6,
+    goalHalf: size >= 7 ? 5.0 : 4.6,
     goalDepth: 2.3,
     goalHeight: 2.6,
     boxDepth: 9.2 * s,
     boxHalf: 10.8 * s,
-    smallDepth: 3.4,
-    smallHalf: 6.6,
+    smallDepth: 3.4 * Math.max(1, s * 0.85),
+    smallHalf: 6.6 * Math.max(1, s * 0.85),
     centerR: 5.4 * s,
     margin: 1.7,
     area: 36 / 30,
@@ -221,6 +222,8 @@ export class Player {
   bite = 0;
   biteX = 0;
   biteY = 0;
+  /** cushioning a first touch (seconds): a little slower */
+  touchT = 0;
   /** human holding PRESS this frame: contains instead of diving in */
   pressing = false;
   diveDirX = 0;

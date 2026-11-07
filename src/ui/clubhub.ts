@@ -22,7 +22,7 @@ export function showClubHub(h: MenuHandlers) {
   const club = clubTeamDef();
   if (!club) return showHub(h);
   const me = cardById(profile.myPlayer);
-  const f5 = formationFor(5, profile.formations?.[5]);
+  const f5 = formationFor(7, profile.formations?.[7]);
   const best = Object.values(honours.cards).sort((a, b) => legendScore(b) - legendScore(a))[0];
   const trophies = honours.trophies.length;
   const facSum = (['stadium', 'training', 'fitness', 'academy', 'scouting'] as const).reduce((a, id) => a + facLevel(id), 0);
@@ -38,7 +38,7 @@ export function showClubHub(h: MenuHandlers) {
       </div>
       <div class="ch-grid">
         <button class="tile ch-t" data-go="squad"><div class="tile-art">${crestTag(club, 'crest-lg')}</div><div class="tile-label">${t().squad}</div><small>${profile.cards.length} ${L2('players', 'oyuncu')}</small></button>
-        <button class="tile ch-t" data-go="formation"><div class="tile-art"><div class="ch-pitch">${dots}<i class="ch-dot r-GK" style="left:6%;top:50%"></i></div></div><div class="tile-label">${L2('Formation', 'Diziliş')}</div><small>5v5 ${f5.id}</small></button>
+        <button class="tile ch-t" data-go="formation"><div class="tile-art"><div class="ch-pitch">${dots}<i class="ch-dot r-GK" style="left:6%;top:50%"></i></div></div><div class="tile-label">${L2('Formation', 'Diziliş')}</div><small>7v7 ${f5.id}</small></button>
         <button class="tile ch-t ${gradReady ? 'has-badge' : ''}" data-go="facilities"><div class="tile-art"><span class="ch-emoji">🏟️</span></div><div class="tile-label">${L2('Facilities', 'Tesisler')}</div><small>${stadiumSeats(facLevel('stadium')).toLocaleString(settings.lang === 'tr' ? 'tr-TR' : 'en-US')} ${L2('seats', 'koltuk')} · ${L2('lv', 'sv')} ${facSum}/25</small>${gradReady ? `<div class="badge">🎓</div>` : ''}</button>
         <button class="tile ch-t" data-go="cabinet"><div class="tile-art">${paintTag(() => trophyCanvas('cup', club.primary), 'ch-trophy')}</div><div class="tile-label">${L2('Trophy Cabinet', 'Kupa Dolabı')}</div><small>${trophies} ${L2('trophies', 'kupa')}</small></button>
         <button class="tile ch-t" data-go="legends"><div class="tile-art">${best?.look ? paintTag(portraitSource(lookFor(club, best.look as CardLook, best.pos === 'GK')), 'ch-face') : '<span class="ch-emoji">⭐</span>'}</div><div class="tile-label">${L2('Legends & Records', 'Efsaneler & Rekorlar')}</div><small>${best ? esc(best.name) : L2('make history', 'tarih yaz')}</small></button>

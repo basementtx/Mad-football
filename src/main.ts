@@ -122,7 +122,7 @@ function newDemo() {
   let b = Math.floor(Math.random() * TEAMS.length);
   if (b === a) b = (a + 1) % TEAMS.length;
   demoEnv ??= resolveEnv('random', 'random', 'random');
-  demo = new Game({ home: TEAMS[a], away: TEAMS[b], size: 4, duration: 90, difficulty: 'hard', demo: true, env: demoEnv }, null);
+  demo = new Game({ home: TEAMS[a], away: TEAMS[b], size: 7, duration: 90, difficulty: 'hard', demo: true, env: demoEnv }, null);
   // menu backdrop: a calm stadium (players warming up), not a running match
   demo.ambient = true;
   demo.resize(W, H);

@@ -66,6 +66,11 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 
 ## Oynanış mekanikleri (son güncelleme)
 
+- **7v7 ana format**: ~100 x 61 m saha (panolar kalıyor), 5 diziliş (2-3-1, 3-2-1, 2-2-2, 2-1-2-1, 3-1-2), 7 kişilik ilk on bir ve yedekler. 3v3/4v4/5v5 hâlâ seçilebilir; kariyer modu şimdilik 5v5.
+- **Gerçekçi hareket**: oyuncuların ataleti var; yavaş hızlanır, sert fren yapar, hızlıyken geniş döner (teknik değeri yüksek olan daha keskin). Top sürerken yakın kontrol yavaş ama çevik; depar atarken top bir iki adım öne itilir ve rakip araya girebilir, dönüşlerde top geride kalır.
+- **İlk dokunuş**: sert gelen topu öldürmek zordur; tekniği düşük oyuncunun kötü dokunuşu topu bir iki metre açar.
+- **Denge**: tam deparda ya da vücudun gittiği yönün tersine vurulan şut ve pas daha az isabetli; baskı altında, uzun pasta da isabet düşer.
+
 - **Daha geniş saha ve kale**: saha ~%9 büyüdü (pas ve taktik için alan), kale 7.4 m'den 9.2 m'ye genişledi; falsolu şutların gerçek bir hedefi var. Kaleciler daha uzağa ve daha hızlı plonjon yapıyor.
 - **Kaleci artık geçilemiyor**: top süren oyuncuya çıkar, açıyı kapatır ve ayağına yatarak topu kapar. Sadece top sürerek kaleciyi geçip gol atmak artık işe yaramıyor; doğru anda çalım atarsan şansın var.
 - **Pas karşılama ve topa koşma**: sana gelen pasa, yakındaki boştaki topa ve joystick'le yöneldiğin topa oyuncun topun şu anki yerine değil, onu karşılayabileceği noktaya koşar; uzaktaysa kendiliğinden depar atar. Joystick'i açıkça başka yöne itersen seni dinler.
