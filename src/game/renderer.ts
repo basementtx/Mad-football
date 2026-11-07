@@ -875,10 +875,12 @@ export class Renderer {
         case 'dhead': return 'dhead';
         case 'volley': return 'volley';
         case 'head': return 'header';
-        case 'stepover': if (k < p.moveDur * 0.45) return Math.floor(k / 0.07) % 2 ? 'step0' : 'step1'; break;
+        case 'stepover': if (k < p.moveDur * 0.55) return Math.floor(k / 0.085) % 2 ? 'step0' : 'step1'; break;
         case 'flick': if (k < 0.2) return 'flick'; break;
-        case 'drag': if (k < p.moveDur * 0.4) return 'drag'; break;
-        case 'roulette': return Math.floor(k / 0.08) % 2 ? 'step1' : 'drag';
+        case 'drag': if (k < p.moveDur * 0.45) return 'drag'; break;
+        case 'roulette': return Math.floor(k / 0.09) % 2 ? 'step1' : 'drag';
+        case 'nutmeg': if (k < 0.12) return 'kick1'; break;
+        case 'knock': if (k < 0.12) return 'kick0'; break;
       }
     }
     switch (p.state) {
@@ -941,14 +943,6 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
     drawPlayer(ctx, look, frame, dir, x, y, flash, left);
-    if (p.beaten > 0 && p.state === 'run' && !this.m.replaying) {
-      // wrong-footed: little stars spinning round the head
-      for (let i = 0; i < 3; i++) {
-        const a = time * 9 + (i * Math.PI * 2) / 3;
-        ctx.fillStyle = i ? '#ffe14d' : '#ffffff';
-        ctx.fillRect(Math.round(x + Math.cos(a) * 6), Math.round(y - 33 + Math.sin(a) * 2), 2, 2);
-      }
-    }
     if (p.frozen > 0) {
       // ice block around the frozen player
       const lying = p.state === 'down' || p.state === 'recover';

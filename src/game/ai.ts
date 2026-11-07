@@ -222,6 +222,13 @@ export function runTeamAI(m: Match, team: Team, dt: number) {
     const decide = p.aiTimer <= 0;
     if (decide) p.aiTimer = team.diff.react * rand(0.7, 1.3);
 
+    // bought a skill move: his weight is going the wrong way for a moment
+    if (p.bite > 0) {
+      p.ix = p.biteX;
+      p.iy = p.biteY;
+      p.wantSprint = false;
+      return;
+    }
     if (dodgeHazards(m, p)) return;
     if (keeperHolds) return retreatAI(m, p);
     if (p === cutter) return moveTo(p, cutAt[0], cutAt[1], true, 0.3);
@@ -696,6 +703,11 @@ function gkAI(m: Match, g: Player, dt: number) {
     g.ix = g.iy = 0;
     return;
   }
+  if (g.bite > 0) {
+    g.ix = g.biteX * 0.7;
+    g.iy = g.biteY * 0.7;
+    return;
+  }
 
   // distribution: wait until the box is clear, then pick a safe target
   if (b.owner === g) {
@@ -766,7 +778,7 @@ function gkAI(m: Match, g: Player, dt: number) {
       const bx = b.x + o.vx * 0.18 + gx * 0.35, by = b.y + o.vy * 0.18 + gy * 0.35;
       moveTo(g, bx, by, true, 0.25);
       const close = dd < 2.9 && dd > 0.7;
-      if (close && g.canAct && g.beaten <= 0 && inBox(o.x, o.y) && chance((1.2 + iqOf(team) * 1.6 + g.skill * 1.2) * dt)) {
+      if (close && g.canAct && g.bite <= 0 && inBox(o.x, o.y) && chance((1.2 + iqOf(team) * 1.6 + g.skill * 1.2) * dt)) {
         m.dive(g, b.x + o.vx * 0.12, b.y + o.vy * 0.12);
       }
       return;

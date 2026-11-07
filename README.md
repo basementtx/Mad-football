@@ -68,10 +68,11 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 
 - **Daha geniş saha ve kale**: saha ~%9 büyüdü (pas ve taktik için alan), kale 7.4 m'den 9.2 m'ye genişledi; falsolu şutların gerçek bir hedefi var. Kaleciler daha uzağa ve daha hızlı plonjon yapıyor.
 - **Kaleci artık geçilemiyor**: top süren oyuncuya çıkar, açıyı kapatır ve ayağına yatarak topu kapar. Sadece top sürerek kaleciyi geçip gol atmak artık işe yaramıyor; doğru anda çalım atarsan şansın var.
-- **Pas karşılama**: sana gelen pasa ve yakındaki boştaki topa oyuncun kendiliğinden koşar (joystick yönü yine senin).
+- **Pas karşılama ve topa koşma**: sana gelen pasa, yakındaki boştaki topa ve joystick'le yöneldiğin topa oyuncun topun şu anki yerine değil, onu karşılayabileceği noktaya koşar; uzaktaysa kendiliğinden depar atar. Joystick'i açıkça başka yöne itersen seni dinler.
 - **Bitiriciler**: havadaki topa ŞUT: kafa, koşarak gelirken balıklama, alçak topa vole, sırtın kaleye dönükken rövaşata. Ağır çekim, parıltı izi ve gol yazısında hareketin adı.
-- **Çalımlar**: büyük tuşu bir yöne kaydır: ileri şapka, yana makas (rakip dibindeyse rulet), geri top çekme. Geçilen rakip sendeler, kayamaz, topu kapamaz; hayalet iz efekti.
-- **Ara pas** ve **baskı** tuşu.
+- **Çalımlar**: büyük tuşu bir yöne kaydır. İleri: dibindeki rakibe bacak arası, biraz uzaktakine şapka, boşlukta topu öne atma; yana: makas; geri-yana: rulet (top vücudun etrafında döner); geri: top çekme. Her hareketin top yolu ve vücut hareketi farklı. Kimse sersemlemez: çalımı yiyen savunmacı ağırlığını yanlış tarafa verir ya da momentumuyla geçer, dönene kadar ara açılır.
+- **Ara pas** ve **baskı** tuşu. Baskı rakibi kale tarafından bir kol mesafesinden karşılar; topu kendiliğinden almaz, kayma/itme ile zamanlamak gerekir.
+- **Kaleci elden bırakınca** (atış ya da vole) top önünde duran rakibe çarpıp ona geçmez; önü kapalıysa kaleci topu üstünden atar.
 
 ## Kontroller
 

@@ -84,9 +84,9 @@ export const DIFF: Record<Difficulty, DiffParams> = {
 };
 
 /** finishers (bike = bicycle kick, dhead = diving header, volley, head) and skill moves */
-export type MoveKind = 'none' | 'head' | 'dhead' | 'volley' | 'bike' | 'roulette' | 'stepover' | 'flick' | 'drag';
-export const MOVES: MoveKind[] = ['none', 'head', 'dhead', 'volley', 'bike', 'roulette', 'stepover', 'flick', 'drag'];
-export const isSkillMove = (m: MoveKind) => m === 'roulette' || m === 'stepover' || m === 'flick' || m === 'drag';
+export type MoveKind = 'none' | 'head' | 'dhead' | 'volley' | 'bike' | 'roulette' | 'stepover' | 'flick' | 'drag' | 'nutmeg' | 'knock';
+export const MOVES: MoveKind[] = ['none', 'head', 'dhead', 'volley', 'bike', 'roulette', 'stepover', 'flick', 'drag', 'nutmeg', 'knock'];
+export const isSkillMove = (m: MoveKind) => m === 'roulette' || m === 'stepover' || m === 'flick' || m === 'drag' || m === 'nutmeg' || m === 'knock';
 
 export type PState = 'run' | 'slide' | 'down' | 'recover' | 'shove' | 'spin' | 'dive' | 'celebrate' | 'sad';
 export type Role = 'GK' | 'DEF' | 'MID' | 'FWD';
@@ -211,11 +211,18 @@ export class Player {
   move: MoveKind = 'none';
   moveT = 0;
   moveDur = 0;
-  /** skill move: direction of the burst and the defenders it already beat */
+  /** skill move: direction of the burst, the facing it started from, which side it goes */
   moveX = 0;
   moveY = 0;
-  /** wrong-footed by a skill move: slow and can't tackle (seconds) */
-  beaten = 0;
+  moveFX = 1;
+  moveFY = 0;
+  moveSide = 1;
+  /** bought a skill move: his weight goes the wrong way for a moment (seconds, direction) */
+  bite = 0;
+  biteX = 0;
+  biteY = 0;
+  /** human holding PRESS this frame: contains instead of diving in */
+  pressing = false;
   diveDirX = 0;
   diveDirY = 0;
 
@@ -339,6 +346,8 @@ export class Ball {
   /** skin tier of the active power shot */
   tier = 1;
   trail: { x: number; y: number; z: number }[] = [];
+  /** the keeper just released it from his hands: rivals can't touch it for a moment */
+  clearT = 0;
   /** a flick over a defender: only its owner may collect it until the timer runs out */
   skillBy: Player | null = null;
   skillT = 0;
@@ -367,6 +376,7 @@ export class Ball {
     this.trail.length = 0;
     this.skillBy = null;
     this.skillT = 0;
+    this.clearT = 0;
     this.finisher = 'none';
     this.finisherT = 0;
     this.kickAge = 10;

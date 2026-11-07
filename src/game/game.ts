@@ -114,19 +114,18 @@ export class Game {
     if (keeper) { aText = L.punt; aIc = 'punt'; }
     else if (hasBall) { aText = L.shoot; aIc = 'shoot'; }
     else if (aerial) { aText = L.header; aIc = 'header'; }
-    // THROUGH key: a through ball on the ball, press / shove without it
-    let dText = L.press;
-    let dIc = 'press';
-    if (hasBall) { dText = L.through; dIc = 'through'; }
     else if (h) {
       for (const q of m.teams[1].players) {
         if (!q.isGK && q.state !== 'down' && dist(h.x, h.y, q.x, q.y) < 1.75) {
-          dText = L.shove;
-          dIc = 'shove';
+          aText = L.shove;
+          aIc = 'shove';
           break;
         }
       }
     }
+    // THROUGH key: a through ball on the ball, press / shove without it
+    const dText = hasBall ? L.through : L.press;
+    const dIc = hasBall ? 'through' : 'press';
     const it = team.item ? itemById('pw_' + team.item) : null;
     const usable = !!h && m.canUseItem(h);
     return {
