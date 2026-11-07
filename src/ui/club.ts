@@ -1,7 +1,7 @@
 /** Club editor (create / edit) and squad / lineup management. */
 import { t } from '../engine/i18n';
 import { audio } from '../engine/audio';
-import { profile, saveProfile, Club, clubTeamDef, ensureStarterSquad, lineupCards, LINEUP_SLOTS, clubOverall, cardById } from '../meta/profile';
+import { profile, saveProfile, Club, clubTeamDef, ensureStarterSquad, lineupCards, LINEUP_SLOTS, clubOverall, cardById, slotRoles } from '../meta/profile';
 import { overall } from '../meta/cards';
 import { CREST_SHAPES, ICON_IDS, crestCanvas } from '../pixel/crest';
 import type { KitPattern, TeamDef } from '../game/teams';
@@ -214,6 +214,8 @@ export function showSquad(h: MenuHandlers) {
     const lineup = lineupCards();
     const inLineup = new Set(profile.lineup);
     const reserves = profile.cards.filter((c) => !inLineup.has(c.id)).sort((a, b) => overall(b) - overall(a));
+    // the position each slot asks for in the chosen formation
+    const roles = slotRoles(LINEUP_SLOTS);
     setScreen(
       'screen-squad',
       `<div class="squad">
@@ -227,13 +229,15 @@ export function showSquad(h: MenuHandlers) {
         <div class="lineup">
           ${Array.from({ length: LINEUP_SLOTS }, (_, i) => {
             const c = lineup[i];
+            const role = roles[i] ?? 'MID';
+            const roleOk = !c || c.pos === role;
             let chem = '';
             if (c) {
               const ci = playerChem(c, i);
-              const tip = ci.wrongGK ? L.chemGK : !ci.posOk ? L.chemWrongPos : '';
+              const tip = ci.wrongGK ? L.chemGK : !ci.posOk ? `${L.chemWrongPos} · ${L2('needs', 'olmalı:')} ${L.pos[role]}` : '';
               chem = `<div class="chem-dots" title="${familiarity(c.id)} ${L.chemGames}">${'◆'.repeat(ci.points)}<span>${'◆'.repeat(3 - ci.points)}</span>${tip ? `<em>${esc(tip)}</em>` : ''}</div>`;
             }
-            return `<div class="slot ${sel === i ? 'sel' : ''}" data-slot="${i}"><div class="slot-n">${i + 1}</div>${c ? cardHTML(c, { club, size: 'md', selected: sel === i }) : '<div class="empty-slot">+</div>'}${chem}</div>`;
+            return `<div class="slot ${sel === i ? 'sel' : ''}" data-slot="${i}"><div class="slot-n">${i + 1}<b class="slot-role ${roleOk ? '' : 'bad'}">${esc(L.pos[role])}</b></div>${c ? cardHTML(c, { club, size: 'md', selected: sel === i }) : '<div class="empty-slot">+</div>'}${chem}</div>`;
           }).join('')}
         </div>
         <div class="sec-label">${L.reserves} <small>${sel !== null ? L.tapSlot : ''}</small></div>

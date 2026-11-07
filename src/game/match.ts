@@ -1,6 +1,6 @@
 import { FORMATIONS, formationFor, aiFormation } from './formations';
 import { Mentality, MENTALITIES } from './entities';
-import { Ball, Bomb, Bullet, DIFF, Difficulty, makePitch, MysteryBox, PHYS, Pitch, Player, PState, Role, Team, MoveKind, MOVES, isSkillMove } from './entities';
+import { Ball, Bomb, Bullet, DIFF, Difficulty, makePitch, MysteryBox, PHYS, paceMul, Pitch, Player, PState, Role, Team, MoveKind, MOVES, isSkillMove } from './entities';
 import { TeamDef } from './teams';
 import { FX } from './fx';
 import { audio, vibrate } from '../engine/audio';
@@ -662,7 +662,7 @@ export class Match {
     }
 
     // auto switch while defending / loose ball
-    if (!lock && settings.autoSwitch && (!b.owner || b.owner.team !== team) && this.time - this.lastSwitch > 0.9 && h.chargeKind === 'none') {
+    if (!lock && settings.autoSwitch && (!b.owner || b.owner.team !== team) && this.time - this.lastSwitch > 0.9 && h.chargeKind === 'none' && h.volleyT <= 0) {
       const target = b.passTarget && b.passTarget.team === team && !b.passTarget.isGK ? b.passTarget : null;
       if (target && target !== h) this.setHuman(target);
       else if (!target) {
@@ -755,11 +755,11 @@ export class Match {
         this.lockX = ndx;
         this.lockY = ndy;
         this.curl = 0;
-      } else if (!b.owner && (b.z > 0.45 || b.vz > 2) && dist(hp.x, hp.y, b.x, b.y) < 3.2) {
-        hp.volleyT = 0.5;
-      } else if (!b.owner && b.cross && b.lastTouch?.team === team && (b.z > 0.3 || b.vz > 1) && dist(hp.x, hp.y, b.x, b.y) < 12) {
-        // attack the incoming cross / lofted ball: a finisher when it arrives
-        hp.volleyT = 1.1;
+      } else if (this.oneTimerChance(hp)) {
+        // a ball on its way to you (pass, cross, lofted ball, loose ball in the air):
+        // SHOOT arms a first-time finish - a volley / header in the air, a one-timer on the ground
+        const d = dist(hp.x, hp.y, b.x, b.y);
+        hp.volleyT = clamp(d / Math.max(6, b.speed) + 0.55, 0.6, 1.8);
       } else {
         this.tackleAction(hp, ndx, ndy, stick);
       }
@@ -768,7 +768,7 @@ export class Match {
       if (!hasBall || !hp.canAct) {
         hp.chargeKind = 'none';
       } else if (inp.btn.a.down) {
-        hp.charge = Math.min(1.3, hp.charge + dt / 0.85);
+        hp.charge = Math.min(1.3, hp.charge + dt / (hp.charge < 1 ? 0.5 : 0.8));
       } else {
         const power = 0.3 + Math.min(1, hp.charge) * 0.7;
         const over = Math.max(0, hp.charge - 1);
@@ -794,7 +794,7 @@ export class Match {
     }
     if (hp.chargeKind === 'pass') {
       if (!hasBall || !hp.canAct) hp.chargeKind = 'none';
-      else if (inp.btn.b.down) hp.charge = Math.min(1, hp.charge + dt / 0.7);
+      else if (inp.btn.b.down) hp.charge = Math.min(1, hp.charge + dt / 0.42);
       else if (inp.btn.b.flick && !keeper) {
         // swipe up: the only way to get the ball in the air (cross / lofted pass)
         const q = this.liftedPass(hp, ndx, ndy, hp.charge);
@@ -827,7 +827,7 @@ export class Match {
     }
     if (hp.chargeKind === 'through') {
       if (!hasBall || !hp.canAct) hp.chargeKind = 'none';
-      else if (inp.btn.d.down) hp.charge = Math.min(1, hp.charge + dt / 0.7);
+      else if (inp.btn.d.down) hp.charge = Math.min(1, hp.charge + dt / 0.42);
       else {
         const q = this.throughBall(hp, ndx, ndy, hp.charge, inp.btn.d.flick);
         if (q && !q.isGK && !lock) this.setHuman(q);
@@ -858,7 +858,7 @@ export class Match {
   /** Earliest spot where p can meet the free ball: at head height for a ball in the air. */
   receivePoint(p: Player, sprint = true): [number, number] {
     const b = this.ball;
-    const spd = (sprint ? PHYS.sprintSpeed : PHYS.runSpeed) * (0.9 + p.pace * 0.18) * 0.92 * this.ep.speed;
+    const spd = (sprint ? PHYS.sprintSpeed : PHYS.runSpeed) * paceMul(p.pace) * 0.92 * this.ep.speed;
     const air = b.z > 0.35 || b.vz > 1.5;
     let x = b.x, y = b.y, z = b.z, vx = b.vx, vy = b.vy, vz = b.vz;
     const step = 0.04;
@@ -907,7 +907,7 @@ export class Match {
     const toward = stick ? (inp.mx * bx0 + inp.my * by0) / Math.max(sm, 0.01) : 1;
     const near = d < 8;
     const chasing = stick && toward > 0.35 && d < 16;
-    if (!(targeted && d < 45) && !near && !chasing) return;
+    if (!(targeted && d < 45) && !near && !chasing && p.volleyT <= 0) return;
     // a race for a loose ball further off: he sprints for it by himself
     if ((targeted || chasing) && d > 5 && p.stamina > 0.25) p.wantSprint = true;
     const sprint = p.wantSprint && !p.exhausted;
@@ -1010,7 +1010,7 @@ export class Match {
       this.kick(p, ux * (d / T), uy * (d / T), vz, 0.55);
       b.cross = true;
     } else {
-      const tq = dist(q.x, q.y, tx, ty) / (PHYS.sprintSpeed * (0.9 + q.pace * 0.18));
+      const tq = dist(q.x, q.y, tx, ty) / (PHYS.sprintSpeed * paceMul(q.pace));
       const sp = clamp((d / Math.max(0.6, tq)) * 1.25, 12, 27);
       this.kick(p, ux * sp, uy * sp, 0.3, 0.4);
     }
@@ -1202,7 +1202,8 @@ export class Match {
       return;
     }
     const pressure = this.pressureOn(p);
-    const err = 0.025 + pressure * 0.05 + (1 - p.skill) * 0.03;
+    // finishing: shooting (power) and technique (skill) both steady the strike
+    const err = 0.02 + pressure * 0.05 + (1 - (p.power * 0.6 + p.skill * 0.4)) * 0.075;
     this.shootDir(p, pl.ax, pl.ay, power, err, over);
     b.spin = pl.spin + gauss() * 0.04;
     if (Math.abs(curl) > 0.3) this.fx.text(p.x, p.y, 0.5, t().curve, '#ffe14d', 0.8);
@@ -1232,7 +1233,7 @@ export class Match {
     const tgt = this.aimAtGoal(p, dx, dy);
     let q: Player | null = null;
     let ax = dx, ay = dy;
-    let sp = (14 + power * 18) * (0.92 + p.power * 0.16);
+    let sp = (14 + power * 18) * (0.84 + p.power * 0.3);
     let d = 20;
     if (tgt) {
       [ax, ay] = norm(tgt[0] - p.x, tgt[1] - p.y);
@@ -1460,7 +1461,7 @@ export class Match {
   }
 
   shootDir(p: Player, dx: number, dy: number, power: number, err: number, over = 0) {
-    const speed = (14 + power * 18) * (0.92 + p.power * 0.16);
+    const speed = (14 + power * 18) * (0.84 + p.power * 0.3);
     // off balance: at full sprint, or striking across the way the body is going
     const run = Math.hypot(p.vx, p.vy);
     const across = run > 1 ? (1 - (p.vx * dx + p.vy * dy) / (run * Math.hypot(dx, dy) || 1)) / 2 : 0;
@@ -2123,7 +2124,7 @@ export class Match {
     const run = Math.hypot(p.vx, p.vy);
     const aim = Math.atan2(q.y - p.y, q.x - p.x);
     const across = run > 1 ? (1 - Math.cos(aim - Math.atan2(p.vy, p.vx))) / 2 : 0;
-    const perr = p.isGK ? 0.01 : (0.008 + (1 - p.skill) * 0.03 + this.pressureOn(p) * 0.035 + d0 * 0.0006 + across * Math.min(1, run / 5) * 0.03) * (p.team.human ? 1 : 0.8);
+    const perr = p.isGK ? 0.01 : (0.006 + (1 - p.skill) * 0.06 + this.pressureOn(p) * 0.035 + d0 * 0.0006 + across * Math.min(1, run / 5) * 0.03) * (p.team.human ? 1 : 0.8);
     if (lob) {
       const T = clamp(0.65 + d0 * 0.035, 0.8, 1.6);
       const tx = q.x + q.vx * T * 0.8, ty = q.y + q.vy * T * 0.8;
@@ -2163,7 +2164,7 @@ export class Match {
     if (p.tackleCd > 0 || !p.canAct || p.bite > 0) return;
     p.setState('slide', PHYS.slideTime);
     p.face = Math.atan2(dy, dx);
-    const sp = PHYS.slideSpeed * (0.9 + p.pace * 0.15) * this.ep.slide;
+    const sp = PHYS.slideSpeed * (0.82 + p.pace * 0.28) * this.ep.slide;
     p.vx = dx * sp;
     p.vy = dy * sp;
     p.tackleCd = 1.0;
@@ -2171,6 +2172,33 @@ export class Match {
     p.chargeKind = 'none';
     audio.slide();
     this.fx.dust(p.x, p.y, 8, p.vx, p.vy);
+  }
+
+  /** Chance that a carrier reads a slide coming at him and gets out of its way. */
+  private slideRead(q: Player, slider: Player): number {
+    const ai = !q.team.human;
+    const base = ai ? q.team.diff.dodge * 0.55 : 0.05;
+    return clamp(base + q.skill * 0.3 + q.pace * 0.1 - slider.tackle * 0.3 - slider.pace * 0.1, 0.03, 0.75);
+  }
+
+  /** Chance that a carrier stays on his feet when the slide does reach him. */
+  private slideRide(q: Player, slider: Player): number {
+    const ai = !q.team.human;
+    const base = ai ? q.team.diff.dodge * 0.2 : 0;
+    return clamp(base + q.power * 0.3 + q.skill * 0.12 - slider.tackle * 0.38, 0.02, 0.5);
+  }
+
+  /** The carrier hurdles a slide and keeps the ball. */
+  private hopSlide(q: Player, slider: Player) {
+    slider.slideHit.add(q);
+    q.invuln = Math.max(q.invuln, 0.45);
+    q.vx *= 0.85;
+    q.vy *= 0.85;
+    q.kickAnim = 0;
+    this.fx.emit('ring', q.x, q.y, 0.1, { n: 1, life: 0.3, size: 0.6, color: 'rgba(255,255,255,0.8)' });
+    this.fx.text(q.x, q.y, 1.2, t().hop, q.team.index === 0 ? '#7fe8ff' : '#ff9d7a', 0.9);
+    audio.whoosh();
+    if (slider === this.human) vibrate(20);
   }
 
   shove(p: Player, q: Player) {
@@ -2238,7 +2266,7 @@ export class Match {
       if (a && a.team !== v.team) v.lost++;
     }
     v.downs++;
-    v.setState('down', dur * (1.12 - v.power * 0.22) * (v.star && this.cfg.starPerks?.includes('iron') ? 0.7 : 1));
+    v.setState('down', dur * (1.25 - v.power * 0.45) * (v.star && this.cfg.starPerks?.includes('iron') ? 0.7 : 1));
     v.vx = ix;
     v.vy = iy;
     v.chargeKind = 'none';
@@ -2339,6 +2367,7 @@ export class Match {
     p.spinCd = Math.max(0, p.spinCd - dt);
     p.kickCd = Math.max(0, p.kickCd - dt);
     p.invuln = Math.max(0, p.invuln - dt);
+    p.readT = Math.max(0, p.readT - dt);
     p.volleyT = Math.max(0, p.volleyT - dt);
     p.kickAnim = Math.max(0, p.kickAnim - dt);
     p.hitByFire = Math.max(0, p.hitByFire - dt);
@@ -2456,7 +2485,7 @@ export class Match {
         if (p.exhausted && p.stamina > 0.3) p.exhausted = false;
         const sprint = p.wantSprint && !p.exhausted && m > 0.3 && p.state !== 'sad';
         const diffMul = p.team.human ? 1 : p.team.diff.speedMul;
-        let max = (sprint ? PHYS.sprintSpeed : PHYS.runSpeed) * (0.9 + p.pace * 0.18) * diffMul;
+        let max = (sprint ? PHYS.sprintSpeed : PHYS.runSpeed) * paceMul(p.pace) * diffMul;
         // with the ball: close control is slower, a sprint dribble pushes it out in front
         if (hasBall) max *= sprintFlag(p) ? 0.92 : 0.86;
         if (p.touchT > 0) max *= 0.82;
@@ -2482,8 +2511,8 @@ export class Match {
           const ux = p.vx / spd0, uy = p.vy / spd0;
           let par = dvx * ux + dvy * uy;
           let per = -dvx * uy + dvy * ux;
-          const up = (11 + p.pace * 7) * g, brake = (hasBall ? 20 : 25) * g;
-          const turn = (hasBall ? 17 : 22) * (1.15 - 0.55 * Math.min(1, spd0 / PHYS.sprintSpeed)) * (0.85 + p.skill * 0.3) * g;
+          const up = (9 + p.pace * 11) * g, brake = (hasBall ? 20 : 25) * g;
+          const turn = (hasBall ? 17 : 22) * (1.15 - 0.55 * Math.min(1, spd0 / PHYS.sprintSpeed)) * (0.7 + p.skill * 0.6) * g;
           par = clamp(par, -brake, up);
           per = clamp(per, -turn, turn);
           dvx = par * ux - per * uy;
@@ -2518,14 +2547,31 @@ export class Match {
         for (const q of this.all) {
           if (q === p || q.team === p.team || p.slideHit.has(q)) continue;
           if (q.state === 'down' || q.state === 'recover') continue;
-          if (dist(p.x, p.y, q.x, q.y) < 0.95) {
+          const dq = dist(p.x, p.y, q.x, q.y);
+          // a carrier sees a slide coming: a good dribbler hops it before it arrives
+          if (dq < 3.6 && q.readT <= 0 && this.ball.owner === q && q.canAct && Math.hypot(p.vx, p.vy) > 3) {
+            q.readT = 1.1;
+            const [sx, sy] = norm(p.vx, p.vy);
+            const coming = (sx * (q.x - p.x) + sy * (q.y - p.y)) / Math.max(dq, 0.01) > 0.6;
+            if (coming && Math.random() < this.slideRead(q, p)) {
+              this.hopSlide(q, p);
+              continue;
+            }
+          }
+          if (dq < 0.95) {
             p.slideHit.add(q);
             const [ux, uy] = norm(p.vx, p.vy);
+            // a strong, balanced carrier can ride a weak tackle
+            if (this.ball.owner === q && q.canAct && q.invuln <= 0 && Math.random() < this.slideRide(q, p)) {
+              this.hopSlide(q, p);
+              continue;
+            }
             this.knockdown(q, p, ux * 6 + p.vx * 0.3, uy * 6 + p.vy * 0.3, PHYS.downTime);
           }
         }
         if (p.stateT > p.stateDur) {
-          p.setState('recover', 0.42);
+          // a slide that caught nobody leaves you on the grass a bit longer
+          p.setState('recover', p.slideHit.size ? 0.42 : 0.75);
         }
         break;
       }
@@ -2903,7 +2949,7 @@ export class Match {
         // the human wins the ball more easily; AI robs the human less often
         // (jockeying with PRESS keeps you close but rarely wins it on its own)
         const mul = (q === this.human ? 1.25 : q.team.human ? 1 : q.team.diff.stealMul * (o === this.human ? 0.7 : 1)) * (q.pressing ? 0.3 : 1);
-        const rate = (0.7 + q.tackle * 1.7) * mul - o.skill * 0.6;
+        const rate = (0.4 + q.tackle * 2.4) * mul - o.skill * 1.1 - o.power * 0.3;
         if (Math.random() < Math.max(0.15, rate) * dt) {
           this.steal(q, o);
           return;
@@ -2923,7 +2969,7 @@ export class Match {
       if (b.skillT > 0 && b.skillBy && p !== b.skillBy && !p.isGK) continue;
       if (b.clearT > 0 && b.lastTouch && p.team !== b.lastTouch.team) continue;
       const d = dist(p.x, p.y, b.x, b.y);
-      if (d > 1.6) continue;
+      if (d > (p.volleyT > 0 && p === this.human ? 2 : 1.6)) continue;
       // fireball flattens everyone in its path
       if (b.fire > 0 && p !== b.lastTouch && d < 0.95 * this.pitch.area && b.z < 2.3 && p.hitByFire <= 0) {
         p.hitByFire = 1.5;
@@ -2954,14 +3000,14 @@ export class Match {
       }
       if (p.state === 'dive' || p.state === 'shove') continue;
       // you asked for it (SHOOT on a ball in the air): the finisher as soon as it is in reach
-      if (p === this.human && p.volleyT > 0 && b.z > 0.3 && b.z < 2.45 && d < 1.45 && p.canAct) {
+      if (p === this.human && p.volleyT > 0 && b.z > 0.25 && b.z < 2.6 && d < 1.95 && p.canAct) {
         this.airTouch(p);
         return;
       }
       // airborne ball: header / volley / chest
       // a rival's shot is only blocked by a body square in its path, not by anyone nearby
       const shotAt = !!b.shotBy && b.shotBy !== p.team && b.speed > 9;
-      if (b.z > 0.85 && b.z < 2.3 && (d < (shotAt ? 0.55 : 0.8) || (b.cross && p.volleyT > 0 && d < 1.4))) {
+      if (b.z > 0.85 && b.z < 2.3 && (d < (shotAt ? 0.55 : 0.8) || (b.cross && p.volleyT > 0 && d < 1.9))) {
         this.airTouch(p);
         return;
       }
@@ -2979,7 +3025,13 @@ export class Match {
     if (!best) return;
     const p = best;
     const rel = Math.hypot(b.vx - p.vx, b.vy - p.vy);
-    const limit = 15 + p.skill * 7 + (b.passTarget === p ? 9 : 0) + (p === this.human ? 8 : 0);
+    const limit = 12 + p.skill * 13 + (b.passTarget === p ? 9 : 0) + (p === this.human ? 8 : 0);
+    // SHOOT pressed as the ball came in: hit it first time, no touch to control it
+    if (p === this.human && p.volleyT > 0 && p.canAct && !p.isGK && (!b.lastTouch || b.lastTouch.team === p.team || b.passTarget === p)) {
+      if (b.z > 0.3) this.airTouch(p);
+      else this.oneTimer(p);
+      return;
+    }
     if (rel > 25 && b.z > 0.25 && b.lastTouch && b.lastTouch.team !== p.team) {
       this.fx.text(p.x, p.y, 0.4, t().bonk, '#fff', 1);
       this.knockdown(p, b.lastTouch, b.vx * 0.25, b.vy * 0.25, 1.2);
@@ -3059,6 +3111,43 @@ export class Match {
     b.passTarget = null;
     b.cross = false;
     audio.touch();
+  }
+
+  /**
+   * A ball on its way to the player that SHOOT can meet first time: a pass or cross to him,
+   * a teammate's ball in the air nearby, or any loose ball in the air within reach.
+   */
+  oneTimerChance(p: Player): boolean {
+    const b = this.ball;
+    if (b.owner || b.inGoal || p.isGK || !p.canAct) return false;
+    const d = dist(p.x, p.y, b.x, b.y);
+    const air = b.z > 0.3 || b.vz > 1.5;
+    if (air && d < 5.5) return true;
+    const ours = b.lastTouch?.team === p.team;
+    if (!ours) return false;
+    if (b.passTarget === p && d < 26) return true;
+    if (air && (b.cross || b.passTarget) && d < 18) return true;
+    // a ground ball from a teammate rolling at him
+    if (d < 10 && b.speed > 4) {
+      const cos = (b.vx * (p.x - b.x) + b.vy * (p.y - b.y)) / (b.speed * Math.max(d, 0.01));
+      if (cos > 0.85) return true;
+    }
+    return false;
+  }
+
+  /** First-time shot (or first-time pass) on a ground ball, in the stick's direction or at goal. */
+  private oneTimer(p: Player) {
+    const gx = p.team.side * this.pitch.hw;
+    const stick = Math.hypot(this.aimX, this.aimY) > 0.2 && this.aimX * p.team.side > -0.2;
+    const [dx, dy] = stick ? norm(this.aimX, this.aimY) : norm(gx - p.x, -p.y * 0.4);
+    this.setOwner(p);
+    p.volleyT = 0;
+    p.touchT = 0;
+    // the striker's finishing decides how clean the strike is
+    const power = 0.7 + p.power * 0.25;
+    this.humanShoot(p, dx, dy, power, 0, 0);
+    if (this.ball.shotBy === p.team) this.fx.text(p.x, p.y, 1.6, t().oneTimer, '#ffe14d', 1);
+    if (p === this.human) vibrate(30);
   }
 
   /** Which finisher a touch on a ball in the air becomes. */

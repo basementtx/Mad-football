@@ -108,12 +108,15 @@ export class Game {
     const team = m.teams[0];
     const hasBall = !!h && b.owner === h;
     const keeper = hasBall && !!h && h.isGK;
-    const aerial = !!h && !b.owner && b.z > 0.45 && dist(h.x, h.y, b.x, b.y) < 3.2;
+    // a ball on its way to you: SHOOT hits it first time (volley / header / one-timer)
+    const incoming = !!h && !hasBall && m.oneTimerChance(h);
+    const aerial = incoming && (b.z > 0.45 || b.vz > 1.5);
     let aText = L.tackleBtn;
     let aIc = 'slide';
     if (keeper) { aText = L.punt; aIc = 'punt'; }
     else if (hasBall) { aText = L.shoot; aIc = 'shoot'; }
-    else if (aerial) { aText = L.header; aIc = 'header'; }
+    else if (aerial) { aText = b.z > 1.2 ? L.header : L.shoot; aIc = b.z > 1.2 ? 'header' : 'shoot'; }
+    else if (incoming) { aText = L.shoot; aIc = 'shoot'; }
     else if (h) {
       for (const q of m.teams[1].players) {
         if (!q.isGK && q.state !== 'down' && dist(h.x, h.y, q.x, q.y) < 1.75) {
@@ -129,7 +132,7 @@ export class Game {
     const it = team.item ? itemById('pw_' + team.item) : null;
     const usable = !!h && m.canUseItem(h);
     return {
-      a: { text: aText, color: hasBall ? '#ff4d3d' : '#ff7a1f', ic: aIc },
+      a: { text: aText, color: hasBall || incoming ? '#ff4d3d' : '#ff7a1f', ic: aIc, glow: incoming && !!h && h.volleyT > 0 },
       b: { text: keeper ? L.throwBtn : hasBall ? L.pass : m.cfg.lockStar ? L.callBtn : L.switchBtn, color: '#2f9bff', ic: keeper ? 'throw' : hasBall || m.cfg.lockStar ? 'pass' : 'switch' },
       c: { text: hasBall && !keeper ? L.sprintSkill : L.sprint, color: '#2fc46a', dim: keeper, ic: 'sprint' },
       d: { text: dText, color: '#ffd23f', dim: keeper, ic: dIc },

@@ -3,11 +3,30 @@
  * Weather also nudges the physics a little (wet = skiddy ball, snow = heavy ball, wind = drift).
  */
 
-export type Weather = 'clear' | 'rain' | 'snow' | 'fog' | 'wind' | 'storm' | 'night';
+export type Weather = 'clear' | 'rain' | 'snow' | 'wind' | 'storm' | 'night';
 export type PitchStyle = 'stripes' | 'checker' | 'diagonal' | 'rings' | 'dry' | 'astro';
 export type Stadium = 'arena' | 'retro' | 'street' | 'coliseum' | 'neon';
 
-export const WEATHERS: Weather[] = ['clear', 'night', 'rain', 'storm', 'snow', 'fog', 'wind'];
+export const WEATHERS: Weather[] = ['clear', 'night', 'rain', 'storm', 'snow', 'wind'];
+
+/**
+ * How often each weather turns up when it is left to chance. Most matches are played
+ * in clear weather; rain, snow, wind and storms are the occasional twist.
+ */
+const WEATHER_ODDS: [Weather, number][] = [['clear', 0.62], ['night', 0.14], ['rain', 0.08], ['wind', 0.07], ['snow', 0.05], ['storm', 0.04]];
+
+/** A random weather, weighted towards clear skies. */
+export function randomWeather(): Weather {
+  let r = Math.random();
+  for (const [w, p] of WEATHER_ODDS) {
+    r -= p;
+    if (r < 0) return w;
+  }
+  return 'clear';
+}
+
+/** A setup value that may come from an older save (e.g. the removed 'fog'). */
+export const isWeather = (w: string): w is Weather => (WEATHERS as string[]).includes(w);
 export const PITCHES: PitchStyle[] = ['stripes', 'checker', 'diagonal', 'rings', 'dry', 'astro'];
 export const STADIUMS: Stadium[] = ['arena', 'retro', 'street', 'coliseum', 'neon'];
 
@@ -50,11 +69,11 @@ export function envPhys(env: MatchEnv | undefined): EnvPhys {
 const HOME: Record<string, { stadium: Stadium; pitch: PitchStyle; weathers: Weather[] }> = {
   volcano: { stadium: 'coliseum', pitch: 'dry', weathers: ['clear', 'night', 'wind'] },
   thunder: { stadium: 'arena', pitch: 'stripes', weathers: ['storm', 'rain', 'night', 'clear'] },
-  frost: { stadium: 'arena', pitch: 'checker', weathers: ['snow', 'snow', 'fog', 'clear'] },
-  jungle: { stadium: 'retro', pitch: 'rings', weathers: ['rain', 'fog', 'clear'] },
+  frost: { stadium: 'arena', pitch: 'checker', weathers: ['snow', 'clear', 'clear'] },
+  jungle: { stadium: 'retro', pitch: 'rings', weathers: ['rain', 'clear', 'clear'] },
   neon: { stadium: 'neon', pitch: 'astro', weathers: ['night', 'night', 'rain'] },
   bulls: { stadium: 'street', pitch: 'astro', weathers: ['clear', 'wind', 'rain', 'night'] },
-  ravens: { stadium: 'retro', pitch: 'diagonal', weathers: ['fog', 'rain', 'night', 'clear'] },
+  ravens: { stadium: 'retro', pitch: 'diagonal', weathers: ['rain', 'night', 'clear'] },
   scorpions: { stadium: 'coliseum', pitch: 'dry', weathers: ['clear', 'wind', 'wind'] },
 };
 
@@ -75,15 +94,15 @@ export function makeEnv(weather: Weather, pitch: PitchStyle, stadium: Stadium): 
 export type Choice<T extends string> = T | 'random';
 
 export function resolveEnv(w: Choice<Weather>, p: Choice<PitchStyle>, s: Choice<Stadium>): MatchEnv {
-  return makeEnv(w === 'random' ? pick(WEATHERS) : w, p === 'random' ? pick(PITCHES) : p, s === 'random' ? pick(STADIUMS) : s);
+  return makeEnv(w === 'random' || !isWeather(w) ? randomWeather() : w, p === 'random' ? pick(PITCHES) : p, s === 'random' ? pick(STADIUMS) : s);
 }
 
 /** Environment of a fixture played at `homeId`'s ground (custom club: its saved preference). */
 export function homeGroundEnv(homeId: string, club?: { stadium: Choice<Stadium>; pitch: Choice<PitchStyle> }): MatchEnv {
   const h = HOME[homeId];
   if (h) {
-    // mostly the team's typical weather, sometimes anything
-    const w = Math.random() < 0.75 ? pick(h.weathers) : pick(WEATHERS);
+    // usually clear skies; now and then the team's typical home weather
+    const w = Math.random() < 0.3 ? pick(h.weathers) : randomWeather();
     return makeEnv(w, h.pitch, h.stadium);
   }
   return resolveEnv('random', club?.pitch ?? 'stripes', club?.stadium ?? 'arena');

@@ -574,7 +574,6 @@ export class Renderer {
       case 'night': return 'rgb(132,140,180)';
       case 'rain': return 'rgb(168,176,196)';
       case 'storm': return 'rgb(132,142,170)';
-      case 'fog': return 'rgb(206,210,216)';
       case 'snow': return 'rgb(222,228,240)';
       default: return null;
     }
@@ -1411,6 +1410,7 @@ export class Renderer {
     const m = this.m;
     const h = m.human;
     if (!h || m.phase === 'goal' || m.phase === 'over' || m.replaying) return;
+    this.drawMateMarkers(ctx, cam, h, time);
     const x = cam.sx(h.x);
     const top = cam.sy(h.y, h.z) - 40 - (Math.floor(time * 3) % 2);
     if (x < 0 || x > cam.W || top < -10 || cam.sy(h.y) > cam.H + 10) {
@@ -1426,6 +1426,56 @@ export class Renderer {
     const ar = arrow('#ffe14d');
     ctx.drawImage(ar, x - (ar.width >> 1), top);
     // stamina, charge, keeper timer and item effects are drawn above the head by the DOM HUD (domhud.ts)
+  }
+
+  /**
+   * Team-mates outside the view: a marker on the screen edge in the team colour, with the
+   * shirt number and a pointer towards him, so a long ball can be aimed at someone you
+   * can't see. The one your pass is lined up for glows yellow.
+   */
+  private drawMateMarkers(ctx: CanvasRenderingContext2D, cam: Camera, h: Player, time: number) {
+    const m = this.m;
+    const team = h.team;
+    if (team.index !== 0 || m.phase !== 'play' && m.phase !== 'kickoff') return;
+    const W = cam.W, H = cam.H;
+    const top = 30, bot = H - 12, left = 10, right = W - 10;
+    const cx = W / 2, cy = H / 2;
+    const col = ramp(team.def.primary);
+    const hint = m.passHint;
+    for (const p of team.players) {
+      if (p === h || p.isGK) continue;
+      const X = cam.sx(p.x), Y = cam.sy(p.y) - 10;
+      if (X >= 2 && X <= W - 2 && Y >= 8 && Y <= H - 2) continue;
+      // where the line from the screen centre to him leaves the inset box
+      const dx = X - cx, dy = Y - cy;
+      const kx = dx ? ((dx > 0 ? right : left) - cx) / dx : Infinity;
+      const ky = dy ? ((dy > 0 ? bot : top) - cy) / dy : Infinity;
+      const k = Math.min(kx, ky);
+      const mx = Math.round(cx + dx * k), my = Math.round(cy + dy * k);
+      const hi = p === hint;
+      const far = Math.hypot(p.x - h.x, p.y - h.y);
+      ctx.globalAlpha = hi ? 1 : far > 40 ? 0.6 : 0.85;
+      // pointer: a small wedge towards him
+      const [ux, uy] = [dx / Math.hypot(dx, dy), dy / Math.hypot(dx, dy)];
+      ctx.fillStyle = hi ? '#ffe14d' : '#120c1c';
+      for (let i = 0; i < 4; i++) {
+        const w = 3 - i;
+        for (let j = -w; j <= w; j++) ctx.fillRect(Math.round(mx + ux * (7 + i) - uy * j), Math.round(my + uy * (7 + i) + ux * j), 1, 1);
+      }
+      // badge
+      ctx.fillStyle = hi ? '#ffe14d' : '#120c1c';
+      ctx.fillRect(mx - 7, my - 6, 14, 12);
+      ctx.fillStyle = css(col[2]);
+      ctx.fillRect(mx - 6, my - 5, 12, 10);
+      ctx.fillStyle = css(col[3]);
+      ctx.fillRect(mx - 6, my - 5, 12, 2);
+      if (hi && Math.floor(time * 6) % 2) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillRect(mx - 6, my - 5, 12, 10);
+      }
+      drawText(ctx, String(p.number), mx, my - 3, { color: '#ffffff', align: 'center' });
+    }
+    ctx.globalAlpha = 1;
   }
 
   private drawPost(ctx: CanvasRenderingContext2D, cam: Camera) {

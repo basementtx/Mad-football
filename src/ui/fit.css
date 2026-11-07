@@ -95,3 +95,8 @@
   #ui .ct-f { grid-template-columns: 28px 18px minmax(0, 1fr) 14px 32px 30px; }
   #ui .ct-f .cp { display: none; }
 }
+
+/* lineup slot: the position the formation asks for, next to the slot number */
+#ui .slot-n { white-space: nowrap; }
+#ui .slot-n .slot-role { margin-left: 5px; padding-left: 5px; border-left: 2px solid currentColor; font-weight: inherit; }
+#ui .slot-n .slot-role.bad { color: #e2551b; }

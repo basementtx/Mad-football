@@ -1,6 +1,6 @@
 import type { Match } from './match';
 import type { Player, Team } from './entities';
-import { PHYS, mentK } from './entities';
+import { PHYS, mentK, paceMul } from './entities';
 import { clamp, dist, norm, rand, chance, segDist } from '../engine/math';
 import { SHOT_POWERS } from '../meta/items';
 
@@ -57,7 +57,7 @@ const iqOf = (team: Team) => team.diff.iq ?? 0.8;
 /** Top speed of a player (m/s), as the physics will actually allow it. */
 function topSpeed(p: Player) {
   const mul = p.team.human ? 1 : p.team.diff.speedMul;
-  return PHYS.sprintSpeed * (0.9 + p.pace * 0.18) * mul;
+  return PHYS.sprintSpeed * paceMul(p.pace) * mul;
 }
 
 /** Earliest point where p can reach the free ball (with a small reaction delay). */

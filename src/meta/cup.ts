@@ -82,8 +82,8 @@ export const userOpp = () => {
 export function cupDifficulty(): Difficulty {
   const opp = userOpp();
   const d = cup?.teams.find((t) => t.id === opp)?.div ?? league.div;
-  // later rounds are a step harder
-  const base = clamp(d - (cup && cup.round >= 2 ? 1 : 0), 1, 5);
+  // later rounds get harder: the semi-final a step up, the final two
+  const base = clamp(d - (cup ? Math.min(2, cup.round) : 0), 1, 5);
   return DIV_DIFF[base];
 }
 

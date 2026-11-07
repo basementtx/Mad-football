@@ -104,6 +104,39 @@
 #ui .res-pay > .coins { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 6px 14px; }
 #ui .res-pay > .ad-cta { flex: 1; width: auto; padding: 5px 10px; }
 #ui .res-pay .ad-cta-t b { font-size: 19px; }
-#ui .res-side .motm .pcard { --w: clamp(52px, 15.5vh, 104px); }
+#ui .res-side .motm .pcard { --w: clamp(44px, 12.5vh, 104px); }
+/* the man-of-the-match card never gets squashed: the pay row and the missions give way instead */
+#ui .res-side { min-width: 0; min-height: 0; gap: 8px; }
+#ui .res-side .mvp.motm { flex: 1 0 auto; gap: 18px; }
+#ui .res-missions { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+#ui .res-missions .res-mission { font-size: 12px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ui .results > .row { flex: none; }
+#ui .res-body { flex: 1 1 auto; }
+@media (max-height: 520px) {
+  #ui .results { gap: 1.2vh; }
+  #ui .res-side { gap: 6px; }
+  #ui .res-pay > .coins { padding: 2px 10px; }
+  #ui .res-pay > .ad-cta { padding: 2px 8px; gap: 8px; }
+  #ui .res-pay .ad-cta-t b { font-size: 16px; }
+  #ui .res-pay .ad-cta-t small { font-size: 10px; }
+  #ui .res-missions .res-mission { font-size: 11px; }
+}
 #ui .bk-grid { grid-auto-rows: max-content; }
 #ui .bk-pack { min-height: max-content; }
+/* short landscape phones: the VICTORY stamp and the cup line move up into the corner so the body keeps its room */
+@media (max-height: 500px) {
+  #ui .results { padding-top: 8px; padding-bottom: 8px; gap: 6px; }
+  #ui .results .res-title { position: absolute; left: 14px; top: 10px; font-size: 22px; padding: 0 10px; border-width: 4px; z-index: 3; }
+  #ui .results .res-cup { position: absolute; left: 14px; top: 50px; font-size: 11px; padding: 2px 8px; z-index: 3; max-width: 30%; }
+  #ui .res-score { gap: 12px; }
+  #ui .res-team { font-size: 15px; }
+  #ui .res-team .crest-sm { width: 22px; height: 25px; }
+  #ui .res-num { font-size: 32px; }
+  #ui .rs-row { font-size: 13px; padding: 1px 0; }
+  #ui .rs-row b { font-size: 14px; }
+  #ui .res-side .motm .pcard { --w: clamp(40px, 12vh, 60px); }
+  #ui .res-missions .res-mission { font-size: 10px; line-height: 1.2; }
+  #ui .res-side .motm-stamp { font-size: 9px; }
+  #ui .res-side .mvp.motm { gap: 18px; }
+  #ui .results > .row .btn { padding: 4px 14px; }
+}

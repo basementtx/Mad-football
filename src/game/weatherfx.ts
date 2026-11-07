@@ -11,10 +11,8 @@ interface Drop {
   ph: number;
 }
 
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-
 /**
- * Screen-space weather layer: rain streaks and splashes, snowflakes, drifting fog,
+ * Screen-space weather layer: rain streaks and splashes, snowflakes,
  * wind-blown leaves and lightning. Particles are anchored to the world so they
  * move with the camera instead of sticking to the screen.
  */
@@ -26,7 +24,6 @@ export class WeatherFX {
   private lastT = -1;
   private lastBX = 0;
   private lastBY = 0;
-  private fog: HTMLCanvasElement | null = null;
   private bolt = 0;
   private boltX = 0;
   private boltSeed = 0;
@@ -68,30 +65,6 @@ export class WeatherFX {
     return o;
   }
 
-  private buildFog() {
-    // tileable dithered noise blobs
-    const S = 128;
-    const c = document.createElement('canvas');
-    c.width = S;
-    c.height = S;
-    const g = c.getContext('2d')!;
-    g.fillStyle = 'rgba(214,222,232,0.55)';
-    const blobs: [number, number, number][] = [];
-    for (let i = 0; i < 9; i++) blobs.push([Math.random() * S, Math.random() * S, 18 + Math.random() * 26]);
-    for (let y = 0; y < S; y++)
-      for (let x = 0; x < S; x++) {
-        let v = 0;
-        for (const [bx, by, r] of blobs)
-          for (const ox of [-S, 0, S])
-            for (const oy of [-S, 0, S]) {
-              const d = Math.hypot((x - bx - ox) / r, ((y - by - oy) / r) * 1.8);
-              if (d < 1) v += (1 - d) * 0.8;
-            }
-        if (Math.min(1, v) * 16 > BAYER[(y & 3) * 4 + (x & 3)]) g.fillRect(x, y, 1, 1);
-      }
-    this.fog = c;
-  }
-
   draw(ctx: CanvasRenderingContext2D, W: number, H: number, bx: number, by: number, time: number) {
     const w = this.env.weather;
     const dt = this.lastT < 0 ? 0 : Math.min(0.1, Math.max(0, time - this.lastT));
@@ -110,7 +83,6 @@ export class WeatherFX {
     while (this.drops.length < n) this.drops.push(this.spawn(null, true));
     audio.setWeather(w === 'rain' ? 0.6 : w === 'storm' ? 1 : 0, w === 'wind' ? 0.8 : w === 'storm' ? 0.5 : w === 'snow' ? 0.2 : 0);
 
-    if (w === 'fog') this.drawFog(ctx, W, H, bx, by, time);
     if (w === 'rain' || w === 'storm') this.drawRain(ctx, dt, ddx, ddy);
     else if (w === 'snow') this.drawSnow(ctx, dt, ddx, ddy, time);
     else if (w === 'wind') this.drawWind(ctx, dt, ddx, ddy, time);
@@ -205,21 +177,6 @@ export class WeatherFX {
         ctx.fillRect(x - dir * 4, y, 5, 1);
       }
     }
-  }
-
-  private drawFog(ctx: CanvasRenderingContext2D, W: number, H: number, bx: number, by: number, time: number) {
-    if (!this.fog) this.buildFog();
-    const f = this.fog!;
-    const S = f.width;
-    ctx.fillStyle = 'rgba(190,200,212,0.16)';
-    ctx.fillRect(0, 0, W, H);
-    for (const [k, sp, a] of [[0.6, 5, 0.55], [1, 9, 0.4]] as const) {
-      const ox = (((Math.floor(bx * k + time * sp) % S) + S) % S) - S;
-      const oy = (((Math.floor(by * k) % S) + S) % S) - S;
-      ctx.globalAlpha = a;
-      for (let y = oy; y < H; y += S) for (let x = ox; x < W; x += S) ctx.drawImage(f, x, y);
-    }
-    ctx.globalAlpha = 1;
   }
 
   private drawStorm(ctx: CanvasRenderingContext2D, W: number, H: number, dt: number) {

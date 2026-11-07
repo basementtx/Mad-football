@@ -121,4 +121,6 @@ if ((lastSetup.v ?? 0) < 4) {
   lastSetup.v = 4;
   save('mf.setup', lastSetup);
 }
+// fog was removed as a weather: old saves fall back to random
+if (lastSetup.weather === 'fog') lastSetup.weather = 'random';
 export const saveSetup = () => save('mf.setup', lastSetup);

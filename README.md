@@ -55,13 +55,13 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **Hafif pas nişan yardımı** (yalnızca ~20° içindeki arkadaşa yönelir) ve **zarif nişan çizgisi**; ikisi de ayarlardan kapatılabilir.
 - **5 zorluk seviyesi** (Kolay → Efsane); ödül çarpanı ×0.6'dan ×3'e çıkar.
 - Kariyer kaydı (G/B/M), altın, maçın yıldızı ve maç istatistikleri.
-- **Hava durumları**: Güneşli (gündüz, çatı gölgesi), Gece (projektörler), Yağmurlu (su birikintileri, şemsiyeli taraftarlar, kaygan zemin: top kayar, kaymalar uzar), Fırtına (şimşek, gök gürültüsü, sert rüzgar), Karlı (karla kaplı zemin, süpürülmüş çizgiler, ağır top, yavaş koşu), Sisli (sürüklenen sis katmanları), Rüzgarlı (uçuşan yapraklar, havadaki topu savuran rüzgar ve saatin altında rüzgar göstergesi). Yağmur ve rüzgar sesleri de sentezleniyor.
+- **Hava durumları**: Güneşli (gündüz, çatı gölgesi), Gece (projektörler), Yağmurlu (su birikintileri, şemsiyeli taraftarlar, kaygan zemin: top kayar, kaymalar uzar), Fırtına (şimşek, gök gürültüsü, sert rüzgar), Karlı (karla kaplı zemin, süpürülmüş çizgiler, ağır top, yavaş koşu), Rüzgarlı (uçuşan yapraklar, havadaki topu savuran rüzgar ve saatin altında rüzgar göstergesi). Yağmur ve rüzgar sesleri de sentezleniyor. Maçların çoğu açık havada oynanır; yağmur, kar, rüzgar ve fırtına ara sıra gelen sürprizlerdir.
 - **6 saha deseni**: Çizgili, Damalı, Çapraz, Halkalı, Kurak (sararmış çim, daha fazla toprak) ve Suni Çim (topu biraz daha hızlı ve sektiren zemin).
 - **5 stadyum**: Arena, Eski Tribün (ahşap çatı, görüşü kapatan direkler, köşe projektör kuleleri), Sokak Kafesi (tel örgü, grafiti, şehir silueti, seyrek seyirci), Kolezyum (kumtaşı kemerler, titreyen meşaleler) ve Neon Kubbe (neon şeritler).
-- Hızlı maçta zorluk seçiminden sonra **Saha & Hava** ekranında stadyum, çim ve hava seçilir (ya da hepsi rastgele); seçim menü arka planında canlı önizlenir. Lig maçları ev sahibi takımın stadyumunda, o takıma özgü havalarla oynanır; kariyer maçlarında stadyum, çim ve hava rastgeledir.
+- Hızlı maçta zorluk seçiminden sonra **Saha & Hava** ekranında stadyum, çim ve hava seçilir (ya da hepsi rastgele); seçim menü arka planında canlı önizlenir. Lig maçları ev sahibi takımın stadyumunda oynanır, ara sıra o takıma özgü havayla; kariyer maçlarında stadyum, çim ve hava rastgeledir.
 - **Orta ve aşırtma**: PAS tuşunu basılı tutup parmağını yukarı kaydırıp bırakınca ceza sahasındaki arkadaşına kafa yüksekliğinde orta açılır; ŞUT tuşunda aynı hareket kalecinin üstünden aşırtma şutu çeker. Tuşun üstünde yukarı ok belirir, kaydırma algılanınca kırmızıya döner ve oyuncunun üstünde ORTA/AŞIRTMA yazar; nişan çizgisi topun yayını gösterir. Gelen ortaya ŞUT ile kafa/vole vurulur. Klavyede R basılıyken K (orta) veya J (aşırtma). Yapay zekâ da kanattan orta açar.
 - **Günlük ve haftalık görevler**: her gün 3, her hafta (pazartesi yenilenir) 3 rastgele görev: maç oyna/kazan, gol, yere serme, pas, orta, aşırtma, kafa/vole, eşya kullanımı, gol yememe, zorda galibiyet, kötü havada galibiyet, lig maçı, top kapma. Ana menünün üst çubuğundaki GÖREVLER düğmesinden açılır, tamamlananlar altın olarak alınır; maç sonu ekranı tamamlanan görevleri gösterir.
-- **Takım kimyası**: ilk 5'teki her oyuncu 0-3 kimya puanı alır: doğru mevki +1, kulüpte 3 maç +1, 10 maç +2 (kaleci yerinde değilse 0). Takım kimyası 0-100 arası; maçta oyuncu değerleri kimyaya göre ×0.93 ile ×1.04 arasında ölçeklenir. Kadro ekranında kimya çubuğu ve oyuncu başına ◆ puanları görünür.
+- **Takım kimyası**: ilk 5'teki her oyuncu 0-3 kimya puanı alır: doğru mevki +1, kulüpte 3 maç +1, 10 maç +2 (kaleci yerinde değilse 0). Takım kimyası 0-100 arası; maçta oyuncu değerleri kimyaya göre ×0.93 ile ×1.04 arasında ölçeklenir. Kadro ekranında kimya çubuğu ve oyuncu başına ◆ puanları görünür; her slotun numarasının yanında dizilişin o slot için istediği mevki yazar (yanlış mevkide kırmızı).
 - İngilizce (varsayılan) ve Türkçe arayüz; dil, ayarlardan ya da ana menüdeki piksel bayrak düğmesinden değiştirilebilir.
 
 ## Oynanış mekanikleri (son güncelleme)
@@ -74,7 +74,9 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **Daha geniş saha ve kale**: saha ~%9 büyüdü (pas ve taktik için alan), kale 7.4 m'den 9.2 m'ye genişledi; falsolu şutların gerçek bir hedefi var. Kaleciler daha uzağa ve daha hızlı plonjon yapıyor.
 - **Kaleci artık geçilemiyor**: top süren oyuncuya çıkar, açıyı kapatır ve ayağına yatarak topu kapar. Sadece top sürerek kaleciyi geçip gol atmak artık işe yaramıyor; doğru anda çalım atarsan şansın var.
 - **Pas karşılama ve topa koşma**: sana gelen pasa, yakındaki boştaki topa ve joystick'le yöneldiğin topa oyuncun topun şu anki yerine değil, onu karşılayabileceği noktaya koşar; uzaktaysa kendiliğinden depar atar. Joystick'i açıkça başka yöne itersen seni dinler.
-- **Bitiriciler**: havadaki topa ŞUT: kafa, koşarak gelirken balıklama, alçak topa vole, sırtın kaleye dönükken rövaşata. Ağır çekim, parıltı izi ve gol yazısında hareketin adı.
+- **Ekran dışındaki takım arkadaşları**: ekranın kenarında forma renginde, numaralı bir işaret ve ona doğru bakan bir ok; pas nişanındaki arkadaş sarı yanıp söner. Uzun pası kime atacağını görmeden de bilirsin.
+- **Kayarak müdahale artık garanti değil**: topu süren oyuncu gelen kaymayı görüp üstünden atlayabilir ya da temas olsa da ayakta kalabilir (tekniği, gücü, rakibin müdahale değeri ve zorluk belirler). Boşa giden kayma yerde daha uzun bırakır. Kupada yarı final bir, final iki kademe zordur.
+- **Bitiriciler**: sana gelen topa (pas, orta, havadan top) ŞUT: kafa, koşarak gelirken balıklama, alçak topa vole, sırtın kaleye dönükken rövaşata; yerden gelen pasa tek vuruş. Top yoldayken ŞUT tuşu kırmızıya döner. Ağır çekim, parıltı izi ve gol yazısında hareketin adı.
 - **Çalımlar**: büyük tuşu bir yöne kaydır. İleri: dibindeki rakibe bacak arası, biraz uzaktakine şapka, boşlukta topu öne atma; yana: makas; geri-yana: rulet (top vücudun etrafında döner); geri: top çekme. Her hareketin top yolu ve vücut hareketi farklı. Kimse sersemlemez: çalımı yiyen savunmacı ağırlığını yanlış tarafa verir ya da momentumuyla geçer, dönene kadar ara açılır.
 - **Ara pas** ve **baskı** tuşu. Baskı rakibi kale tarafından bir kol mesafesinden karşılar; topu kendiliğinden almaz, kayma/itme ile zamanlamak gerekir.
 - **Kaleci elden bırakınca** (atış ya da vole) top önünde duran rakibe çarpıp ona geçmez; önü kapalıysa kaleci topu üstünden atar.
@@ -84,7 +86,7 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 | Eylem | Dokunmatik | Klavye |
 |---|---|---|
 | Hareket | Ekranın sol yarısı (joystick) | WASD / Ok tuşları |
-| Şut (top sende; yukarı kaydır: aşırtma) / Kay (top sende değil) / havadaki topa bitirici | Üst sağ tuş (ŞUT) | J / Boşluk |
+| Şut (top sende; yukarı kaydır: aşırtma) / Kay (top sende değil) / sana gelen topa vole, kafa, tek vuruş | Üst sağ tuş (ŞUT) | J / Boşluk |
 | Ara pas (yukarı kaydır: havadan ara pas) / Baskı-İt (top sende değil) | Şutun solundaki tuş (ARA) | L / V |
 | Pas (yukarı kaydır: orta / havadan pas) / Oyuncu değiştir | Sol alt tuş (PAS) | K |
 | Depar (basılı tut) + Çalım (basılıyken bir yöne kaydır) | Sağ alttaki büyük tuş | Shift, çalım: I + yön |

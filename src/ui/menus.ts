@@ -162,7 +162,7 @@ export function showDifficulty(h: MenuHandlers) {
 
 // ------------------------------------------------------------------ match setup (step 3: venue & weather)
 
-const WEATHER_ICON: Record<string, string> = { clear: '☀️', night: '🌙', rain: '🌧️', storm: '⛈️', snow: '❄️', fog: '☁️', wind: '💨', random: '🎲' };
+const WEATHER_ICON: Record<string, string> = { clear: '☀️', night: '🌙', rain: '🌧️', storm: '⛈️', snow: '❄️', wind: '💨', random: '🎲' };
 
 const rgb = (c: number[]) => `rgb(${c[0]},${c[1]},${c[2]})`;
 
@@ -454,7 +454,7 @@ export function showResults(h: MenuHandlers, m: Match, coins: number, leagueMode
           </div>
           <div class="res-pay"><div class="coins" id="res-coins">+${coins} ${coinTag()}</div>
           ${adBonus > 0 && adsLeft('match_bonus') > 0 ? `<button class="ad-cta" data-act="adx2"><span class="ad-cta-tv"><i></i><b>▶</b></span><span class="ad-cta-t"><small>${L2('WATCH AN AD', 'REKLAM İZLE')}</small><b>+${adBonus} ${coinTag('ad-cta-coin')} <em>×2</em></b></span><span class="ad-cta-shine"></span></button>` : ''}</div>
-          ${done.map((d) => `<div class="res-mission">🎯 ${esc(L.missionDone)}: ${esc(missionLabel(d))}</div>`).join('')}
+          ${done.length ? `<div class="res-missions">${done.map((d) => `<div class="res-mission">🎯 ${esc(L.missionDone)}: ${esc(missionLabel(d))}</div>`).join('')}</div>` : ''}
         </div>
       </div>
       <div class="row">

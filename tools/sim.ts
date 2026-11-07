@@ -1,5 +1,5 @@
 // Headless balance check: plays 20 AI-vs-AI matches and prints averages.
-// Usage: npm run sim -- [easy|normal|hard|insane] [3|4|5] [clear|rain|storm|snow|fog|wind|night]
+// Usage: npm run sim -- [easy|normal|hard|insane] [3|4|5] [clear|rain|storm|snow|wind|night]
 import { Match } from '../src/game/match';
 import { FX } from '../src/game/fx';
 import { TEAMS } from '../src/game/teams';
