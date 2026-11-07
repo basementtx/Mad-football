@@ -278,12 +278,45 @@ export class Match {
     this.updateBall(dt);
     if (live) {
       this.interactions(dt);
+      this.unstickBall(dt);
       this.record();
       this.checkGoal();
       const o = this.ball.owner;
       if (o) o.team.stats.possession += dt;
     }
     this.updateExcitement(dt);
+  }
+
+  private stuckT = 0;
+  /**
+   * Failsafe: if the free ball sits somewhere nobody can reach (on the goal
+   * roof, wedged behind the goal line, hanging high) give it to the keeper.
+   */
+  private unstickBall(dt: number) {
+    const b = this.ball;
+    const P = this.pitch;
+    if (b.owner || b.inGoal) {
+      this.stuckT = 0;
+      return;
+    }
+    const slow = Math.hypot(b.vx, b.vy) < 2.5;
+    const behindLine = Math.abs(b.x) > P.hw + 0.05 && Math.abs(b.y) < P.goalHalf + 0.6;
+    const hanging = b.z > 1.2 && slow;
+    if ((behindLine && slow) || hanging) this.stuckT += dt;
+    else this.stuckT = 0;
+    if (this.stuckT < 1.2) return;
+    this.stuckT = 0;
+    const end = b.x >= 0 ? 1 : -1;
+    const team = this.teams.find((tm) => tm.side === -end)!;
+    const g = team.gk;
+    if (g.state !== 'run') g.setState('run');
+    g.x = end * (P.hw - 1.2);
+    g.y = clamp(b.y, -P.goalHalf + 0.5, P.goalHalf - 0.5);
+    g.vx = g.vy = 0;
+    b.z = 0;
+    b.vx = b.vy = b.vz = 0;
+    this.setOwner(g);
+    g.holdT = 0;
   }
 
   private toPhase(p: Phase) {
@@ -450,7 +483,7 @@ export class Match {
     this.aimY = ndy;
 
     // pass hint (light assist) and aim line target
-    this.passHint = hasBall ? this.assistTarget(hp, ndx, ndy) : null;
+    this.passHint = hasBall ? this.assistTarget(hp, ndx, ndy, hp.chargeKind === 'pass' && hp.charge > 0.35) : null;
     this.aim = null;
     if (hasBall) {
       const gt = this.aimAtGoal(hp, ndx, ndy);
@@ -498,8 +531,8 @@ export class Match {
       if (!hasBall || !hp.canAct) hp.chargeKind = 'none';
       else if (inp.btn.b.down) hp.charge = Math.min(1, hp.charge + dt / 0.7);
       else {
-        const lob = hp.charge > 0.28;
-        const q = this.assistTarget(hp, ndx, ndy);
+        const lob = hp.charge > 0.35;
+        const q = this.assistTarget(hp, ndx, ndy, lob);
         if (q) {
           this.passTo(hp, q, lob);
           if (!q.isGK) this.setHuman(q);
@@ -580,10 +613,10 @@ export class Match {
       const lead = 0.25;
       const qx = q.x + q.vx * lead, qy = q.y + q.vy * lead;
       const d = dist(p.x, p.y, qx, qy);
-      if (d > 7) continue;
+      if (d > 5.5) continue;
       const [ux, uy] = norm(qx - p.x, qy - p.y);
       const cos = ux * dx + uy * dy;
-      if (cos < (stick ? 0.8 : 0.6)) continue;
+      if (cos < (stick ? 0.9 : 0.75)) continue;
       const sc = cos + (this.ball.owner === q ? 0.5 : 0) - d * 0.03;
       if (sc > bestScore) {
         bestScore = sc;
@@ -741,19 +774,40 @@ export class Match {
     this.excitement = 1;
   }
 
-  /** Very light pass assist: only snaps to a teammate within ~20° of where you aim. */
-  assistTarget(p: Player, dx: number, dy: number): Player | null {
+  /**
+   * Light pass assist: snaps to a teammate near the aim direction.
+   * A tap (ground pass) prefers the nearest sensible option; a held (lofted)
+   * pass may look further. Close teammates get a wider angular window, because
+   * a small sideways offset is a big angle up close.
+   */
+  assistTarget(p: Player, dx: number, dy: number, lob = false): Player | null {
     if (!settings.passAssist) return null;
     let best: Player | null = null;
     let bs = -Infinity;
+    const maxD = lob ? 34 : 24;
     for (const q of p.team.players) {
       if (q === p || q.state === 'down') continue;
-      const ox = q.x - p.x, oy = q.y - p.y;
+      // lead a running teammate a little, like the pass itself does
+      const qx = q.x + q.vx * 0.25, qy = q.y + q.vy * 0.25;
+      const ox = qx - p.x, oy = qy - p.y;
       const d = Math.hypot(ox, oy);
-      if (d < 3 || d > 32) continue;
-      const cos = (ox * dx + oy * dy) / d;
-      if (cos < 0.94) continue;
-      const sc = cos * 4 - d * 0.01 - (q.isGK ? 0.5 : 0);
+      if (d < 2.5 || d > maxD) continue;
+      const along = ox * dx + oy * dy;
+      if (along <= 0) continue;
+      const cos = along / d;
+      const lat = Math.abs(ox * -dy + oy * dx);
+      // ~40° window up close, narrowing to ~20° far away
+      const minCos = clamp(0.76 + d * 0.008, 0.76, 0.94);
+      if (cos < minCos || lat > 2.2 + d * 0.15) continue;
+      let lane = 0;
+      if (!lob) {
+        for (const o of p.team.opp.players) {
+          if (o.state === 'down') continue;
+          const sd = segDist(o.x, o.y, p.x, p.y, q.x, q.y);
+          if (sd < 1.1) lane += 1.1 - sd;
+        }
+      }
+      const sc = cos * 3 - lat * 0.35 - d * (lob ? 0.015 : 0.07) - lane * 0.8 - (q.isGK ? 1.5 : 0);
       if (sc > bs) {
         bs = sc;
         best = q;
@@ -812,16 +866,106 @@ export class Match {
 
   slide(p: Player, dx: number, dy: number) {
     if (p.tackleCd > 0 || !p.canAct) return;
+    // slides cost stamina: a tired player can't keep flying in
+    if (p.stamina < PHYS.slideStamina) {
+      if (p === this.human) this.fx.text(p.x, p.y, 0.3, '...', '#ccc', 0.7);
+      p.tackleCd = 0.25;
+      return;
+    }
+    p.stamina -= PHYS.slideStamina;
     p.setState('slide', PHYS.slideTime);
     p.face = Math.atan2(dy, dx);
-    const sp = PHYS.slideSpeed * (0.9 + p.pace * 0.15);
+    // exhausted legs = shorter, slower slide
+    const sp = PHYS.slideSpeed * (0.86 + p.pace * 0.2) * (0.8 + Math.min(1, p.stamina + 0.3) * 0.2);
     p.vx = dx * sp;
     p.vy = dy * sp;
-    p.tackleCd = 1.0;
+    p.tackleCd = 1.5;
     p.slideHit.clear();
+    p.slideWhiff = true;
     p.chargeKind = 'none';
     audio.slide();
     this.fx.dust(p.x, p.y, 8, p.vx, p.vy);
+    this.warnSlide(p, dx, dy);
+  }
+
+  /** AI players who see a slide coming may react with a dodge (skill + difficulty). */
+  private warnSlide(p: Player, dx: number, dy: number) {
+    for (const q of p.team.opp.players) {
+      if (q === this.human || q.isGK || !q.canAct || q.spinCd > 0 || q.dodgeT >= 0) continue;
+      const ox = q.x - p.x, oy = q.y - p.y;
+      const d = Math.hypot(ox, oy);
+      if (d > 5.5 || d < 0.3) continue;
+      const along = (ox * dx + oy * dy) / d;
+      if (along < 0.55) continue;
+      const diff = q.team.diff;
+      const carrier = this.ball.owner === q;
+      const ch = diff.dodge * (0.35 + q.skill * 0.6) * (carrier ? 1 : 0.35);
+      if (Math.random() >= ch) continue;
+      q.dodgeT = diff.react * rand(0.35, 0.7);
+      // sidestep perpendicular to the slide, away from its line
+      const lat = ox * -dy + oy * dx;
+      const s = lat >= 0 ? 1 : -1;
+      q.dodgeX = -dy * s;
+      q.dodgeY = dx * s;
+    }
+  }
+
+  /** Chance that a slide connecting with q actually brings q down. */
+  private slideLands(p: Player, q: Player): number {
+    let c = 0.72 + (p.tackle - 0.55) * 1.0 - (q.power - 0.55) * 0.35 - (q.skill - 0.55) * 0.25;
+    // a slide that has lost its speed is weak
+    const sp = Math.hypot(p.vx, p.vy);
+    c -= clamp((7 - sp) / 7, 0, 1) * 0.25;
+    // head-on slides are easy to read; from the side / behind they're nasty
+    const qs = Math.hypot(q.vx, q.vy);
+    if (qs > 2 && sp > 0.1) {
+      const dot = (p.vx * q.vx + p.vy * q.vy) / (sp * qs);
+      if (dot < -0.4) c -= 0.06;
+    }
+    if (this.ball.owner !== q) c += 0.12;
+    if (!q.team.human) c -= q.team.diff.slideRes;
+    if (q.exhausted) c += 0.1;
+    return clamp(c, 0.1, 0.92);
+  }
+
+  /** A slide made contact: stats decide between a knockdown, a poke and a shrug-off. */
+  private resolveSlideHit(p: Player, q: Player) {
+    const [ux, uy] = norm(p.vx, p.vy);
+    if (q.invuln > 0) {
+      this.knockdown(q, p, 0, 0); // shows DENIED
+      return;
+    }
+    if (Math.random() < this.slideLands(p, q)) {
+      this.knockdown(q, p, ux * 6 + p.vx * 0.3, uy * 6 + p.vy * 0.3, PHYS.downTime);
+      return;
+    }
+    const b = this.ball;
+    const show = q === this.human || p === this.human || Math.random() < 0.4;
+    if (b.owner === q && Math.random() < 0.3) {
+      // toe-poke: the ball squirts loose, but the carrier stays on his feet
+      b.owner = null;
+      b.vx = ux * 6 + q.vx * 0.3 + rand(-1.5, 1.5);
+      b.vy = uy * 6 + q.vy * 0.3 + rand(-1.5, 1.5);
+      b.vz = 1.2;
+      b.z = 0.15;
+      b.lockPlayer = q;
+      b.lockTime = 0.3;
+      b.prevTouch = q;
+      b.lastTouch = p;
+      b.kickAge = 0;
+      q.kickCd = 0.3;
+      audio.touch();
+    } else if (show) {
+      this.fx.text(q.x, q.y, 0.3, t().shrug, '#7fe8ff', 0.9);
+    }
+    // the slider bounces off a player he couldn't bring down
+    p.vx *= 0.25;
+    p.vy *= 0.25;
+    q.vx = q.vx * 0.6 + ux * 1.5;
+    q.vy = q.vy * 0.6 + uy * 1.5;
+    q.invuln = Math.max(q.invuln, 0.2);
+    this.fx.dust(q.x, q.y, 5, ux, uy);
+    audio.hit(0.4);
   }
 
   shove(p: Player, q: Player) {
@@ -845,13 +989,18 @@ export class Match {
     this.fx.emit('ring', p.x, p.y, 0.1, { n: 1, life: 0.3, size: 0.6, color: 'rgba(255,255,255,0.8)' });
   }
 
-  dive(g: Player, tx: number, ty: number) {
+  /** Keeper dive toward (tx, ty), sized so he arrives about when the ball does (tt seconds). */
+  dive(g: Player, tx: number, ty: number, tt = 0.4) {
     if (!g.canAct) return;
     const [ux, uy] = norm(tx - g.x, ty - g.y);
     g.setState('dive', 0.55);
     g.diveDirX = ux;
     g.diveDirY = uy;
-    const sp = 8.5 + g.pace * 2;
+    // displacement after t seconds of a dive is sp * (1 - e^-2t) / 2
+    const travel = Math.max(0.3, dist(g.x, g.y, tx, ty) - 0.55);
+    const T = clamp(tt, 0.15, 0.55);
+    const maxSp = 8.5 + g.pace * 2;
+    const sp = clamp((travel * 2) / (1 - Math.exp(-2 * T)), 2.5, maxSp);
     g.vx = ux * sp;
     g.vy = uy * sp;
     this.fx.dust(g.x, g.y, 5);
@@ -954,6 +1103,19 @@ export class Match {
     const hasBall = b.owner === p;
     p.sprinting = false;
     p.frozen = Math.max(0, p.frozen - dt);
+    if (p.dodgeT >= 0) {
+      p.dodgeT -= dt;
+      if (p.dodgeT < 0) {
+        if (this.phase === 'play' && p.canAct && p !== this.human) {
+          this.spin(p);
+          if (p.state === 'spin') {
+            p.vx += p.dodgeX * 5;
+            p.vy += p.dodgeY * 5;
+          }
+        }
+        p.dodgeT = -1;
+      }
+    }
     if (p.turbo > 0) {
       p.turbo -= dt;
       p.invuln = Math.max(p.invuln, 0.05);
@@ -986,7 +1148,7 @@ export class Match {
         if (p.exhausted && p.stamina > 0.3) p.exhausted = false;
         const sprint = p.wantSprint && !p.exhausted && m > 0.3 && p.state !== 'sad';
         const diffMul = p.team.human ? 1 : p.team.diff.speedMul;
-        let max = (sprint ? PHYS.sprintSpeed : PHYS.runSpeed) * (0.9 + p.pace * 0.18) * diffMul;
+        let max = (sprint ? PHYS.sprintSpeed : PHYS.runSpeed) * (0.85 + p.pace * 0.27) * diffMul;
         if (hasBall) max *= 0.93;
         if (p.chargeKind !== 'none') max *= 0.75;
         if (p.state === 'spin') max *= 1.12;
@@ -1025,14 +1187,15 @@ export class Match {
         for (const q of this.all) {
           if (q === p || q.team === p.team || p.slideHit.has(q)) continue;
           if (q.state === 'down' || q.state === 'recover') continue;
-          if (dist(p.x, p.y, q.x, q.y) < 0.95) {
+          if (dist(p.x, p.y, q.x, q.y) < 0.85) {
             p.slideHit.add(q);
-            const [ux, uy] = norm(p.vx, p.vy);
-            this.knockdown(q, p, ux * 6 + p.vx * 0.3, uy * 6 + p.vy * 0.3, PHYS.downTime);
+            p.slideWhiff = false;
+            this.resolveSlideHit(p, q);
           }
         }
         if (p.stateT > p.stateDur) {
-          p.setState('recover', 0.42);
+          // a whiffed slide leaves you on the floor for a while
+          p.setState('recover', p.slideWhiff ? 0.8 : 0.45);
         }
         break;
       }
@@ -1285,6 +1448,12 @@ export class Match {
         b.vz = -b.vz * 0.2;
         b.vx *= 0.5;
         b.vy *= 0.5;
+        // the roof net sags: a ball that settles up there rolls back onto the pitch
+        if (Math.abs(b.vz) < 1.5 && Math.hypot(b.vx, b.vy) < 3) {
+          b.vx = -sx * rand(4, 5.5);
+          b.vy = rand(-1.5, 1.5);
+          b.vz = 1.2;
+        }
       }
     }
 
@@ -1324,8 +1493,8 @@ export class Match {
         if (!q.canAct || q.kickCd > 0 || q.isGK) continue;
         if (dist(q.x, q.y, b.x, b.y) > 0.78) continue;
         // the human wins the ball more easily; AI robs the human less often
-        const mul = q === this.human ? 1.6 : q.team.human ? 1 : q.team.diff.stealMul * (o === this.human ? 0.7 : 1);
-        const rate = (0.7 + q.tackle * 1.7) * mul - o.skill * 0.6;
+        const mul = q === this.human ? o.team.diff.humanEdge : q.team.human ? 1 : q.team.diff.stealMul * (o === this.human ? q.team.diff.vsHuman : 1);
+        const rate = (0.5 + q.tackle * 2.1) * mul - o.skill * 1.0;
         if (Math.random() < Math.max(0.15, rate) * dt) {
           this.steal(q, o);
           return;

@@ -705,7 +705,7 @@ export class Renderer {
     const start = 0.9;
     const end = a.kind === 'free' ? Math.min(len, 6) : len;
     const charging = h.chargeKind !== 'none';
-    const lob = h.chargeKind === 'pass' && h.charge > 0.28;
+    const lob = h.chargeKind === 'pass' && h.charge > 0.35;
     const arcH = lob ? 1.2 + h.charge * 1.6 : 0;
     const base = a.kind === 'free' ? 0.28 : 0.42;
     const boost = charging ? Math.min(1, h.charge) * 0.35 : 0;
@@ -784,7 +784,7 @@ export class Renderer {
         ctx.fillRect(x - w / 2 + i, yb - hh + 1, 1, hh);
       }
       ctx.fillStyle = '#ffffff';
-      const mark = h.chargeKind === 'shot' ? Math.round(w / 1.3) : Math.round(w * 0.28);
+      const mark = h.chargeKind === 'shot' ? Math.round(w / 1.3) : Math.round(w * 0.35);
       ctx.fillRect(x - w / 2 + mark, yb - hh, 1, hh + 2);
     }
   }

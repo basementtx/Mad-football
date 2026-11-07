@@ -44,7 +44,7 @@ const tr = {
   stars: 'Güç',
   vs: 'VS',
   powerShotBanner: 'GÜÇ ŞUTU!',
-  saved: 'KURTARDI!', parried: 'ÇELDİ!', post: 'DİREK!', stolen: 'KAPTI!', denied: 'SIYRILDI!', bonk: 'BONK!',
+  saved: 'KURTARDI!', parried: 'ÇELDİ!', post: 'DİREK!', stolen: 'KAPTI!', denied: 'SIYRILDI!', bonk: 'BONK!', shrug: 'SARSILMADI!', dodged: 'ATLATTI!',
   ko: ['YIKILDI!', 'DÜMDÜZ!', 'PATLADI!', 'YERE ÇAKILDI!', 'OFF!', 'KO!'],
   howToItems: [
     ['🕹️', 'Hareket', 'Ekranın soluna dokunup sürükle. Klavye: WASD / Ok tuşları'],
@@ -140,7 +140,7 @@ const en: Dict = {
   stars: 'Rating',
   vs: 'VS',
   powerShotBanner: 'POWER SHOT!',
-  saved: 'SAVED!', parried: 'PARRIED!', post: 'POST!', stolen: 'STOLEN!', denied: 'DENIED!', bonk: 'BONK!',
+  saved: 'SAVED!', parried: 'PARRIED!', post: 'POST!', stolen: 'STOLEN!', denied: 'DENIED!', bonk: 'BONK!', shrug: 'SHRUGGED OFF!', dodged: 'DODGED!',
   ko: ['WRECKED!', 'FLATTENED!', 'DEMOLISHED!', 'SMASHED!', 'OOF!', 'KO!'],
   howToItems: [
     ['🕹️', 'Move', 'Touch & drag on the left side. Keyboard: WASD / Arrows'],

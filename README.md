@@ -69,6 +69,8 @@ npm run dev
 **3. Kendi telefonunda (aynı Wi-Fi):** `npm run dev` çıktısındaki `Network: http://192.168.x.x:5173` adresini telefonun tarayıcısında aç. Kodu kaydettiğin anda telefonda yenilenir.
 
 **4. Denge testi:** `npm run sim -- normal 4` komutu 20 maçı yapay zekâya karşı yapay zekâ olarak arka planda oynatır; maç başına gol, yere serme, şut ve kurtarış ortalamalarını yazar.
+   - `npm run sim:slide -- hard` sadece kayan bir "bot" ile insan tarafını oynatır (kayma ne kadar baskın?). `ATTR=0.4` / `ATTR=0.95` ile kadro gücü değiştirilebilir.
+   - `npm run sim:gk` kalecileri uzak şut, köşe şutu, aşırtma ve yavaş paslarla test eder.
 
 ## Geliştirme
 

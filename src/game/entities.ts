@@ -48,6 +48,8 @@ export const PHYS = {
   accel: 34,
   slideSpeed: 13.5,
   slideTime: 0.44,
+  /** stamina spent per slide tackle */
+  slideStamina: 0.16,
   downTime: 1.45,
 };
 
@@ -65,14 +67,20 @@ export interface DiffParams {
   stealMul: number;
   dodge: number;
   passiveness: number;
+  /** subtracted from the chance that a slide on this team's AI players lands */
+  slideRes: number;
+  /** how easily the human (playing against this team) robs the ball by contact */
+  humanEdge: number;
+  /** how well this team's AI robs the human carrier */
+  vsHuman: number;
 }
 
 export const DIFF: Record<Difficulty, DiffParams> = {
-  easy: { react: 0.38, speedMul: 0.86, aggression: 0.2, shootErr: 0.17, gkCatch: 19, gkReact: 0.3, stealMul: 0.45, dodge: 0.12, passiveness: 0.5 },
-  normal: { react: 0.24, speedMul: 0.95, aggression: 0.4, shootErr: 0.11, gkCatch: 22.5, gkReact: 0.2, stealMul: 0.65, dodge: 0.32, passiveness: 0.25 },
-  hard: { react: 0.15, speedMul: 1.01, aggression: 0.6, shootErr: 0.075, gkCatch: 25.5, gkReact: 0.13, stealMul: 0.85, dodge: 0.55, passiveness: 0.1 },
-  insane: { react: 0.09, speedMul: 1.07, aggression: 0.8, shootErr: 0.05, gkCatch: 28.5, gkReact: 0.085, stealMul: 1.0, dodge: 0.75, passiveness: 0 },
-  legend: { react: 0.06, speedMul: 1.12, aggression: 1.0, shootErr: 0.035, gkCatch: 31, gkReact: 0.06, stealMul: 1.15, dodge: 0.9, passiveness: 0 },
+  easy: { react: 0.38, speedMul: 0.86, aggression: 0.2, shootErr: 0.17, gkCatch: 19, gkReact: 0.3, stealMul: 0.45, dodge: 0.12, passiveness: 0.5, slideRes: 0, humanEdge: 1.5, vsHuman: 0.55 },
+  normal: { react: 0.24, speedMul: 0.95, aggression: 0.4, shootErr: 0.11, gkCatch: 22.5, gkReact: 0.2, stealMul: 0.65, dodge: 0.32, passiveness: 0.25, slideRes: 0.05, humanEdge: 1.3, vsHuman: 0.75 },
+  hard: { react: 0.15, speedMul: 1.01, aggression: 0.6, shootErr: 0.075, gkCatch: 25.5, gkReact: 0.13, stealMul: 0.85, dodge: 0.55, passiveness: 0.1, slideRes: 0.12, humanEdge: 1.1, vsHuman: 0.95 },
+  insane: { react: 0.09, speedMul: 1.07, aggression: 0.8, shootErr: 0.05, gkCatch: 28.5, gkReact: 0.085, stealMul: 1.0, dodge: 0.75, passiveness: 0, slideRes: 0.18, humanEdge: 0.95, vsHuman: 1.08 },
+  legend: { react: 0.06, speedMul: 1.12, aggression: 1.0, shootErr: 0.035, gkCatch: 31, gkReact: 0.06, stealMul: 1.15, dodge: 0.9, passiveness: 0, slideRes: 0.24, humanEdge: 0.85, vsHuman: 1.2 },
 };
 
 export type PState = 'run' | 'slide' | 'down' | 'recover' | 'shove' | 'spin' | 'dive' | 'celebrate' | 'sad';
@@ -159,6 +167,12 @@ export class Player {
   card: CardData | null = null;
   diveDirX = 0;
   diveDirY = 0;
+  /** pending reactive dodge (AI): seconds until it fires, <0 = none */
+  dodgeT = -1;
+  dodgeX = 0;
+  dodgeY = 0;
+  /** the current slide has hit nobody yet */
+  slideWhiff = true;
 
   // AI scratch
   aiTimer = Math.random() * 0.3;

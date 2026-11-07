@@ -9,7 +9,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
-    "sim": "tsx --import ./tools/sim-shim.mjs tools/sim.ts"
+    "sim": "tsx --import ./tools/sim-shim.mjs tools/sim.ts",
+    "sim:slide": "tsx --import ./tools/sim-shim.mjs tools/slidebot.ts",
+    "sim:gk": "tsx --import ./tools/sim-shim.mjs tools/gktest.ts"
   },
   "devDependencies": {
     "tsx": "^4.23.15",
