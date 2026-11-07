@@ -149,6 +149,9 @@ export class Team {
   trail = 'tr_basic';
   /** equipped football boots (item id, '' = default) */
   boots = '';
+  /** passes in a row without real progress (AI: stops endless pass loops) */
+  passChain = 0;
+  chainX = 0;
   stats: TeamStats = { shots: 0, onTarget: 0, knockdowns: 0, tackles: 0, possession: 0, passes: 0, saves: 0, powerShots: 0, crosses: 0, chips: 0, headers: 0, skills: 0 };
 
   constructor(
@@ -250,6 +253,9 @@ export class Player {
   aiTX = 0;
   aiTY = 0;
   aiHas = false;
+  /** AI first-touch decision for the current possession */
+  aiTouchKey = -1;
+  aiOneTouch = false;
   /** keeper took a back pass: plays it with his feet instead of picking it up */
   feetBall = false;
   /** keeper boredom (seconds with nothing to do) and the yawn it ends in */

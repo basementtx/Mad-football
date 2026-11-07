@@ -2404,6 +2404,14 @@ export class Match {
     if (b.passTarget && b.lastTouch && b.lastTouch.team === p.team && b.lastTouch !== p) {
       p.team.stats.passes++;
       b.lastTouch.passOk++;
+      // count passes that go nowhere; real progress up the pitch resets the chain
+      if ((p.x - p.team.chainX) * p.team.side > 9) {
+        p.team.passChain = 0;
+        p.team.chainX = p.x;
+      } else p.team.passChain++;
+    } else if (!p.isGK || b.lastTouch?.team !== p.team) {
+      p.team.passChain = 0;
+      p.team.chainX = p.x;
     } else if (b.passTarget && b.lastTouch && b.lastTouch.team !== p.team && b.kickAge < 2.5) b.lastTouch.lost++;
     if (b.lastTouch !== p) b.prevTouch = b.lastTouch;
     if (this.possTeam !== p.team) {

@@ -386,9 +386,10 @@ function passPlans(m: Match, p: Player): PassPlan[] {
   return out.sort((a, c) => c.val - a.val);
 }
 
-function playPass(m: Match, p: Player, plan: PassPlan) {
+function playPass(m: Match, p: Player, plan: PassPlan, errMul = 1) {
   const d = p.team.diff;
-  const err = d.shootErr * 0.45 * (1.2 - p.skill * 0.5);
+  // first-time balls under pressure are harder to place
+  const err = d.shootErr * 0.45 * (1.2 - p.skill * 0.5) * errMul + (errMul > 1 ? 0.03 * (errMul - 1) : 0);
   if (plan.through) {
     m.passToSpot(p, plan.x, plan.y, plan.q, err);
     return;
@@ -439,7 +440,7 @@ function carrierAI(m: Match, p: Player, decide: boolean) {
 
     // --- wide in the final third with a team-mate attacking the box: whip in a cross
     const wide = Math.abs(p.y) > P.boxHalf - 1 && Math.abs(gx - p.x) < P.boxDepth + 6;
-    if (wide && !p.isGK && chance((0.3 + iq * 0.1) * (1 - d.passiveness * 0.4))) {
+    if (wide && !p.isGK && p.possT > 0.3 && chance((0.3 + iq * 0.1) * (1 - d.passiveness * 0.4))) {
       const ct = m.crossTarget(p, team.side, -Math.sign(p.y) * 0.8);
       if (ct.q && Math.abs(ct.q.x - gx) < P.boxDepth + 2) {
         m.cross(p, team.side, -Math.sign(p.y), rand(0.4, 1));
@@ -459,15 +460,27 @@ function carrierAI(m: Match, p: Player, decide: boolean) {
         return;
       }
     }
+    // first touch: a receiver has to bring the ball under control before he can pass again.
+    // Only now and then (smarter teams a bit more) is it played first time - otherwise
+    // every press is answered by an instant pass and the ball can never be won.
+    const key = Math.round((m.time - p.possT) * 10);
+    if (p.aiTouchKey !== key) {
+      p.aiTouchKey = key;
+      p.aiOneTouch = chance(0.1 + iq * 0.12);
+    }
+    const settle = 0.58 - iq * 0.18;
+    const settled = p.possT >= settle || p.aiOneTouch;
     // backward / square passes only to escape real pressure
     const fwdPlans = plans.filter((pl) => (pl.x - p.x) * team.side > -1.5);
     const best = pressure > 0.55 ? plans[0] : fwdPlans[0];
     // carrying the ball is fun: only pass when it is clearly better, or when the pressure is on
     const space = openness(team, p.x + team.side * 3, p.y, 6);
     const hold = posValue(m, team, p.x, p.y) - pressure * 0.8 + space * 0.08;
-    const margin = 0.6 + d.passiveness * 0.15 - pressure * 0.45 + rand(-0.25, 0.25) * (1.1 - iq) + ((best && (best.x - p.x) * team.side < -1.5) ? 0.35 : 0);
-    if (best && best.val > hold + margin) {
-      playPass(m, p, best);
+    // a pass loop that goes nowhere: each extra pass makes carrying it / shooting more likely
+    const loop = Math.max(0, team.passChain - 2) * 0.18;
+    const margin = 0.6 + d.passiveness * 0.15 - pressure * 0.45 + loop + rand(-0.25, 0.25) * (1.1 - iq) + ((best && (best.x - p.x) * team.side < -1.5) ? 0.35 : 0);
+    if (settled && best && best.val > hold + margin) {
+      playPass(m, p, best, p.possT < settle ? 1 + pressure : 1);
       return;
     }
 
