@@ -93,8 +93,34 @@ export class Renderer {
       this.looks.set(p, look);
       // the common poses get rasterized a few at a time during the first frames
       warmPlayer(look, ['idle0', 'idle1', 'run0', 'run1', 'run2', 'run3', 'run4', 'run5']);
+      // your side's flying finishers (side view only), so the first one doesn't hitch
+      if (p.team.index === 0 && !p.isGK) warmPlayer(look, ['bike0', 'bike1', 'bike2', 'bike3', 'dhead1', 'dhead', 'dhead2']);
     }
     this.build();
+  }
+
+  /**
+   * Hand the big prerendered layers back right away (a phone's WebView frees canvas memory
+   * late, and a new match builds a whole new stadium straight after).
+   */
+  dispose() {
+    const free = (c: HTMLCanvasElement | null | undefined) => {
+      if (c) c.width = c.height = 0;
+    };
+    this.variants.forEach(free);
+    this.variants = [];
+    this.goalFront.forEach((s) => free(s.c));
+    this.goalFront = [];
+    free(this.frontBoard?.c);
+    free(this.led);
+    free(this.vignette);
+    this.vignette = null;
+    this.vigKey = '';
+    free(this.wear);
+    this.wear = null;
+    this.halos.forEach(free);
+    this.halos.clear();
+    this.ghosts.clear();
   }
 
   // ---------------------------------------------------------------- mapping (stadium px)
@@ -869,11 +895,13 @@ export class Renderer {
     const b = this.m.ball;
     if (p.move !== 'none' && (p.state === 'run' || p.state === 'spin')) {
       const k = p.moveT;
+      const u = k / Math.max(0.01, p.moveDur);
       switch (p.move) {
-        case 'bike': return k < 0.14 ? 'bike0' : 'bike1';
-        case 'dhead': return 'dhead';
-        case 'volley': return 'volley';
-        case 'head': return 'header';
+        // contact is at the start of the move: strike, follow-through, landing
+        case 'bike': return u < 0.16 ? 'bike0' : u < 0.48 ? 'bike1' : u < 0.74 ? 'bike2' : 'bike3';
+        case 'dhead': return u < 0.3 ? 'dhead1' : u < 0.72 ? 'dhead' : 'dhead2';
+        case 'volley': return u < 0.45 ? 'volley' : 'volley2';
+        case 'head': return u < 0.45 ? 'head2' : u < 0.8 ? 'header' : 'head0';
         case 'stepover': if (k < p.moveDur * 0.55) return Math.floor(k / 0.085) % 2 ? 'step0' : 'step1'; break;
         case 'flick': if (k < 0.2) return 'flick'; break;
         case 'drag': if (k < p.moveDur * 0.45) return 'drag'; break;
@@ -896,6 +924,15 @@ export class Renderer {
       return k < 0.25 ? 'kick0' : k < 0.6 ? 'kick1' : 'kick2';
     }
     if (p.chargeKind === 'shot') return 'charge';
+    // SHOOT armed for a ball on its way: the wind-up of the finish it will be
+    if (p.volleyT > 0 && p === this.m.human && !b.owner) {
+      const d = Math.hypot(b.x - p.x, b.y - p.y);
+      if (d < 4.5) {
+        if (b.z > 1.05) return p.z > 0.12 ? 'head1' : 'head0';
+        if (b.z > 0.45 && Math.hypot(p.vx, p.vy) > 4.6) return 'dhead0';
+        return 'volley0';
+      }
+    }
     if (p.isGK && b.owner === p) {
       // a back pass is played with the feet: little taps from foot to foot
       if (p.feetBall) return Math.floor(time * 5) % 2 ? 'run1' : 'run4';
@@ -924,18 +961,21 @@ export class Renderer {
     const left = Math.cos(face) < 0;
     const flash = p.state === 'down' && p.stateT < 0.1;
     // skill moves and finishers leave fading afterimages behind them
+    const fin = p.move === 'bike' || p.move === 'dhead' || p.move === 'volley' || p.move === 'head';
     let gh = this.ghosts.get(p);
     if (p.move !== 'none' && p.moveT < p.moveDur && !this.m.replaying) {
       if (!gh) this.ghosts.set(p, (gh = []));
       const lastG = gh[gh.length - 1];
-      if (!lastG || time - lastG.t > 0.035) gh.push({ x: p.x, y: p.y, z: p.z, frame, dir, left, t: time });
+      if (!lastG || time - lastG.t > (fin ? 0.026 : 0.035)) gh.push({ x: p.x, y: p.y, z: p.z, frame, dir, left, t: time });
     }
     if (gh && gh.length) {
-      while (gh.length && time - gh[0].t > 0.24) gh.shift();
+      // finishers leave a longer, denser trail than skill moves
+      const life = fin ? 0.32 : 0.24;
+      while (gh.length && time - gh[0].t > life) gh.shift();
       for (const g of gh) {
-        const a = 1 - (time - g.t) / 0.24;
+        const a = 1 - (time - g.t) / life;
         if (a <= 0) continue;
-        ctx.globalAlpha = a * 0.4;
+        ctx.globalAlpha = a * (fin ? 0.5 : 0.4);
         // a white silhouette
         drawPlayer(ctx, look, g.frame, g.dir, cam.sx(g.x), cam.sy(g.y, g.z), true, g.left);
       }

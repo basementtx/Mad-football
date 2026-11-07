@@ -117,6 +117,12 @@ function applyLang() {
 /** venue shown behind the menus */
 let demoEnv: MatchEnv | null = null;
 
+/** The menu backdrop isn't drawn during a match: free its stadium instead of keeping it. */
+function dropDemo() {
+  demo?.dispose();
+  demo = null;
+}
+
 function newDemo() {
   const a = Math.floor(Math.random() * TEAMS.length);
   let b = Math.floor(Math.random() * TEAMS.length);
@@ -154,6 +160,7 @@ function launch(home: TeamDef, away: TeamDef, difficulty: Difficulty, useClub: b
   audio.unlock();
   const homeCards = useClub ? lineupCards().filter((c): c is CardData => !!c) : undefined;
   game?.dispose();
+  dropDemo();
   game = new Game(
     {
       home, away, size: lastSetup.size, duration: lastSetup.duration, difficulty, demo: false,
@@ -180,6 +187,7 @@ function launchCfg(cfg: MatchConfig) {
   requestFullscreen();
   audio.unlock();
   game?.dispose();
+  dropDemo();
   game = new Game(cfg, input);
   game.match.onEnd = () => endMatch();
   game.resize(W, H);
@@ -295,8 +303,14 @@ const handlers: MenuHandlers = {
     if (!key || key === 'quality') {
       // let the menu repaint first, then rebuild (expensive) in the background
       setTimeout(() => {
-        if (game) game.renderer = new Renderer(game.match);
-        if (demo) demo.renderer = new Renderer(demo.match);
+        if (game) {
+          game.renderer.dispose();
+          game.renderer = new Renderer(game.match);
+        }
+        if (demo) {
+          demo.renderer.dispose();
+          demo.renderer = new Renderer(demo.match);
+        }
       }, 30);
     }
   },

@@ -220,6 +220,8 @@ export class Player {
   move: MoveKind = 'none';
   moveT = 0;
   moveDur = 0;
+  /** body height when a finisher started (it rises from there to its peak) */
+  moveZ0 = 0;
   /** skill move: direction of the burst, the facing it started from, which side it goes */
   moveX = 0;
   moveY = 0;

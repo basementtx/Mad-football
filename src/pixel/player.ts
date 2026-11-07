@@ -80,11 +80,26 @@ add('tired1', { lean: 0.72, tilt: -0.5, tF: 0.45, kF: 0.78, tB: 0.05, kB: 0.72, 
 add('yawn0', { lean: -0.12, tilt: -0.4, tF: 0.08, kF: 0.12, tB: -0.08, kB: 0.12, aF: PI - 0.5, eF: 0.9, aB: PI - 0.7, eB: 0.9, face: 'shout' });
 add('yawn1', { lean: -0.18, tilt: -0.55, tF: 0.08, kF: 0.1, tB: -0.08, kB: 0.1, aF: PI - 0.25, eF: 0.4, aB: PI - 0.45, eB: 0.4, face: 'shout' });
 add('charge', { lean: -0.08, tF: -0.55, kF: 1.35, tB: 0.08, kB: 0.25, aF: -0.7, eF: 0.4, aB: 0.9, eB: 0.5, face: 'angry' });
-// finishers: bicycle kick (wind-up, strike), diving header, volley
+// finishers. Each one has a wind-up (shown while you wait for the ball), the strike,
+// a follow-through and a landing, so the move reads as one motion.
+// bicycle kick: lean back and kick the far leg up, over the top, scissor, fall back onto the hands
 add('bike0', { rot: -1.35, tF: 0.35, kF: 1.3, tB: 1.35, kB: 0.35, aF: 1.7, eF: 0.3, aB: -1.3, eB: 0.4, face: 'angry' });
 add('bike1', { rot: -2.25, tF: 1.45, kF: 0.08, tB: 0.15, kB: 1.4, aF: 2.3, eF: 0.2, aB: -1.6, eB: 0.3, face: 'shout' });
+add('bike2', { rot: -2.45, tF: 0.45, kF: 0.35, tB: 1.7, kB: 0.08, aF: 2.6, eF: 0.15, aB: -2.0, eB: 0.2, face: 'shout' });
+add('bike3', { rot: -1.7, tF: 0.95, kF: 0.85, tB: 0.6, kB: 1.05, aF: 2.85, eF: 0.1, aB: 2.55, eB: 0.15, face: 'angry' });
+// diving header: launch off the back foot, contact with the arms spread, glide, hands down to land
+add('dhead0', { rot: 0.85, tF: 0.25, kF: 0.5, tB: -1.0, kB: 0.25, aF: -1.0, eF: 0.4, aB: -1.15, eB: 0.3, face: 'angry' });
+add('dhead1', { rot: PI / 2 - 0.05, tilt: 0.3, tF: 0.05, kF: 0.25, tB: -0.3, kB: 0.4, aF: -1.45, eF: 0.15, aB: -1.6, eB: 0.1, face: 'shout' });
 add('dhead', { rot: PI / 2 + 0.08, tF: 0.12, kF: 0.45, tB: -0.18, kB: 0.7, aF: -0.55, eF: 0.25, aB: -0.8, eB: 0.2, face: 'angry' });
+add('dhead2', { rot: PI / 2 + 0.2, tilt: -0.2, tF: 0.4, kF: 0.9, tB: 0.1, kB: 1.0, aF: 1.45, eF: 0.35, aB: 1.25, eB: 0.4, face: 'shout' });
+// volley: leg cocked back, the strike, the leg follows through high
+add('volley0', { lean: -0.2, tF: -1.25, kF: 1.95, tB: 0.1, kB: 0.3, aF: 0.95, eF: 0.5, aB: -0.95, eB: 0.4, face: 'angry' });
 add('volley', { lean: -0.38, tF: 1.8, kF: 0.12, tB: -0.12, kB: 0.4, aF: -1.45, eF: 0.3, aB: 1.35, eB: 0.4, face: 'shout' });
+add('volley2', { lean: -0.52, tF: 2.25, kF: 0.05, tB: -0.08, kB: 0.55, aF: -1.75, eF: 0.2, aB: 1.6, eB: 0.3, face: 'shout' });
+// header: knees bent ready, arched back in the air, the nod through the ball
+add('head0', { lean: 0.18, tilt: 0.2, tF: 0.75, kF: 1.5, tB: 0.2, kB: 1.4, aF: -0.9, eF: 0.6, aB: -0.75, eB: 0.6, face: 'angry' });
+add('head1', { lean: -0.3, tilt: -0.4, tF: 0.3, kF: 1.25, tB: -0.25, kB: 1.45, aF: 0.95, eF: 0.6, aB: 0.75, eB: 0.6, face: 'angry' });
+add('head2', { lean: 0.28, tilt: 0.5, tF: 0.35, kF: 0.9, tB: -0.5, kB: 1.3, aF: -0.45, eF: 0.4, aB: -0.65, eB: 0.4, face: 'shout' });
 // skill moves: stepover (two frames, the foot circles the ball), rainbow flick, drag back
 add('step0', { lean: 0.14, tF: 0.6, kF: 1.35, tB: -0.25, kB: 0.45, aF: -1.0, eF: 0.7, aB: 1.0, eB: 0.7, face: 'happy' });
 add('step1', { lean: 0.1, tF: -0.3, kF: 1.05, tB: 0.55, kB: 0.7, aF: 1.0, eF: 0.6, aB: -1.0, eB: 0.6, face: 'happy' });
@@ -286,18 +301,19 @@ function capsule(b: Buf, a0: V, c0: V, r0: number, layer: number, colour: (u: nu
 }
 
 /**
- * A player's sprites: one strip per view (side, front-diagonal, front, back-diagonal,
- * back), every pose in a row. Cells are rasterized only when first drawn, strips are
- * only allocated when a view is first needed, mirrored directions are drawn flipped
- * and the white "hit" flash strips exist only for the cells that flashed.
+ * A player's sprites: one small canvas per (view, pose) cell, made only when that cell is
+ * first drawn. Mirrored directions are drawn flipped, and the white "hit" flash cells
+ * exist only for the cells that flashed.
+ *
+ * (It used to be one strip per view with room for every pose: ~0.9 MB each whether the
+ * poses were used or not, ~150 MB of canvas for a match plus the menu backdrop - enough
+ * for a phone's WebView to kill the page mid-match.)
  */
 export interface BuiltSheet {
   look: PlayerLook;
   ramps: RGB[][];
-  strips: (HTMLCanvasElement | null)[];
+  cells: (HTMLCanvasElement | null)[];
   flash: (HTMLCanvasElement | null)[];
-  built: Uint8Array;
-  flashBuilt: Uint8Array;
 }
 
 const sheetCache = new Map<string, BuiltSheet>();
@@ -306,12 +322,12 @@ export function lookKey(l: PlayerLook) {
   return `${l.kit.id}|${l.kit.primary}|${l.kit.secondary}|${l.kit.shorts}|${l.kit.socks}|${l.kit.pattern}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}|${l.face ?? 0}|${l.eyes ?? 0}|${l.eyeColor ?? ''}|${l.boot ? l.boot.main + l.boot.accent : ''}`;
 }
 
-/**
- * Sheets are capped (least recently used go first): menus used to keep a full sheet for
- * every kit / colour / face they previewed, which could run a phone's WebView out of
- * memory and crash the app. Menus draw single frames instead (playerFrame).
- */
+/** Sheets are capped (least recently used go first) so menus and matches can't pile them up. */
 const SHEET_MAX = 36;
+
+const freeCanvas = (c: HTMLCanvasElement | null) => {
+  if (c) c.width = c.height = 0;
+};
 
 export function playerSheet(look: PlayerLook): BuiltSheet {
   const key = lookKey(look);
@@ -326,52 +342,51 @@ export function playerSheet(look: PlayerLook): BuiltSheet {
     const sh = sheetCache.get(old);
     sheetCache.delete(old);
     // release the pixels right away instead of waiting for the GC
-    if (sh) for (const c of [...sh.strips, ...sh.flash]) if (c) c.width = c.height = 0;
+    if (sh) {
+      sh.cells.forEach(freeCanvas);
+      sh.flash.forEach(freeCanvas);
+    }
   }
   const n = VIEW_COUNT * FRAME_COUNT;
-  const sh: BuiltSheet = { look, ramps: rampsFor(look), strips: VIEWS.map(() => null), flash: VIEWS.map(() => null), built: new Uint8Array(n), flashBuilt: new Uint8Array(n) };
+  const sh: BuiltSheet = { look, ramps: rampsFor(look), cells: new Array(n).fill(null), flash: new Array(n).fill(null) };
   sheetCache.set(key, sh);
   return sh;
 }
 
+const newCell = () => {
+  const c = document.createElement('canvas');
+  c.width = PW;
+  c.height = PH;
+  return c;
+};
+
 let cellImg: ImageData | null = null;
-/** The strip of a view with that pose in it (rasterized on first use). */
-function stripWith(sh: BuiltSheet, view: number, fi: number): HTMLCanvasElement {
-  let c = sh.strips[view];
-  if (!c) {
-    c = sh.strips[view] = document.createElement('canvas');
-    c.width = PW * FRAME_COUNT;
-    c.height = PH;
-  }
+/** The cell of a view and pose (rasterized on first use). */
+function cellOf(sh: BuiltSheet, view: number, fi: number): HTMLCanvasElement {
   const k = view * FRAME_COUNT + fi;
-  if (!sh.built[k]) {
-    sh.built[k] = 1;
+  let c = sh.cells[k];
+  if (!c) {
+    c = sh.cells[k] = newCell();
     const g = c.getContext('2d')!;
     cellImg ??= g.createImageData(PW, PH);
     const b = new Buf();
     drawBody(b, buildPose(POSES[fi][1], sh.look.isGK, view), sh.look);
     finalize(b, sh.ramps, cellImg);
-    g.putImageData(cellImg, fi * PW, 0);
+    g.putImageData(cellImg, 0, 0);
   }
   return c;
 }
 
-function flashWith(sh: BuiltSheet, view: number, fi: number): HTMLCanvasElement {
-  const src = stripWith(sh, view, fi);
-  let c = sh.flash[view];
-  if (!c) {
-    c = sh.flash[view] = document.createElement('canvas');
-    c.width = PW * FRAME_COUNT;
-    c.height = PH;
-  }
+function flashOf(sh: BuiltSheet, view: number, fi: number): HTMLCanvasElement {
   const k = view * FRAME_COUNT + fi;
-  if (!sh.flashBuilt[k]) {
-    sh.flashBuilt[k] = 1;
+  let c = sh.flash[k];
+  if (!c) {
+    c = sh.flash[k] = newCell();
     const g = c.getContext('2d')!;
-    g.drawImage(src, fi * PW, 0, PW, PH, fi * PW, 0, PW, PH);
+    g.drawImage(cellOf(sh, view, fi), 0, 0);
     g.globalCompositeOperation = 'source-atop';
     g.fillStyle = '#ffffff';
-    g.fillRect(fi * PW, 0, PW, PH);
+    g.fillRect(0, 0, PW, PH);
     g.globalCompositeOperation = 'source-over';
   }
   return c;
@@ -400,28 +415,28 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, look: PlayerLook, fram
     mirror = left;
   }
   const sh = playerSheet(look);
-  const strip = flash ? flashWith(sh, view, fi) : stripWith(sh, view, fi);
+  const cell = flash ? flashOf(sh, view, fi) : cellOf(sh, view, fi);
   const dx = Math.round(x - ANCHOR_X), dy = Math.round(y - ANCHOR_Y);
   if (mirror) {
     ctx.save();
     ctx.translate(dx + CELL_W, dy);
     ctx.scale(-1, 1);
-    ctx.drawImage(strip, fi * PW, 0, PW, PH, 0, 0, CELL_W, CELL_H);
+    ctx.drawImage(cell, 0, 0, PW, PH, 0, 0, CELL_W, CELL_H);
     ctx.restore();
-  } else ctx.drawImage(strip, fi * PW, 0, PW, PH, dx, dy, CELL_W, CELL_H);
+  } else ctx.drawImage(cell, 0, 0, PW, PH, dx, dy, CELL_W, CELL_H);
 }
 
 /** Rasterize some cells ahead of time (all views), within a time budget per call. */
 const warmQ: [BuiltSheet, number, number][] = [];
 export function warmPlayer(look: PlayerLook, frames: string[]) {
   const sh = playerSheet(look);
-  for (let v = 0; v < VIEW_COUNT; v++) for (const f of frames) if (FRAMES[f] !== undefined) warmQ.push([sh, v, FRAMES[f]]);
+  for (let v = 0; v < VIEW_COUNT; v++) for (const f of frames) if (FRAMES[f] !== undefined && (v === 0 || !SIDE_ONLY.has(f))) warmQ.push([sh, v, FRAMES[f]]);
 }
 export function pumpWarm(ms: number) {
   const t0 = performance.now();
   while (warmQ.length && performance.now() - t0 < ms) {
     const [sh, v, fi] = warmQ.shift()!;
-    if (sheetCache.get(lookKey(sh.look)) === sh) stripWith(sh, v, fi);
+    if (sheetCache.get(lookKey(sh.look)) === sh) cellOf(sh, v, fi);
   }
 }
 
@@ -432,7 +447,7 @@ export function sheetPreview(look: PlayerLook): HTMLCanvasElement {
   c.height = PH * VIEW_COUNT;
   const g = c.getContext('2d')!;
   const sh = playerSheet(look);
-  for (let v = 0; v < VIEW_COUNT; v++) for (let fi = 0; fi < FRAME_COUNT; fi++) g.drawImage(stripWith(sh, v, fi), fi * PW, 0, PW, PH, fi * PW, v * PH, PW, PH);
+  for (let v = 0; v < VIEW_COUNT; v++) for (let fi = 0; fi < FRAME_COUNT; fi++) g.drawImage(cellOf(sh, v, fi), fi * PW, v * PH);
   return c;
 }
 

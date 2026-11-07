@@ -2614,10 +2614,19 @@ export class Match {
     }
 
     // finishers lift the body: a bicycle kick goes up and over, a diving header skims along
-    if (p.move === 'bike' || p.move === 'dhead' || p.move === 'head') {
+    if (p.move === 'bike' || p.move === 'dhead' || p.move === 'head' || p.move === 'volley') {
+      // quick rise to the peak just after contact, then an eased fall back to the grass
       const k = clamp(p.moveT / Math.max(0.01, p.moveDur), 0, 1);
-      const top = p.move === 'bike' ? 0.85 : p.move === 'head' ? 0.45 : 0.35;
-      p.z = Math.sin(k * Math.PI) * top;
+      const top = p.move === 'bike' ? 0.9 : p.move === 'head' ? 0.5 : p.move === 'dhead' ? 0.38 : 0.12;
+      const peak = p.move === 'bike' ? 0.38 : 0.28;
+      const from = Math.min(p.moveZ0, top);
+      p.z = k < peak ? from + (top - from) * Math.sin((k / peak) * Math.PI / 2) : top * Math.cos(((k - peak) / (1 - peak)) * Math.PI / 2);
+    }
+    // waiting for a ball you asked to finish: crouch, then spring up to meet a high one
+    else if (p === this.human && p.volleyT > 0 && p.canAct && !b.owner && p.state === 'run') {
+      const d = dist(p.x, p.y, b.x, b.y);
+      const high = b.z > 1.05 && d < 2.6 && b.vz < 2;
+      p.z = high ? Math.min(0.32, p.z + dt * 2.4) : Math.max(0, p.z - dt * 2.6);
     }
     // anything that lifted the player (header jump, celebration hop, goal blast) falls back down;
     // a height left over from a header used to keep players floating in the header pose
@@ -3217,7 +3226,12 @@ export class Match {
         p.face = Math.atan2(p.moveY, p.moveX);
       }
       p.chargeKind = 'none';
+      p.moveZ0 = p.z;
       const big = kind === 'bike' || kind === 'dhead';
+      // a short hit-stop sells the contact; the big ones get the slow motion below
+      if (!big && !this.cfg.demo) this.fx.slowmo(0.3, 0.15);
+      this.fx.swoosh(p, kind);
+      if (kind !== 'volley') this.fx.dust(p.x, p.y, big ? 7 : 4);
       this.fx.impact(b.x, b.y, b.z);
       this.fx.emit('ring', b.x, b.y, b.z, { n: 1, life: 0.35, size: big ? 1.3 : 0.9, color: '#ffe14d' });
       this.fx.emit('spark', b.x, b.y, b.z, { n: big ? 16 : 9, speed: 6, up: 2, life: 0.4, colors: ['#ffffff', '#ffe14d', '#ffb21f'] });

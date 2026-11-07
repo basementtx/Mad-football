@@ -157,5 +157,6 @@ export class Game {
   dispose() {
     this.dom?.destroy();
     this.dom = null;
+    this.renderer.dispose();
   }
 }

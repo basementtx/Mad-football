@@ -51,6 +51,8 @@ export class FX {
   private slowT = 0;
   private slowScale = 1;
   private timers: { t: number; fn: () => void }[] = [];
+  /** finisher motion arcs: where the foot / head swept through the ball */
+  private swooshes: { x: number; y: number; z: number; side: number; kind: string; t: number }[] = [];
 
   /** run fn after `t` seconds of game time */
   after(t: number, fn: () => void) {
@@ -66,6 +68,7 @@ export class FX {
     this.timers.length = 0;
     this.texts.length = 0;
     this.banners.length = 0;
+    this.swooshes.length = 0;
     this.shake = 0;
     this.flash = 0;
     this.slowT = 0;
@@ -113,6 +116,51 @@ export class FX {
         g: opts.g,
       });
     }
+  }
+
+  /** The arc a finisher sweeps (volley, bicycle kick, header) or the speed lines of a diving header. */
+  swoosh(p: { x: number; y: number; z: number; face: number }, kind: string) {
+    if (this.swooshes.length > 6) this.swooshes.shift();
+    this.swooshes.push({ x: p.x, y: p.y, z: p.z, side: Math.cos(p.face) < 0 ? -1 : 1, kind, t: 0 });
+  }
+
+  private drawSwooshes(ctx: CanvasRenderingContext2D, cam: Camera) {
+    const DUR = 0.26;
+    for (const s of this.swooshes) {
+      const k = s.t / DUR;
+      if (k >= 1) continue;
+      const X = cam.sx(s.x), Y = cam.sy(s.y, s.z);
+      if (s.kind === 'dhead') {
+        // speed lines trailing behind the flying body
+        for (let i = 0; i < 3; i++) {
+          const len = Math.round((14 - i * 3) * (1 - k));
+          if (len <= 0) continue;
+          ctx.fillStyle = i === 1 ? '#ffffff' : '#ffe14d';
+          ctx.globalAlpha = 0.9 * (1 - k);
+          ctx.fillRect(s.side > 0 ? X - 12 - len : X + 12, Y - 9 - i * 4, len, 1);
+        }
+        continue;
+      }
+      // [centre height above the feet, radius, start and end angle (0 = forward, 90 = up)]
+      const [cy, r, a0, a1] = s.kind === 'bike' ? [15, 13, -35, 165] : s.kind === 'head' ? [29, 7, 110, 15] : [11, 11, -115, 65];
+      const reveal = Math.min(1, k * 3.2);
+      const tail = Math.max(0, k * 1.6 - 0.35);
+      const N = 26;
+      for (let i = 0; i <= N; i++) {
+        const u = i / N;
+        if (u > reveal || u < tail) continue;
+        const a = ((a0 + (a1 - a0) * u) * Math.PI) / 180;
+        const fade = 1 - (reveal - u) * 0.9;
+        ctx.globalAlpha = Math.max(0.15, fade) * (1 - k * 0.6);
+        const px = X + Math.round(Math.cos(a) * r * s.side), py = Y - cy - Math.round(Math.sin(a) * r);
+        const ox = Math.round(Math.cos(a) * s.side), oy = -Math.round(Math.sin(a));
+        ctx.fillStyle = '#ffb21f';
+        ctx.fillRect(px + ox, py + oy, 1, 1);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(px, py, 2, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   dust(x: number, y: number, n = 6, vx = 0, vy = 0) {
@@ -412,6 +460,8 @@ export class FX {
     } else this.timeScale = 1;
 
     this.shake = Math.max(0, this.shake - dtReal * 2.2);
+    for (const s of this.swooshes) s.t += dtReal;
+    while (this.swooshes.length && this.swooshes[0].t > 0.3) this.swooshes.shift();
     this.flash = Math.max(0, this.flash - dtReal * 3);
 
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -472,6 +522,7 @@ export class FX {
   }
 
   draw(ctx: CanvasRenderingContext2D, cam: Camera) {
+    if (this.swooshes.length) this.drawSwooshes(ctx, cam);
     for (const p of this.particles) {
       const sx = cam.sx(p.x), sy = cam.sy(p.y, p.z);
       const k = p.life / p.max;
