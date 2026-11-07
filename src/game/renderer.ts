@@ -4,7 +4,7 @@ import { PPM, YS } from './camera';
 import type { Pitch, Player, MysteryBox, Bomb, Bullet } from './entities';
 import { tierColors, itemById } from '../meta/items';
 import type { TeamDef } from './teams';
-import { playerSheet, FRAMES, CELL_W, CELL_H, ANCHOR_X, ANCHOR_Y, SS, PlayerLook } from '../pixel/player';
+import { drawPlayer, dirOf, warmPlayer, pumpWarm, PlayerLook } from '../pixel/player';
 import { ballFrame, shadow, ring, arrow, BALL_SIZE } from '../pixel/props';
 import { ramp, css, RGB } from '../pixel/palette';
 import { drawText, measure, textCanvas } from '../pixel/font';
@@ -66,7 +66,20 @@ export class Renderer {
   private flags: { x: number; y: number; c1: string; c2: string; ph: number; big: boolean }[] = [];
   private looks = new Map<Player, PlayerLook>();
   /** afterimages of skill moves / finishers per player */
-  private ghosts = new Map<Player, { x: number; y: number; z: number; fi: number; left: boolean; t: number }[]>();
+  private ghosts = new Map<Player, { x: number; y: number; z: number; frame: string; dir: number; left: boolean; t: number }[]>();
+  /** last drawn direction per player (a little hysteresis stops flicker between two sectors) */
+  private dirs = new Map<Player, number>();
+  private dirFor(p: Player, face: number) {
+    const prev = this.dirs.get(p);
+    let d = dirOf(face);
+    if (prev !== undefined && prev !== d) {
+      // keep the old sector until the facing is clearly past the border
+      const diff = Math.abs(Math.atan2(Math.sin(face - (prev * Math.PI) / 4), Math.cos(face - (prev * Math.PI) / 4)));
+      if (diff < Math.PI / 8 + 0.12 && p.state !== 'spin') d = prev;
+    }
+    this.dirs.set(p, d);
+    return d;
+  }
   private T: StadiumTheme;
   private torches: [number, number][] = [];
   private weather: WeatherFX;
@@ -78,7 +91,8 @@ export class Renderer {
     for (const p of m.all) {
       const look: PlayerLook = { kit: p.team.def, isGK: p.isGK, skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, beard: p.beard, face: p.faceShape, eyes: p.eyes, eyeColor: p.eyeColor, boot: itemById(p.team.boots)?.boot };
       this.looks.set(p, look);
-      playerSheet(look);
+      // the common poses get rasterized a few at a time during the first frames
+      warmPlayer(look, ['idle0', 'idle1', 'run0', 'run1', 'run2', 'run3', 'run4', 'run5']);
     }
     this.build();
   }
@@ -725,6 +739,8 @@ export class Renderer {
 
   // ---------------------------------------------------------------- frame
   draw(ctx: CanvasRenderingContext2D, cam: Camera, time: number) {
+    // pre-rasterize upcoming sprite views without a frame spike
+    pumpWarm(2.5);
     const m = this.m;
     ctx.imageSmoothingEnabled = false;
     const bx = cam.originX - this.OX, by = cam.originY - this.OY;
@@ -899,32 +915,32 @@ export class Renderer {
     const x = cam.sx(p.x), y = cam.sy(p.y, p.z);
     if (x < -30 || x > cam.W + 30 || y < -10 || y > cam.H + 40) return;
     const look = this.looks.get(p)!;
-    const sheet = playerSheet(look).canvas;
-    const fi = FRAMES[this.frameFor(p, time)] ?? 0;
-    let left = Math.cos(p.face) < 0;
-    if (p.state === 'spin') left = Math.floor(p.stateT / 0.06) % 2 === 0 ? !left : left;
+    const frame = this.frameFor(p, time);
+    // 8 directions; a spin turns the body all the way round
+    let face = p.face;
+    if (p.state === 'spin') face += (p.stateT / Math.max(0.1, p.stateDur)) * Math.PI * 2;
+    const dir = this.dirFor(p, face);
+    const left = Math.cos(face) < 0;
     const flash = p.state === 'down' && p.stateT < 0.1;
-    const row = (left ? 1 : 0) + (flash ? 2 : 0);
     // skill moves and finishers leave fading afterimages behind them
     let gh = this.ghosts.get(p);
     if (p.move !== 'none' && p.moveT < p.moveDur && !this.m.replaying) {
       if (!gh) this.ghosts.set(p, (gh = []));
       const lastG = gh[gh.length - 1];
-      if (!lastG || time - lastG.t > 0.035) gh.push({ x: p.x, y: p.y, z: p.z, fi, left, t: time });
+      if (!lastG || time - lastG.t > 0.035) gh.push({ x: p.x, y: p.y, z: p.z, frame, dir, left, t: time });
     }
     if (gh && gh.length) {
       while (gh.length && time - gh[0].t > 0.24) gh.shift();
-      const ghostSheet = playerSheet(look).canvas;
       for (const g of gh) {
         const a = 1 - (time - g.t) / 0.24;
         if (a <= 0) continue;
         ctx.globalAlpha = a * 0.4;
-        // flash rows: a white silhouette
-        ctx.drawImage(ghostSheet, g.fi * CELL_W * SS, ((g.left ? 1 : 0) + 2) * CELL_H * SS, CELL_W * SS, CELL_H * SS, cam.sx(g.x) - ANCHOR_X, cam.sy(g.y, g.z) - ANCHOR_Y, CELL_W, CELL_H);
+        // a white silhouette
+        drawPlayer(ctx, look, g.frame, g.dir, cam.sx(g.x), cam.sy(g.y, g.z), true, g.left);
       }
       ctx.globalAlpha = 1;
     }
-    ctx.drawImage(sheet, fi * CELL_W * SS, row * CELL_H * SS, CELL_W * SS, CELL_H * SS, x - ANCHOR_X, y - ANCHOR_Y, CELL_W, CELL_H);
+    drawPlayer(ctx, look, frame, dir, x, y, flash, left);
     if (p.beaten > 0 && p.state === 'run' && !this.m.replaying) {
       // wrong-footed: little stars spinning round the head
       for (let i = 0; i < 3; i++) {
