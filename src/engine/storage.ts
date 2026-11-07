@@ -48,7 +48,7 @@ const DEFAULT_SETTINGS: Settings = {
   aimLine: true,
   btnScale: 1,
   ctrl: null,
-  v: 2,
+  v: 3,
 };
 
 const DEFAULT_RECORD: Record = {
@@ -87,6 +87,17 @@ const storedVersion = (() => {
 if (storedVersion < 2) {
   settings.lang = 'en';
   settings.v = 2;
+}
+// v3: new button layout (SHOOT on top, THROUGH, PASS, big SPRINT / SKILL key): a saved
+// custom layout would put the keys back in their old places with their new jobs
+if (storedVersion < 3) {
+  settings.ctrl = null;
+  settings.v = 3;
+  try {
+    localStorage.setItem('mf.settings', JSON.stringify(settings));
+  } catch {
+    /* ignore */
+  }
 }
 export const record: Record = load('mf.record', DEFAULT_RECORD);
 

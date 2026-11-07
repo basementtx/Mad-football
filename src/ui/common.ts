@@ -2,7 +2,7 @@
 import type { MatchEnv } from '../game/env';
 import { audio } from '../engine/audio';
 import { flagCanvas } from '../pixel/flags';
-import { playerSheet, FRAMES, CELL_W, CELL_H, SS, PlayerLook } from '../pixel/player';
+import { playerFrame, CELL_W, CELL_H, SS, PlayerLook } from '../pixel/player';
 import { textCanvas } from '../pixel/font';
 import { portraitCanvas } from '../pixel/portrait';
 import { crestCanvas } from '../pixel/crest';
@@ -75,7 +75,7 @@ export function crestTag(def: { crest: CrestCfg; primary: string; secondary: str
 
 export function spriteSource(look: PlayerLook, frame: string, left = false, glow = true) {
   return () => {
-    const sheet = playerSheet(look).canvas;
+    const fr = playerFrame(look, frame);
     const c = document.createElement('canvas');
     c.width = CELL_W * SS;
     c.height = CELL_H * SS;
@@ -86,7 +86,11 @@ export function spriteSource(look: PlayerLook, frame: string, left = false, glow
       g.fillRect(9 * SS, 34 * SS, 22 * SS, 2 * SS);
       g.fillRect(12 * SS, 33 * SS, 16 * SS, 4 * SS);
     }
-    g.drawImage(sheet, FRAMES[frame] * CELL_W * SS, (left ? 1 : 0) * CELL_H * SS, CELL_W * SS, CELL_H * SS, 0, 0, CELL_W * SS, CELL_H * SS);
+    if (left) {
+      g.translate(c.width, 0);
+      g.scale(-1, 1);
+    }
+    g.drawImage(fr, 0, 0);
     return c;
   };
 }

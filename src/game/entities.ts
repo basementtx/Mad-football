@@ -11,7 +11,7 @@ export interface Pitch {
   goalDepth: number;
   goalHeight: number;
   boxDepth: number;
-  /** item reach multiplier: area effects grow with the pitch (33 m vs the original 30 m) */
+  /** item reach multiplier: area effects grow with the pitch (36 m vs the original 30 m) */
   area: number;
   boxHalf: number;
   smallDepth: number;
@@ -23,19 +23,21 @@ export interface Pitch {
 
 export function makePitch(size: number): Pitch {
   const s = size <= 3 ? 0.84 : size === 4 ? 1 : 1.14;
+  // a wider pitch (36 x 22 half-size) leaves room to pass and to play tactics, and a
+  // wider goal (9.2 m) gives curled and placed shots a real target
   return {
-    hw: 33 * s,
-    hh: 20 * s,
-    goalHalf: 3.7,
-    goalDepth: 2.2,
-    goalHeight: 2.45,
-    boxDepth: 8.5 * s,
-    boxHalf: 9.5 * s,
-    smallDepth: 3.2,
-    smallHalf: 5.6,
-    centerR: 5 * s,
+    hw: 36 * s,
+    hh: 22 * s,
+    goalHalf: 4.6,
+    goalDepth: 2.3,
+    goalHeight: 2.6,
+    boxDepth: 9.2 * s,
+    boxHalf: 10.8 * s,
+    smallDepth: 3.4,
+    smallHalf: 6.6,
+    centerR: 5.4 * s,
     margin: 1.7,
-    area: 33 / 30,
+    area: 36 / 30,
   };
 }
 
@@ -81,6 +83,11 @@ export const DIFF: Record<Difficulty, DiffParams> = {
   legend: { iq: 1, react: 0.06, speedMul: 1.12, aggression: 1.0, shootErr: 0.035, gkCatch: 31, gkReact: 0.06, stealMul: 1.15, dodge: 0.9, passiveness: 0 },
 };
 
+/** finishers (bike = bicycle kick, dhead = diving header, volley, head) and skill moves */
+export type MoveKind = 'none' | 'head' | 'dhead' | 'volley' | 'bike' | 'roulette' | 'stepover' | 'flick' | 'drag';
+export const MOVES: MoveKind[] = ['none', 'head', 'dhead', 'volley', 'bike', 'roulette', 'stepover', 'flick', 'drag'];
+export const isSkillMove = (m: MoveKind) => m === 'roulette' || m === 'stepover' || m === 'flick' || m === 'drag';
+
 export type PState = 'run' | 'slide' | 'down' | 'recover' | 'shove' | 'spin' | 'dive' | 'celebrate' | 'sad';
 export type Role = 'GK' | 'DEF' | 'MID' | 'FWD';
 export type Mentality = 'def' | 'bal' | 'att';
@@ -103,6 +110,8 @@ export interface TeamStats {
   chips: number;
   /** header / volley shots */
   headers: number;
+  /** skill moves that beat a defender */
+  skills: number;
 }
 
 export class Team {
@@ -131,7 +140,7 @@ export class Team {
   trail = 'tr_basic';
   /** equipped football boots (item id, '' = default) */
   boots = '';
-  stats: TeamStats = { shots: 0, onTarget: 0, knockdowns: 0, tackles: 0, possession: 0, passes: 0, saves: 0, powerShots: 0, crosses: 0, chips: 0, headers: 0 };
+  stats: TeamStats = { shots: 0, onTarget: 0, knockdowns: 0, tackles: 0, possession: 0, passes: 0, saves: 0, powerShots: 0, crosses: 0, chips: 0, headers: 0, skills: 0 };
 
   constructor(
     public def: TeamDef,
@@ -170,7 +179,7 @@ export class Player {
   sprinting = false;
 
   charge = 0;
-  chargeKind: 'none' | 'shot' | 'pass' = 'none';
+  chargeKind: 'none' | 'shot' | 'pass' | 'through' = 'none';
 
   // cooldowns
   tackleCd = 0;
@@ -198,6 +207,15 @@ export class Player {
   /** the user's own created player */
   star = false;
   card: CardData | null = null;
+  /** special move in progress (finisher or skill move) and its clock */
+  move: MoveKind = 'none';
+  moveT = 0;
+  moveDur = 0;
+  /** skill move: direction of the burst and the defenders it already beat */
+  moveX = 0;
+  moveY = 0;
+  /** wrong-footed by a skill move: slow and can't tackle (seconds) */
+  beaten = 0;
   diveDirX = 0;
   diveDirY = 0;
 
@@ -285,7 +303,7 @@ export class Player {
 
   /** Can take voluntary actions. */
   get canAct() {
-    return this.state === 'run' || this.state === 'spin';
+    return (this.state === 'run' || this.state === 'spin') && (this.move === 'none' || isSkillMove(this.move));
   }
 
   get isDown() {
@@ -321,6 +339,13 @@ export class Ball {
   /** skin tier of the active power shot */
   tier = 1;
   trail: { x: number; y: number; z: number }[] = [];
+  /** a flick over a defender: only its owner may collect it until the timer runs out */
+  skillBy: Player | null = null;
+  skillT = 0;
+  /** last shot was a finisher (header, volley, bicycle kick...): its kind, for the goal banner */
+  finisher: MoveKind = 'none';
+  /** seconds of finisher sparkle trail left */
+  finisherT = 0;
 
   get speed() {
     return Math.hypot(this.vx, this.vy);
@@ -340,6 +365,10 @@ export class Ball {
     this.shotBy = null;
     this.inGoal = 0;
     this.trail.length = 0;
+    this.skillBy = null;
+    this.skillT = 0;
+    this.finisher = 'none';
+    this.finisherT = 0;
     this.kickAge = 10;
   }
 

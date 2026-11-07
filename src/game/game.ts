@@ -108,19 +108,22 @@ export class Game {
     const team = m.teams[0];
     const hasBall = !!h && b.owner === h;
     const keeper = hasBall && !!h && h.isGK;
+    const aerial = !!h && !b.owner && b.z > 0.45 && dist(h.x, h.y, b.x, b.y) < 3.2;
     let aText = L.tackleBtn;
     let aIc = 'slide';
     if (keeper) { aText = L.punt; aIc = 'punt'; }
     else if (hasBall) { aText = L.shoot; aIc = 'shoot'; }
+    else if (aerial) { aText = L.header; aIc = 'header'; }
+    // THROUGH key: a through ball on the ball, press / shove without it
+    let dText = L.press;
+    let dIc = 'press';
+    if (hasBall) { dText = L.through; dIc = 'through'; }
     else if (h) {
-      if (!b.owner && b.z > 0.6 && dist(h.x, h.y, b.x, b.y) < 3) { aText = L.header; aIc = 'header'; }
-      else {
-        for (const q of m.teams[1].players) {
-          if (!q.isGK && q.state !== 'down' && dist(h.x, h.y, q.x, q.y) < 1.75) {
-            aText = L.shove;
-            aIc = 'shove';
-            break;
-          }
+      for (const q of m.teams[1].players) {
+        if (!q.isGK && q.state !== 'down' && dist(h.x, h.y, q.x, q.y) < 1.75) {
+          dText = L.shove;
+          dIc = 'shove';
+          break;
         }
       }
     }
@@ -129,8 +132,8 @@ export class Game {
     return {
       a: { text: aText, color: hasBall ? '#ff4d3d' : '#ff7a1f', ic: aIc },
       b: { text: keeper ? L.throwBtn : hasBall ? L.pass : m.cfg.lockStar ? L.callBtn : L.switchBtn, color: '#2f9bff', ic: keeper ? 'throw' : hasBall || m.cfg.lockStar ? 'pass' : 'switch' },
-      c: { text: L.sprint, color: '#2fc46a', dim: keeper, ic: 'sprint' },
-      d: { text: L.spin, color: '#a35cff', dim: keeper, ic: 'spin' },
+      c: { text: hasBall && !keeper ? L.sprintSkill : L.sprint, color: '#2fc46a', dim: keeper, ic: 'sprint' },
+      d: { text: dText, color: '#ffd23f', dim: keeper, ic: dIc },
       e: it
         ? { text: '', color: usable ? '#ffb21f' : '#6a5a3a', glow: usable, icon: itemIcon(it.id, it.type, it.color), tier: m.tierOf(team, team.item!), dim: !usable }
         : { text: '?', color: '#3a4258', dim: true },

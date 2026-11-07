@@ -8,12 +8,21 @@ export interface Button {
   held: number;
   /** swiped upward while held (touch) or lift key held (keyboard): cross / chip */
   flick: boolean;
+  /** swiped in a direction while held (SPRINT key: skill move); edge flag, one per press */
+  swiped: boolean;
+  /** swipe direction in screen space (0,0 = "forward", from the keyboard) */
+  swipeX: number;
+  swipeY: number;
+  /** a swipe already fired during this press */
+  swipeUsed: boolean;
 }
 
-const mkBtn = (): Button => ({ down: false, pressed: false, released: false, held: 0, flick: false });
+const mkBtn = (): Button => ({ down: false, pressed: false, released: false, held: 0, flick: false, swiped: false, swipeX: 0, swipeY: 0, swipeUsed: false });
 
 /** Upward finger travel (virtual px) on a held button that counts as a swipe. */
 const FLICK_PX = 15;
+/** Finger travel (virtual px) on the SPRINT key that counts as a skill-move swipe. */
+const SWIPE_PX = 13;
 
 export type BtnId = 'a' | 'b' | 'c' | 'd' | 'e';
 const BTN_IDS: BtnId[] = ['a', 'b', 'c', 'd', 'e'];
@@ -31,8 +40,10 @@ export interface Insets { top: number; right: number; bottom: number; left: numb
 export let activeInput: Input | null = null;
 
 /**
- * Unified input: virtual joystick + 4 action buttons for touch, keyboard for desktop.
- * a = shoot/tackle, b = pass/switch, c = sprint, d = spin, e = special item
+ * Unified input: virtual joystick + action buttons for touch, keyboard for desktop.
+ * a = shoot / slide (top), d = through ball / press (left of shoot), b = pass / switch
+ * (bottom left), c = the big SPRINT key (swipe it in a direction for a skill move),
+ * e = special item
  */
 export class Input {
   mx = 0;
@@ -91,12 +102,14 @@ export class Input {
     // user-selectable button size; never let the cluster outgrow the screen
     const k = Math.min(settings.btnScale || 1, (H - 30) / 120);
     const B = (id: BtnId, dx: number, dy: number, r: number): BtnLayout => ({ id, x: right - dx * k, y: bottom - dy * k, r: Math.round(r * k) });
+    // SHOOT on top, THROUGH just left of it, PASS bottom left, the big SPRINT / SKILL key
+    // bottom right (thumb rest), the item key out of the way above THROUGH
     let L: BtnLayout[] = [
-      B('a', 24, 26, 21),
-      B('b', 70, 15, 16),
-      B('d', 64, 58, 15),
-      B('c', 19, 76, 15),
-      B('e', 106, 46, 14),
+      B('c', 27, 25, 23),
+      B('a', 31, 80, 17),
+      B('d', 76, 61, 16),
+      B('b', 82, 17, 16),
+      B('e', 76, 104, 12),
     ];
     this.joyR = Math.round(24 * Math.min(k, 1.3));
     if (settings.leftHanded) L = L.map((b) => ({ ...b, x: W - b.x }));
@@ -183,12 +196,25 @@ export class Input {
   private onMove(e: PointerEvent) {
     const bid = this.ptrBtn.get(e.pointerId);
     if (bid) {
-      // swipe up on a held button
       const st = this.ptrStart.get(e.pointerId)!;
       const x = e.clientX / this.k, y = e.clientY / this.k;
-      const up = st.y - y, side = Math.abs(x - st.x);
-      if (up > FLICK_PX && up > side * 1.1) this.btn[bid].flick = true;
-      else if (up < FLICK_PX * 0.4) this.btn[bid].flick = false;
+      const bt = this.btn[bid];
+      if (bid === 'c') {
+        // the SPRINT key: a swipe in any direction is a skill move (once per press)
+        const dx = x - st.x, dy = y - st.y;
+        const d = Math.hypot(dx, dy);
+        if (!bt.swipeUsed && d > SWIPE_PX) {
+          bt.swipeUsed = true;
+          bt.swiped = true;
+          bt.swipeX = dx / d;
+          bt.swipeY = dy / d;
+        }
+      } else {
+        // swipe up on a held button: cross / chip / lofted through ball
+        const up = st.y - y, side = Math.abs(x - st.x);
+        if (up > FLICK_PX && up > side * 1.1) bt.flick = true;
+        else if (up < FLICK_PX * 0.4) bt.flick = false;
+      }
       e.preventDefault();
       return;
     }
@@ -246,6 +272,7 @@ export class Input {
       b.pressed = true;
       b.held = 0;
       b.flick = this.keys.has('KeyR');
+      b.swipeUsed = false;
     }
   }
 
@@ -260,8 +287,8 @@ export class Input {
   private static KEYMAP: Record<string, BtnId> = {
     KeyJ: 'a', Space: 'a', KeyZ: 'a',
     KeyK: 'b', KeyX: 'b',
-    ShiftLeft: 'c', ShiftRight: 'c', KeyL: 'c',
-    KeyI: 'd', KeyC: 'd',
+    ShiftLeft: 'c', ShiftRight: 'c',
+    KeyL: 'd', KeyV: 'd',
     KeyE: 'e', KeyQ: 'e', KeyU: 'e',
   };
 
@@ -281,7 +308,18 @@ export class Input {
       if (this.enabled) e.preventDefault();
       if (down) this.keys.add(e.code);
       else this.keys.delete(e.code);
-      if (down) for (const k of ['a', 'b'] as BtnId[]) if (this.btn[k].down) this.btn[k].flick = true;
+      if (down) for (const k of ['a', 'b', 'd'] as BtnId[]) if (this.btn[k].down) this.btn[k].flick = true;
+      return;
+    }
+    if (e.code === 'KeyI' || e.code === 'KeyC') {
+      // skill move in the stick direction (none = straight ahead)
+      if (this.enabled) e.preventDefault();
+      if (down && !e.repeat) {
+        const c = this.btn.c;
+        c.swiped = true;
+        c.swipeX = this.mx;
+        c.swipeY = this.my;
+      }
       return;
     }
     const id = Input.KEYMAP[e.code];
@@ -317,6 +355,7 @@ export class Input {
       const b = this.btn[id];
       b.pressed = false;
       b.released = false;
+      b.swiped = false;
       if (b.down) b.held += dt;
     }
   }

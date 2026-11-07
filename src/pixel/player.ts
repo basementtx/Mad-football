@@ -80,6 +80,16 @@ add('tired1', { lean: 0.72, tilt: -0.5, tF: 0.45, kF: 0.78, tB: 0.05, kB: 0.72, 
 add('yawn0', { lean: -0.12, tilt: -0.4, tF: 0.08, kF: 0.12, tB: -0.08, kB: 0.12, aF: PI - 0.5, eF: 0.9, aB: PI - 0.7, eB: 0.9, face: 'shout' });
 add('yawn1', { lean: -0.18, tilt: -0.55, tF: 0.08, kF: 0.1, tB: -0.08, kB: 0.1, aF: PI - 0.25, eF: 0.4, aB: PI - 0.45, eB: 0.4, face: 'shout' });
 add('charge', { lean: -0.08, tF: -0.55, kF: 1.35, tB: 0.08, kB: 0.25, aF: -0.7, eF: 0.4, aB: 0.9, eB: 0.5, face: 'angry' });
+// finishers: bicycle kick (wind-up, strike), diving header, volley
+add('bike0', { rot: -1.35, tF: 0.35, kF: 1.3, tB: 1.35, kB: 0.35, aF: 1.7, eF: 0.3, aB: -1.3, eB: 0.4, face: 'angry' });
+add('bike1', { rot: -2.25, tF: 1.45, kF: 0.08, tB: 0.15, kB: 1.4, aF: 2.3, eF: 0.2, aB: -1.6, eB: 0.3, face: 'shout' });
+add('dhead', { rot: PI / 2 + 0.08, tF: 0.12, kF: 0.45, tB: -0.18, kB: 0.7, aF: -0.55, eF: 0.25, aB: -0.8, eB: 0.2, face: 'angry' });
+add('volley', { lean: -0.38, tF: 1.8, kF: 0.12, tB: -0.12, kB: 0.4, aF: -1.45, eF: 0.3, aB: 1.35, eB: 0.4, face: 'shout' });
+// skill moves: stepover (two frames, the foot circles the ball), rainbow flick, drag back
+add('step0', { lean: 0.14, tF: 0.6, kF: 1.35, tB: -0.25, kB: 0.45, aF: -1.0, eF: 0.7, aB: 1.0, eB: 0.7, face: 'happy' });
+add('step1', { lean: 0.1, tF: -0.3, kF: 1.05, tB: 0.55, kB: 0.7, aF: 1.0, eF: 0.6, aB: -1.0, eB: 0.6, face: 'happy' });
+add('flick', { lean: 0.08, tF: 0.15, kF: 0.25, tB: -0.95, kB: 2.35, aF: -0.8, eF: 0.8, aB: 0.8, eB: 0.8, face: 'happy' });
+add('drag', { lean: -0.14, tF: 0.6, kF: 0.12, tB: -0.25, kB: 0.55, aF: -1.25, eF: 0.3, aB: 1.25, eB: 0.3 });
 
 export const FRAMES: Record<string, number> = Object.fromEntries(POSES.map(([n], i) => [n, i]));
 export const FRAME_COUNT = POSES.length;
@@ -250,10 +260,70 @@ export function lookKey(l: PlayerLook) {
   return `${l.kit.id}|${l.kit.primary}|${l.kit.secondary}|${l.kit.shorts}|${l.kit.socks}|${l.kit.pattern}|${l.isGK}|${l.skin}|${l.hair}|${l.hairStyle}|${l.beard}|${l.face ?? 0}|${l.eyes ?? 0}|${l.eyeColor ?? ''}|${l.boot ? l.boot.main + l.boot.accent : ''}`;
 }
 
+/**
+ * A full sheet is big (every pose, both directions, flash rows: ~3.5 MB of pixels).
+ * Menus used to build one for every kit / colour / face they previewed and kept them
+ * all forever, which could run a phone's WebView out of memory and crash the app
+ * (e.g. after browsing and buying kits). Sheets are now capped (least recently used
+ * go first) and menus draw single frames instead (playerFrame).
+ */
+const SHEET_MAX = 36;
+
 export function playerSheet(look: PlayerLook): BuiltSheet {
   const key = lookKey(look);
   const hit = sheetCache.get(key);
+  if (hit) {
+    // keep recently used sheets at the end of the LRU order
+    sheetCache.delete(key);
+    sheetCache.set(key, hit);
+    return hit;
+  }
+  while (sheetCache.size >= SHEET_MAX) {
+    const old = sheetCache.keys().next().value as string;
+    const s = sheetCache.get(old);
+    sheetCache.delete(old);
+    // release the pixels right away instead of waiting for the GC
+    if (s) s.canvas.width = s.canvas.height = 0;
+  }
+  const ramps = rampsFor(look);
+  const c = document.createElement('canvas');
+  c.width = PW * FRAME_COUNT;
+  c.height = PH * 4;
+  const g = c.getContext('2d')!;
+  const img = g.createImageData(PW, PH);
+
+  POSES.forEach(([, pose], fi) => {
+    const J = buildPose(pose, look.isGK);
+    const b = new Buf();
+    drawBody(b, J, look);
+    finalize(b, ramps, img);
+    g.putImageData(img, fi * PW, 0);
+  });
+  return finishSheet(key, c, g);
+}
+
+const frameCache = new Map<string, HTMLCanvasElement>();
+/** One pose of a player (menus, cards, previews): a small canvas, no full sheet. */
+export function playerFrame(look: PlayerLook, frame: string): HTMLCanvasElement {
+  const key = lookKey(look) + '#' + frame;
+  const hit = frameCache.get(key);
   if (hit) return hit;
+  if (frameCache.size > 160) frameCache.delete(frameCache.keys().next().value as string);
+  const c = document.createElement('canvas');
+  c.width = PW;
+  c.height = PH;
+  const g = c.getContext('2d')!;
+  const img = g.createImageData(PW, PH);
+  const pose = (POSES.find(([n]) => n === frame) ?? POSES[0])[1];
+  const b = new Buf();
+  drawBody(b, buildPose(pose, look.isGK), look);
+  finalize(b, rampsFor(look), img);
+  g.putImageData(img, 0, 0);
+  frameCache.set(key, c);
+  return c;
+}
+
+function rampsFor(look: PlayerLook): RGB[][] {
   const kit = look.kit;
   const ramps: RGB[][] = [];
   ramps[R_JER] = ramp(look.isGK ? kit.gk : kit.primary);
@@ -271,20 +341,10 @@ export function playerSheet(look: PlayerLook): BuiltSheet {
   let hsh = 0;
   for (const ch of look.skin + look.hair + look.hairStyle + (look.face ?? 0)) hsh = (hsh * 31 + ch.charCodeAt(0)) | 0;
   ramps[R_ACC] = ramp(look.boot?.accent ?? (look.isGK ? '#5ff0a4' : BOOT_ACCENTS[Math.abs(hsh) % BOOT_ACCENTS.length]));
+  return ramps;
+}
 
-  const c = document.createElement('canvas');
-  c.width = PW * FRAME_COUNT;
-  c.height = PH * 4;
-  const g = c.getContext('2d')!;
-  const img = g.createImageData(PW, PH);
-
-  POSES.forEach(([, pose], fi) => {
-    const J = buildPose(pose, look.isGK);
-    const b = new Buf();
-    drawBody(b, J, look);
-    finalize(b, ramps, img);
-    g.putImageData(img, fi * PW, 0);
-  });
+function finishSheet(key: string, c: HTMLCanvasElement, g: CanvasRenderingContext2D): BuiltSheet {
   // mirrored row
   g.save();
   g.translate(c.width, 0);

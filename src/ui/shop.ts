@@ -85,6 +85,16 @@ function offerTile(o: StoreOffer, i: number) {
   </div>`;
 }
 
+/** One broken offer must never take the whole store page down with it. */
+function safeTile(o: StoreOffer, i: number) {
+  try {
+    return offerTile(o, i);
+  } catch (e) {
+    console.error('Mad Football: store offer', o?.id, e);
+    return '';
+  }
+}
+
 /** Live preview of an item (trail, goal explosion, special item) in a small match scene. */
 function showPreview(o: StoreOffer, onBuy: (el: HTMLElement) => void) {
   const L = t();
@@ -158,7 +168,7 @@ export function showShop(h: MenuHandlers, tab: ShopTab = shopTab) {
       <div class="store">
         <div class="store-bar"><span>${L.newOffersIn} <b id="store-clock">${fmtClock(store.at - Date.now())}</b></span>
           <span class="store-acts"><button class="btn btn-ghost btn-sm" data-act="refresh">${L.refreshStore} · ${coinTag()} ${STORE_REFRESH_COST}</button><button class="btn btn-sm ad-mini" data-act="refresh-ad" ${adsLeft('store_refresh') ? '' : 'disabled'}><span class="ad-mini-tv">▶</span>${L2('FREE', 'ÜCRETSİZ')} <small>${adsLeft('store_refresh')}/${AD_DAILY.store_refresh}</small></button></span></div>
-        <div class="store-grid">${store.offers.map(offerTile).join('')}</div>
+        <div class="store-grid">${store.offers.map(safeTile).join('')}</div>
       </div>` : `
       <div class="crates">
         ${CRATES.map((c) => {

@@ -33,6 +33,8 @@ const ICONS: Record<string, string> = {
   spin: '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 3.5v5h-5"/>',
   punt: '<path d="M4 19C7 10 13 7 20 8"/><path d="M16 4l4 4-4 4"/><circle cx="5" cy="19" r="1.5"/>',
   throw: '<path d="M5 20c1-7 6-12 14-13"/><path d="M15 3.5l4 3.5-3.5 4"/><path d="M3 15l3 2"/>',
+  through: '<path d="M3 18L19 6"/><path d="M13 5.5h6.5V12"/><path d="M7 4v6M4 7h6" stroke-dasharray="2 2"/>',
+  press: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>',
 };
 const svg = (id: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[id] ?? ''}</svg>`;
 const RING_C = 2 * Math.PI * 46;
@@ -173,8 +175,10 @@ export class DomHud {
       icon.width = icon.height = 13;
       const label = el('span', 'lbl', face);
       const tier = el('small', 'tier', box);
-      // swipe-up hint on SHOOT / PASS (cross / chip)
-      if (id === 'a' || id === 'b') this.flicks.set(id, el('i', 'dflick', box, '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 11V2M2 6l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
+      // swipe-up hint on SHOOT / PASS / THROUGH (chip / cross / lofted through ball)
+      if (id === 'a' || id === 'b' || id === 'd') this.flicks.set(id, el('i', 'dflick', box, '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 11V2M2 6l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
+      // SPRINT key: four chevrons, swipe any way for a skill move
+      if (id === 'c') for (const dir of ['u', 'r', 'd', 'l']) el('i', 'dchev ' + dir, box);
       this.keys.set(id, { box, prog, ico, label, icon, tier });
     }
     this.hints = el('div', 'dhints', R);
@@ -422,8 +426,8 @@ export class DomHud {
       setCls(key.box, 'ready', !!lab.glow);
       // charge ring fills around the key while holding shot / pass
       let fill = 0;
-      if (hp && (b.id === 'a' || b.id === 'b')) {
-        const kind = b.id === 'a' ? 'shot' : 'pass';
+      if (hp && (b.id === 'a' || b.id === 'b' || b.id === 'd')) {
+        const kind = b.id === 'a' ? 'shot' : b.id === 'd' ? 'through' : 'pass';
         if (hp.chargeKind === kind) fill = Math.min(1, hp.charge / (kind === 'shot' ? 1.3 : 1));
       }
       if (b.id === 'c' && hp && !lab.dim) fill = hp.stamina;
@@ -434,9 +438,14 @@ export class DomHud {
       setCls(key.box, 'tired', b.id === 'c' && !!hp && hp.exhausted);
       const fl = this.flicks.get(b.id);
       if (fl) {
-        const onBall = !!hp && m.ball.owner === hp && !hp.isGK && st.down && (b.id === 'a' ? hp.chargeKind === 'shot' : hp.chargeKind === 'pass');
+        const onBall = !!hp && m.ball.owner === hp && !hp.isGK && st.down && (b.id === 'a' ? hp.chargeKind === 'shot' : b.id === 'd' ? hp.chargeKind === 'through' : hp.chargeKind === 'pass');
         setCls(fl, 'on', onBall);
         setCls(fl, 'armed', onBall && st.flick);
+      }
+      if (b.id === 'c') {
+        // the skill chevrons light up while you carry the ball
+        setCls(key.box, 'skill', !!hp && m.ball.owner === hp && !hp.isGK);
+        setCls(key.box, 'skilling', !!hp && hp.moveT > 0 && (hp.move === 'roulette' || hp.move === 'stepover' || hp.move === 'flick' || hp.move === 'drag'));
       }
       if (b.id === 'e') {
         const id = team.item ? 'pw_' + team.item : null;
@@ -451,7 +460,7 @@ export class DomHud {
 
     // ---- desktop key hints
     if (!input.touchMode) {
-      const html = `<span><b>J</b>${esc(labels.a.text)}</span><span><b>K</b>${esc(labels.b.text)}</span><span><b class="w">SHIFT</b>${L.sprint}</span><span><b>I</b>${L.spin}</span><span><b>E</b>${L.itemBtn}</span><span><b>R</b>+K ${esc(L.crossTxt.replace('!', ''))}</span><span><b>R</b>+J ${esc(L.chipTxt.replace('!', ''))}</span>`;
+      const html = `<span><b>J</b>${esc(labels.a.text)}</span><span><b>K</b>${esc(labels.b.text)}</span><span><b>L</b>${esc(labels.d.text)}</span><span><b class="w">SHIFT</b>${L.sprint}</span><span><b>I</b>${L.spin}</span><span><b>E</b>${L.itemBtn}</span><span><b>R</b>+K/J ⤴</span>`;
       if (this.hints.dataset.h !== html) {
         this.hints.dataset.h = html;
         this.hints.innerHTML = html;

@@ -962,3 +962,14 @@ canvas.flag { width: 39px; height: 27px; display: block; }
 #ui .missions .sec-label small { font-size: 11px; }
 #ui .res-mission { font-size: 12px; font-weight: 600; }
 #ui .slot .chem-dots { padding-bottom: 20px; }
+
+/* SPRINT / SKILL key: two-line label, swipe chevrons around the disc */
+.k-c .lbl { white-space: pre; text-align: center; line-height: 1.05; }
+.dbtn .dchev { position: absolute; width: 0; height: 0; border: calc(5 * var(--u)) solid transparent; opacity: 0; transition: opacity .15s; pointer-events: none; z-index: 2; }
+.dbtn .dchev.u { left: 50%; top: calc(-11 * var(--u)); transform: translateX(-50%); border-bottom-color: var(--paper); border-top-width: 0; }
+.dbtn .dchev.d { left: 50%; bottom: calc(-11 * var(--u)); transform: translateX(-50%); border-top-color: var(--paper); border-bottom-width: 0; }
+.dbtn .dchev.l { top: 50%; left: calc(-11 * var(--u)); transform: translateY(-50%); border-right-color: var(--paper); border-left-width: 0; }
+.dbtn .dchev.r { top: 50%; right: calc(-11 * var(--u)); transform: translateY(-50%); border-left-color: var(--paper); border-right-width: 0; }
+.k-c.skill .dchev { opacity: 0.85; }
+.k-c.skill.down .dchev { opacity: 1; filter: drop-shadow(0 0 calc(3 * var(--u)) var(--marker)); }
+.k-c.skilling .face { box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--marker), 0 0 calc(16 * var(--u)) var(--marker); }

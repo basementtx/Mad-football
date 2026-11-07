@@ -133,7 +133,7 @@ function shotValue(m: Match, p: Player) {
   if ((gx - p.x) * team.side < 0.8) return 0;
   const ang = Math.abs(Math.atan2(P.goalHalf - p.y, dx) - Math.atan2(-P.goalHalf - p.y, dx));
   const d = dist(p.x, p.y, gx, 0);
-  let v = clamp(ang / 0.9, 0, 1) * clamp(1.25 - d / (16 + p.power * 8), 0, 1);
+  let v = clamp(ang / 0.95, 0, 1) * clamp(1.25 - d / (17.5 + p.power * 8.5), 0, 1);
   for (const o of team.opp.players) {
     if (o.isGK || o.state === 'down') continue;
     if (segDist(o.x, o.y, p.x, p.y, gx, 0) < 1.1 && (o.x - p.x) * team.side > 0) v *= 0.45;
@@ -413,7 +413,7 @@ function carrierAI(m: Match, p: Player, decide: boolean) {
     // --- shoot when it is worth it (better players and smarter teams pick their moments)
     const xg = shotValue(m, p);
     const bar = 0.2 - iq * 0.04 + d.passiveness * 0.08 - pressure * 0.06 - mentK(team) * 0.015;
-    const range = 14 + p.power * 7;
+    const range = 15.5 + p.power * 7.5;
     if (inFront && (dGoal < 6.5 || xg > bar || (dGoal < range && chance(0.03 + (1 - iq) * 0.05)))) {
       // aim away from the keeper, toward where he is NOT moving
       const ky = gk ? gk.y + gk.vy * 0.25 : 0;
@@ -714,7 +714,7 @@ function gkAI(m: Match, g: Player, dt: number) {
     if (tt > 0 && tt < 0.9) {
       const py = b.y + b.vy * tt;
       if (Math.abs(py) < P.goalHalf + 1.2) {
-        if (Math.abs(py - g.y) > 0.85 && b.z < 2.2 && tt < 0.55) {
+        if (Math.abs(py - g.y) > 0.85 && b.z < 2.5 && tt < 0.62 + g.pace * 0.08) {
           m.dive(g, g.x + s * 0.3, py);
           return;
         }
@@ -753,15 +753,21 @@ function gkAI(m: Match, g: Player, dt: number) {
     }
   }
 
-  // rush a 1v1 attacker
+  // rush a 1v1 attacker: come off the line, stay between him and the goal, then go down
+  // at his feet (the dive smothers the ball - see Match.interactions)
   const o = b.owner;
-  if (o && o.team !== team && inBox(o.x, o.y)) {
+  const nearBox = (x: number, y: number) => Math.abs(x - ownX) < P.boxDepth + 3.5 && Math.abs(y) < P.boxHalf + 1;
+  if (o && o.team !== team && !o.isGK && nearBox(o.x, o.y)) {
     const dd = dist(g.x, g.y, o.x, o.y);
-    if (dd < 6) {
-      moveTo(g, o.x, o.y, true, 0.3);
-      if (dd < 2.6 && dd > 1.2 && g.tackleCd <= 0 && chance(team.diff.aggression * dt * 1.5)) {
-        const [ux, uy] = norm(o.x - g.x, o.y - g.y);
-        m.slide(g, ux, uy);
+    const dOwn = dist(o.x, o.y, ownX, 0);
+    if (dd < 8 || dOwn < P.boxDepth + 1) {
+      // aim at the ball a step ahead, from the goal side
+      const [gx, gy] = norm(ownX - o.x, -o.y);
+      const bx = b.x + o.vx * 0.18 + gx * 0.35, by = b.y + o.vy * 0.18 + gy * 0.35;
+      moveTo(g, bx, by, true, 0.25);
+      const close = dd < 2.9 && dd > 0.7;
+      if (close && g.canAct && g.beaten <= 0 && inBox(o.x, o.y) && chance((1.2 + iqOf(team) * 1.6 + g.skill * 1.2) * dt)) {
+        m.dive(g, b.x + o.vx * 0.12, b.y + o.vy * 0.12);
       }
       return;
     }

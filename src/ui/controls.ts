@@ -14,7 +14,7 @@ export function showControls(h: MenuHandlers, back: () => void) {
   if (!inp) return back();
   const k = inp.k;
   const C = settings.ctrl;
-  const labels: Record<string, string> = { a: L.shoot, b: L.pass, c: L.sprint, d: L.spin, e: L.itemBtn, joy: L.joystick };
+  const labels: Record<string, string> = { a: L.shoot, b: L.pass, c: L.sprint, d: L.through, e: L.itemBtn, joy: L.joystick };
   const ctls: Ctl[] = inp.layout.map((b) => ({ id: b.id, x: b.x * k, y: b.y * k, r: b.r * k * 1.02, base: (b.r * k * 1.02) / (C?.[b.id]?.s ?? 1) }));
   const jh = inp.joyHome;
   const jr = inp.joyR * k;

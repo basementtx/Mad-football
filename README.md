@@ -64,15 +64,24 @@ Mad Football, mobil için yapılmış 2D, kuralsız, arcade bir futbol oyunu. Ra
 - **Takım kimyası**: ilk 5'teki her oyuncu 0-3 kimya puanı alır: doğru mevki +1, kulüpte 3 maç +1, 10 maç +2 (kaleci yerinde değilse 0). Takım kimyası 0-100 arası; maçta oyuncu değerleri kimyaya göre ×0.93 ile ×1.04 arasında ölçeklenir. Kadro ekranında kimya çubuğu ve oyuncu başına ◆ puanları görünür.
 - İngilizce (varsayılan) ve Türkçe arayüz; dil, ayarlardan ya da ana menüdeki piksel bayrak düğmesinden değiştirilebilir.
 
+## Oynanış mekanikleri (son güncelleme)
+
+- **Daha geniş saha ve kale**: saha ~%9 büyüdü (pas ve taktik için alan), kale 7.4 m'den 9.2 m'ye genişledi; falsolu şutların gerçek bir hedefi var. Kaleciler daha uzağa ve daha hızlı plonjon yapıyor.
+- **Kaleci artık geçilemiyor**: top süren oyuncuya çıkar, açıyı kapatır ve ayağına yatarak topu kapar. Sadece top sürerek kaleciyi geçip gol atmak artık işe yaramıyor; doğru anda çalım atarsan şansın var.
+- **Pas karşılama**: sana gelen pasa ve yakındaki boştaki topa oyuncun kendiliğinden koşar (joystick yönü yine senin).
+- **Bitiriciler**: havadaki topa ŞUT: kafa, koşarak gelirken balıklama, alçak topa vole, sırtın kaleye dönükken rövaşata. Ağır çekim, parıltı izi ve gol yazısında hareketin adı.
+- **Çalımlar**: büyük tuşu bir yöne kaydır: ileri şapka, yana makas (rakip dibindeyse rulet), geri top çekme. Geçilen rakip sendeler, kayamaz, topu kapamaz; hayalet iz efekti.
+- **Ara pas** ve **baskı** tuşu.
+
 ## Kontroller
 
 | Eylem | Dokunmatik | Klavye |
 |---|---|---|
 | Hareket | Ekranın sol yarısı (joystick) | WASD / Ok tuşları |
-| Şut (top sende) / Kay-İt (top sende değil) | Kırmızı/turuncu tuş | J / Boşluk |
-| Pas (dokun: yerden, basılı tut: havadan) / Oyuncu değiştir | Mavi tuş | K |
-| Depar | Yeşil tuş | Shift / L |
-| Çalım | Mor tuş | I / C |
+| Şut (top sende; yukarı kaydır: aşırtma) / Kay (top sende değil) / havadaki topa bitirici | Üst sağ tuş (ŞUT) | J / Boşluk |
+| Ara pas (yukarı kaydır: havadan ara pas) / Baskı-İt (top sende değil) | Şutun solundaki tuş (ARA) | L / V |
+| Pas (yukarı kaydır: orta / havadan pas) / Oyuncu değiştir | Sol alt tuş (PAS) | K |
+| Depar (basılı tut) + Çalım (basılıyken bir yöne kaydır) | Sağ alttaki büyük tuş | Shift, çalım: I + yön |
 | Özel eşya kullan | Eşya tuşu (eşya ikonu) | E / Q |
 | Kaleci topu tutarken: elle at / uzağa vur | Mavi / Kırmızı tuş | K / J |
 | Duraklat | ‖ tuşu | Esc / P |

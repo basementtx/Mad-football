@@ -1,6 +1,6 @@
 import { FORMATIONS, formationFor, aiFormation } from './formations';
 import { Mentality, MENTALITIES } from './entities';
-import { Ball, Bomb, Bullet, DIFF, Difficulty, makePitch, MysteryBox, PHYS, Pitch, Player, PState, Role, Team } from './entities';
+import { Ball, Bomb, Bullet, DIFF, Difficulty, makePitch, MysteryBox, PHYS, Pitch, Player, PState, Role, Team, MoveKind, MOVES, isSkillMove } from './entities';
 import { TeamDef } from './teams';
 import { FX } from './fx';
 import { audio, vibrate } from '../engine/audio';
@@ -278,6 +278,9 @@ export class Match {
         p.stamina = Math.max(p.stamina, 0.7);
         p.exhausted = false;
         p.invuln = p.kickCd = p.tackleCd = p.spinCd = 0;
+        p.move = 'none';
+        p.moveT = 0;
+        p.beaten = 0;
         p.face = team.side > 0 ? 0 : Math.PI;
         if (p.isGK) {
           p.x = -team.side * (P.hw - 1.2);
@@ -483,7 +486,7 @@ export class Match {
   private record() {
     const b = this.ball;
     const f: Frame = {
-      p: this.all.map((p) => [p.x, p.y, p.z, p.vx, p.vy, p.face, STATES.indexOf(p.state), p.stateT, p.stateDur, p.runPhase, p.kickAnim]),
+      p: this.all.map((p) => [p.x, p.y, p.z, p.vx, p.vy, p.face, STATES.indexOf(p.state), p.stateT, p.stateDur, p.runPhase, p.kickAnim, MOVES.indexOf(p.move), p.moveT, p.moveDur]),
       b: [b.x, b.y, b.z, b.rot, b.fire, b.owner ? this.all.indexOf(b.owner) : -1, b.vx, b.vy],
     };
     this.history.push(f);
@@ -517,6 +520,9 @@ export class Match {
       p.stateDur = a[8];
       p.runPhase = a[9];
       p.kickAnim = a[10];
+      p.move = MOVES[a[11]] ?? 'none';
+      p.moveT = a[12] ?? 0;
+      p.moveDur = a[13] ?? 0;
     });
     const b = this.ball;
     const [x, y, z, rot, fire, oi, vx, vy] = f.b;
@@ -539,6 +545,8 @@ export class Match {
       p.state = STATES[a[6]];
       p.stateT = a[7];
       p.stateDur = a[8];
+      p.move = 'none';
+      p.moveT = 0;
     });
     const b = this.ball;
     b.owner = null;
@@ -738,11 +746,11 @@ export class Match {
         this.lockX = ndx;
         this.lockY = ndy;
         this.curl = 0;
-      } else if (!b.owner && b.z > 0.6 && dist(hp.x, hp.y, b.x, b.y) < 3) {
-        hp.volleyT = 0.45;
-      } else if (!b.owner && b.cross && b.lastTouch?.team === team && b.z > 0.4 && dist(hp.x, hp.y, b.x, b.y) < 9) {
-        // attack the incoming cross: header / volley when it arrives
-        hp.volleyT = 0.9;
+      } else if (!b.owner && (b.z > 0.45 || b.vz > 2) && dist(hp.x, hp.y, b.x, b.y) < 3.2) {
+        hp.volleyT = 0.5;
+      } else if (!b.owner && b.cross && b.lastTouch?.team === team && (b.z > 0.3 || b.vz > 1) && dist(hp.x, hp.y, b.x, b.y) < 12) {
+        // attack the incoming cross / lofted ball: a finisher when it arrives
+        hp.volleyT = 1.1;
       } else {
         this.tackleAction(hp, ndx, ndy, stick);
       }
@@ -803,8 +811,40 @@ export class Match {
       }
     }
 
-    // D: spin
-    if (inp.btn.d.pressed && hp.canAct && !keeper) this.spin(hp);
+    // D: through ball on the ball; without it: shove a man in reach, hold to press
+    if (inp.btn.d.pressed && hp.canAct && !keeper) {
+      if (hasBall) {
+        hp.chargeKind = 'through';
+        hp.charge = 0;
+      } else {
+        let near: Player | null = null;
+        let nd = 1.75;
+        for (const q of team.opp.players) {
+          if (q.isGK || q.isDown) continue;
+          const d = dist(hp.x, hp.y, q.x, q.y);
+          if (d < nd) {
+            nd = d;
+            near = q;
+          }
+        }
+        if (near) this.shove(hp, near);
+      }
+    }
+    if (hp.chargeKind === 'through') {
+      if (!hasBall || !hp.canAct) hp.chargeKind = 'none';
+      else if (inp.btn.d.down) hp.charge = Math.min(1, hp.charge + dt / 0.7);
+      else {
+        const q = this.throughBall(hp, ndx, ndy, hp.charge, inp.btn.d.flick);
+        if (q && !q.isGK && !lock) this.setHuman(q);
+        hp.chargeKind = 'none';
+        hp.charge = 0;
+      }
+    }
+    if (!hasBall && inp.btn.d.down && hp.canAct && !keeper) this.pressBall(hp);
+    else if (!hasBall && hp.canAct) this.autoReceive(hp, inp, stick);
+
+    // C swiped: a skill move in that direction
+    if (inp.btn.c.swiped && hasBall && hp.canAct && !keeper) this.skillMove(hp, inp.btn.c.swipeX, inp.btn.c.swipeY);
 
     // E: use the special item
     if (inp.btn.e.pressed && team.item) {
@@ -816,6 +856,268 @@ export class Match {
         this.useItem(hp, tgt[0], tgt[1]);
       }
     }
+  }
+
+  // ---------------------------------------------------------------- through balls, pressing, first touch
+
+  /** Earliest spot where p can meet the free ball: at head height for a ball in the air. */
+  receivePoint(p: Player): [number, number] {
+    const b = this.ball;
+    const spd = PHYS.sprintSpeed * (0.9 + p.pace * 0.18) * 0.85;
+    const air = b.z > 0.35 || b.vz > 1.5;
+    let x = b.x, y = b.y, z = b.z, vx = b.vx, vy = b.vy, vz = b.vz;
+    const step = 0.04;
+    let lx = x, ly = y;
+    for (let t = 0; t <= 2.6; t += step) {
+      if (air) {
+        vz -= PHYS.gravity * step;
+        z += vz * step;
+        if (z <= 0) {
+          z = 0;
+          vz = 0;
+        }
+      } else {
+        const sp = Math.hypot(vx, vy);
+        if (sp > 0.05) {
+          const ns = Math.max(0, sp - (2.4 + 0.32 * sp) * step);
+          vx *= ns / sp;
+          vy *= ns / sp;
+        }
+      }
+      x += vx * step;
+      y += vy * step;
+      lx = x;
+      ly = y;
+      // in the air: only where it comes down to head / chest height counts
+      if (air && (vz > 0 || z > 2.1)) continue;
+      if (dist(p.x, p.y, x, y) <= spd * Math.max(0, t - 0.06) + 0.7) return [x, y];
+    }
+    return [lx, ly];
+  }
+
+  /** First touch: your player runs onto a pass to him and onto a loose ball close by. The stick still steers. */
+  private autoReceive(p: Player, inp: Input, stick: boolean) {
+    const b = this.ball;
+    if (b.owner || b.lockPlayer === p || b.inGoal) return;
+    const d = dist(p.x, p.y, b.x, b.y);
+    const targeted = b.passTarget === p;
+    // a loose ball close by, not a rival shot flying past
+    const loose = d < 7 && b.speed < 20 && !(b.shotBy && b.shotBy !== p.team);
+    if (!(targeted && d < 45) && !loose) return;
+    const [tx, ty] = this.receivePoint(p);
+    const dx = tx - p.x, dy = ty - p.y;
+    const di = Math.hypot(dx, dy);
+    // close to the spot: step into the ball itself so it comes to the feet
+    const [ux, uy] = di < 0.45 ? norm(b.x - p.x, b.y - p.y) : [dx / Math.max(di, 0.01), dy / Math.max(di, 0.01)];
+    const m = clamp(Math.max(di, d * 0.5) / 0.9, 0.35, 1);
+    if (!stick) {
+      p.ix = ux * m;
+      p.iy = uy * m;
+      // a long ball to you: sprint onto it
+      if (targeted && di > 6) p.wantSprint = true;
+      return;
+    }
+    // stick roughly the same way: the assist bends the run onto the ball
+    const sm = Math.hypot(inp.mx, inp.my);
+    const cos = (inp.mx * ux + inp.my * uy) / Math.max(sm, 0.01);
+    if (cos > (targeted ? -0.1 : 0.25)) {
+      const k = targeted ? 0.85 : 0.65;
+      const [bx, by] = norm(inp.mx * (1 - k) + ux * k, inp.my * (1 - k) + uy * k);
+      p.ix = bx * Math.max(sm, m);
+      p.iy = by * Math.max(sm, m);
+    }
+  }
+
+  /** Hold THROUGH without the ball: close the carrier down (goal side), or attack the loose ball. */
+  private pressBall(p: Player) {
+    const b = this.ball;
+    const o = b.owner;
+    let tx: number, ty: number;
+    if (o && o.team !== p.team) {
+      const ownX = -p.team.side * this.pitch.hw;
+      const [gx, gy] = norm(ownX - o.x, -o.y);
+      tx = o.x + o.vx * 0.25 + gx * 0.75;
+      ty = o.y + o.vy * 0.25 + gy * 0.75;
+    } else if (!o) [tx, ty] = this.receivePoint(p);
+    else return;
+    const [ux, uy] = norm(tx - p.x, ty - p.y);
+    const m = clamp(dist(p.x, p.y, tx, ty) / 0.6, 0, 1);
+    p.ix = ux * m;
+    p.iy = uy * m;
+  }
+
+  /**
+   * Through ball: into the run of the team-mate you aim at, behind the defence.
+   * Lofted (swipe up): over the defence, dropping at volley height for a finisher.
+   */
+  throughBall(p: Player, dx: number, dy: number, charge: number, lofted: boolean): Player | null {
+    const P = this.pitch;
+    const side = p.team.side;
+    let best: Player | null = null;
+    let bs = -Infinity;
+    for (const q of p.team.players) {
+      if (q === p || q.isGK || q.isDown) continue;
+      const ox = q.x - p.x, oy = q.y - p.y;
+      const d = Math.hypot(ox, oy);
+      if (d < 3 || d > 40) continue;
+      const cos = (ox * dx + oy * dy) / d;
+      if (cos < 0.55) continue;
+      // runners ahead of the ball and with grass in front of them are the best targets
+      const fwd = (q.x - p.x) * side;
+      let space = 8;
+      for (const o of p.team.opp.players) if (!o.isGK) space = Math.min(space, dist(q.x + side * 4, q.y, o.x, o.y));
+      const sc = cos * 3 + fwd * 0.05 + space * 0.12 - d * 0.015;
+      if (sc > bs) {
+        bs = sc;
+        best = q;
+      }
+    }
+    const b = this.ball;
+    if (!best) {
+      // nobody that way: a ball into space
+      const sp = 14 + charge * 9;
+      this.kick(p, dx * sp, dy * sp, lofted ? 7 : 0.4, 0.45);
+      return null;
+    }
+    const q = best;
+    // the spot in front of his run: toward goal, a little toward the centre, deeper with a longer hold
+    const lead = (lofted ? 5 : 4) + charge * 6;
+    const [rx, ry] = norm(side * 1 + q.vx * 0.08, -q.y * 0.03 + q.vy * 0.08);
+    const tx = clamp(q.x + rx * lead, -P.hw + 1.2, P.hw - 1.2);
+    const ty = clamp(q.y + ry * lead, -P.hh + 1, P.hh - 1);
+    // give him the run: AI team-mates sprint onto it, yours runs onto it by himself
+    q.aiTimer = Math.max(q.aiTimer, 0.3);
+    const sx = p.x + p.faceX * 0.4, sy = p.y + p.faceY * 0.4;
+    const d = dist(sx, sy, tx, ty);
+    const [ux, uy] = norm(tx - sx, ty - sy);
+    if (lofted) {
+      // drops at volley / header height where he arrives
+      const T = clamp(0.75 + d * 0.03, 0.9, 1.7);
+      const zt = 1.0;
+      const vz = (zt + (PHYS.gravity * T * T) / 2) / T;
+      this.kick(p, ux * (d / T), uy * (d / T), vz, 0.55);
+      b.cross = true;
+    } else {
+      const tq = dist(q.x, q.y, tx, ty) / (PHYS.sprintSpeed * (0.9 + q.pace * 0.18));
+      const sp = clamp((d / Math.max(0.6, tq)) * 1.25, 12, 27);
+      this.kick(p, ux * sp, uy * sp, 0.3, 0.4);
+    }
+    b.passTarget = q;
+    this.fx.text(p.x, p.y, 1.4, t().throughTxt, '#ffe14d', 0.8);
+    audio.whoosh();
+    return q;
+  }
+
+  // ---------------------------------------------------------------- skill moves
+
+  /**
+   * Skill move on the SPRINT key, by swipe direction relative to where you face:
+   * forward = rainbow flick over the man, sideways = stepover (roulette when a defender
+   * is tight), back = drag back. A defender it beats is wrong-footed for a moment.
+   */
+  skillMove(p: Player, sx: number, sy: number) {
+    const b = this.ball;
+    if (p.spinCd > 0 || !p.canAct || b.owner !== p) return;
+    let fx = p.faceX, fy = p.faceY;
+    if (p.ix * p.ix + p.iy * p.iy > 0.06) [fx, fy] = norm(p.ix, p.iy);
+    if (sx * sx + sy * sy < 0.01) [sx, sy] = [fx, fy];
+    const cos = sx * fx + sy * fy;
+    // the defender in front of him
+    let opp: Player | null = null;
+    let od = 3.2;
+    for (const q of p.team.opp.players) {
+      if (q.isDown) continue;
+      const d = dist(p.x, p.y, q.x, q.y);
+      const ahead = ((q.x - p.x) * fx + (q.y - p.y) * fy) / Math.max(d, 0.01);
+      if (d < od && ahead > -0.2) {
+        od = d;
+        opp = q;
+      }
+    }
+    let kind: MoveKind;
+    if (cos > 0.5) kind = 'flick';
+    else if (cos < -0.5) kind = 'drag';
+    else kind = opp && od < 1.9 ? 'roulette' : 'stepover';
+    p.move = kind;
+    p.moveT = 0;
+    p.spinCd = 1.0;
+    p.chargeKind = 'none';
+    p.charge = 0;
+    const side = fx * sy - fy * sx >= 0 ? 1 : -1;
+    switch (kind) {
+      case 'flick': {
+        // over the man's head, then run onto it
+        p.moveDur = 0.5;
+        [p.moveX, p.moveY] = [fx, fy];
+        p.invuln = 0.45;
+        b.owner = null;
+        b.lastTouch = p;
+        b.passTarget = p;
+        b.cross = false;
+        b.x = p.x + fx * 0.3;
+        b.y = p.y + fy * 0.3;
+        const sp = 6.2 + Math.hypot(p.vx, p.vy) * 0.55;
+        b.vx = fx * sp;
+        b.vy = fy * sp;
+        b.vz = 6.6;
+        b.z = 0.35;
+        b.kickAge = 0;
+        b.skillBy = p;
+        b.skillT = 0.55;
+        p.kickCd = 0.3;
+        break;
+      }
+      case 'drag': {
+        p.moveDur = 0.42;
+        [p.moveX, p.moveY] = norm(sx * 0.8 - fy * side * 0.2, sy * 0.8 + fx * side * 0.2);
+        p.invuln = 0.3;
+        break;
+      }
+      case 'roulette': {
+        p.moveDur = 0.46;
+        [p.moveX, p.moveY] = norm(sx * 0.75 + fx * 0.55, sy * 0.75 + fy * 0.55);
+        p.invuln = 0.5;
+        p.setState('spin', 0.46);
+        break;
+      }
+      default: {
+        p.moveDur = 0.5;
+        [p.moveX, p.moveY] = norm(sx * 0.8 + fx * 0.5, sy * 0.8 + fy * 0.5);
+        p.invuln = 0.38;
+      }
+    }
+    // did it fool him? skill against his tackling, a little luck
+    let beat = 0;
+    for (const q of p.team.opp.players) {
+      if (q.isGK && kind !== 'flick' && kind !== 'stepover') continue;
+      if (q.isDown) continue;
+      const d = dist(p.x, p.y, q.x, q.y);
+      if (d > (q === opp ? 3.4 : 2.2)) continue;
+      const read = q.isGK ? q.skill * 0.25 : q.tackle * 0.3;
+      const odds = clamp(0.62 + p.skill * 0.35 - read - (q.team.human ? 0 : (q.team.diff.iq - 0.8) * 0.4), 0.3, 0.95);
+      if (Math.random() < odds) {
+        q.beaten = q.isGK ? 0.7 : 0.85;
+        q.tackleCd = Math.max(q.tackleCd, 0.7);
+        q.kickCd = Math.max(q.kickCd, 0.45);
+        // ankles gone: he stumbles the wrong way
+        q.vx = q.vx * 0.2 - p.moveX * 1.5 + rand(-1, 1);
+        q.vy = q.vy * 0.2 - p.moveY * 1.5 + rand(-1, 1);
+        this.fx.text(q.x, q.y, 1.2, t().beatenTxt, '#ff9a8a', 0.75);
+        this.fx.emit('ring', q.x, q.y, 0.05, { n: 1, life: 0.35, size: 0.7, color: 'rgba(255,120,100,0.8)' });
+        beat++;
+      }
+    }
+    if (beat) {
+      p.team.stats.skills++;
+      this.excitement = Math.min(1, this.excitement + 0.25);
+      audio.cheer(0.35 + beat * 0.15);
+      if (p === this.human) vibrate(25);
+    }
+    this.fx.text(p.x, p.y, 1.9, t().moveNames[kind], beat ? '#ffe14d' : '#ffffff', beat ? 1.05 : 0.85);
+    this.fx.emit('ring', p.x, p.y, 0.1, { n: 1, life: 0.35, size: 0.9, color: 'rgba(255,225,77,0.9)' });
+    this.fx.emit('pix', p.x, p.y, 0.4, { n: 10, speed: 3.5, up: 1.5, life: 0.45, size: 0.22, colors: [p.team.def.primary, p.team.def.secondary, '#ffffff', '#ffe14d'], g: 2 });
+    this.fx.addShake(beat ? 0.12 : 0.05);
+    audio.whoosh();
   }
 
   /** Where an item aimed in direction (dx,dy) should go: goal, opponent in the cone, or straight ahead. */
@@ -1093,6 +1395,10 @@ export class Match {
     b.cross = false;
     b.shotBy = null;
     b.fire = 0;
+    b.finisher = 'none';
+    b.finisherT = 0;
+    b.skillBy = null;
+    b.skillT = 0;
     p.kickAnim = 0.3;
     p.possT = 0;
     p.face = Math.atan2(vy, vx);
@@ -1790,7 +2096,7 @@ export class Match {
   }
 
   slide(p: Player, dx: number, dy: number) {
-    if (p.tackleCd > 0 || !p.canAct) return;
+    if (p.tackleCd > 0 || !p.canAct || p.beaten > 0) return;
     p.setState('slide', PHYS.slideTime);
     p.face = Math.atan2(dy, dx);
     const sp = PHYS.slideSpeed * (0.9 + p.pace * 0.15) * this.ep.slide;
@@ -1817,6 +2123,12 @@ export class Match {
 
   spin(p: Player) {
     if (p.spinCd > 0 || !p.canAct) return;
+    if (this.ball.owner === p && !p.isGK) {
+      // a carrier beats the man with a real skill move (sideways, either way)
+      const s = Math.random() < 0.5 ? 1 : -1;
+      this.skillMove(p, -p.faceY * s, p.faceX * s);
+      return;
+    }
     p.setState('spin', 0.42);
     p.invuln = 0.48;
     p.spinCd = 1.25;
@@ -1827,10 +2139,11 @@ export class Match {
   dive(g: Player, tx: number, ty: number) {
     if (!g.canAct) return;
     const [ux, uy] = norm(tx - g.x, ty - g.y);
-    g.setState('dive', 0.55);
+    g.setState('dive', 0.6);
     g.diveDirX = ux;
     g.diveDirY = uy;
-    const sp = 8.5 + g.pace * 2;
+    // keepers fly further now that the goal is wider
+    const sp = 9.8 + g.pace * 2.6 + g.skill * 0.8;
     g.vx = ux * sp;
     g.vy = uy * sp;
     this.fx.dust(g.x, g.y, 5);
@@ -1886,6 +2199,33 @@ export class Match {
     return true;
   }
 
+  /** The keeper wins the ball at an attacker's feet (or in a dive at them). */
+  private gkClaim(g: Player, o: Player, inBox: boolean) {
+    o.kickCd = 0.6;
+    o.chargeKind = 'none';
+    o.charge = 0;
+    o.lost++;
+    if (o.move !== 'none' && isSkillMove(o.move)) o.move = 'none';
+    this.setOwner(g);
+    g.feetBall = !inBox;
+    g.holdT = 0;
+    g.boredT = 0;
+    g.yawnT = 0;
+    if (inBox) {
+      g.saves++;
+      g.team.stats.saves++;
+    }
+    // the attacker goes over the keeper
+    o.vx *= 0.3;
+    o.vy *= 0.3;
+    this.fx.text(g.x, g.y, 0.6, t().gkClaim, '#7fe8ff', 1);
+    this.fx.impact(g.x, g.y, 0.4);
+    this.fx.addShake(0.15);
+    audio.catchBall();
+    audio.cheer(0.4);
+    if (o === this.human) vibrate(40);
+  }
+
   private steal(q: Player, o: Player) {
     const b = this.ball;
     o.kickCd = 0.55;
@@ -1919,6 +2259,9 @@ export class Match {
     b.fire = 0;
     b.spin = 0;
     b.vz = 0;
+    b.skillBy = null;
+    b.skillT = 0;
+    b.finisherT = 0;
     p.possT = 0;
     p.holdT = 0;
     audio.touch();
@@ -1935,9 +2278,14 @@ export class Match {
     p.volleyT = Math.max(0, p.volleyT - dt);
     p.kickAnim = Math.max(0, p.kickAnim - dt);
     p.hitByFire = Math.max(0, p.hitByFire - dt);
+    p.beaten = Math.max(0, p.beaten - dt);
     const b = this.ball;
     const hasBall = b.owner === p;
     p.sprinting = false;
+    if (p.move !== 'none') {
+      p.moveT += dt;
+      if (p.moveT >= p.moveDur) this.endMove(p);
+    }
     p.frozen = Math.max(0, p.frozen - dt);
     if (p.isGK) {
       // nothing happening at this end for a while: the keeper gets bored and yawns
@@ -2009,7 +2357,30 @@ export class Match {
           mx /= mag;
           my /= mag;
         }
-        const m = Math.min(1, mag);
+        let m = Math.min(1, mag);
+        let moveBoost = 1;
+        if (p.move !== 'none') {
+          // skill moves take the feet over for a moment; finishers freeze the run
+          const k = p.moveT / Math.max(0.01, p.moveDur);
+          if (p.move === 'stepover') {
+            // feint the other way, then explode
+            if (k < 0.4) { mx = -p.moveX * 0.35; my = -p.moveY * 0.35; m = 0.35; moveBoost = 0.6; }
+            else { mx = p.moveX; my = p.moveY; m = 1; moveBoost = 1.22; }
+          } else if (p.move === 'drag') {
+            if (k < 0.35) { mx = my = 0; m = 0; p.face = rotateToward(p.face, Math.atan2(p.moveY, p.moveX), 18 * dt); }
+            else { mx = p.moveX; my = p.moveY; m = 1; moveBoost = 1.05; }
+          } else if (p.move === 'roulette') {
+            mx = p.moveX; my = p.moveY; m = 1; moveBoost = 1.05;
+          } else if (p.move === 'flick') {
+            mx = p.moveX; my = p.moveY; m = 1; moveBoost = 1.18;
+          } else if (p.move === 'dhead') {
+            // diving header: the body flies on along the dive
+            mx = p.moveX; my = p.moveY; m = 1; moveBoost = 1.1;
+          } else {
+            mx = my = 0;
+            m = 0;
+          }
+        }
         if (p.exhausted && p.stamina > 0.3) p.exhausted = false;
         const sprint = p.wantSprint && !p.exhausted && m > 0.3 && p.state !== 'sad';
         const diffMul = p.team.human ? 1 : p.team.diff.speedMul;
@@ -2020,6 +2391,9 @@ export class Match {
         if (p.turbo > 0) max *= 1.5;
         else if (p.drink > 0) max *= 1.15;
         if (p.state === 'sad') max *= 0.45;
+        max *= moveBoost;
+        // wrong-footed by a skill move
+        if (p.beaten > 0) max *= 0.45;
         // keepers walk slower than outfield players
         if (p.isGK) max *= hasBall ? 0.62 : 0.8;
         max *= this.ep.speed;
@@ -2033,7 +2407,7 @@ export class Match {
         }
         p.vx += dvx;
         p.vy += dvy;
-        if (m > 0.12) p.face = rotateToward(p.face, Math.atan2(my, mx), (hasBall ? 11 : 16) * dt);
+        if (m > 0.12 && p.move !== 'drag' && p.move !== 'bike') p.face = rotateToward(p.face, Math.atan2(my, mx), (hasBall ? 11 : 16) * dt);
         if (this.phase === 'play' && Math.random() < (sprint ? 0.25 : 0.06) * Math.min(1, Math.hypot(p.vx, p.vy) / 5)) {
           this.wear(p.x + rand(-0.15, 0.15), p.y + 0.15, p.isGK ? 0.3 : 0.2, sprint ? 12 : 7, 0);
         }
@@ -2109,9 +2483,15 @@ export class Match {
       }
     }
 
+    // finishers lift the body: a bicycle kick goes up and over, a diving header skims along
+    if (p.move === 'bike' || p.move === 'dhead' || p.move === 'head') {
+      const k = clamp(p.moveT / Math.max(0.01, p.moveDur), 0, 1);
+      const top = p.move === 'bike' ? 0.85 : p.move === 'head' ? 0.45 : 0.35;
+      p.z = Math.sin(k * Math.PI) * top;
+    }
     // anything that lifted the player (header jump, celebration hop, goal blast) falls back down;
     // a height left over from a header used to keep players floating in the header pose
-    if (p.state !== 'dive' && p.state !== 'celebrate' && p.z > 0) p.z = Math.max(0, p.z - dt * 2.6);
+    else if (p.state !== 'dive' && p.state !== 'celebrate' && p.z > 0) p.z = Math.max(0, p.z - dt * 2.6);
 
     p.x += p.vx * dt;
     p.y += p.vy * dt;
@@ -2147,6 +2527,19 @@ export class Match {
     }
   }
 
+  /** A finisher / skill move ends: bicycle kicks and diving headers end on the grass. */
+  private endMove(p: Player) {
+    const was = p.move;
+    p.move = 'none';
+    p.moveT = 0;
+    if (was === 'bike' || was === 'dhead') {
+      p.z = 0;
+      p.setState('recover', was === 'bike' ? 0.55 : 0.4);
+      this.fx.dust(p.x, p.y, 8);
+      this.wear(p.x, p.y + 0.1, 0.55, 60, 1);
+    } else if (was === 'head') p.z = Math.min(p.z, 0.3);
+  }
+
   private collidePlayers() {
     const n = this.all.length;
     const R2 = PHYS.playerR * 2;
@@ -2178,6 +2571,15 @@ export class Match {
     if (b.lockTime > 0) {
       b.lockTime -= dt;
       if (b.lockTime <= 0) b.lockPlayer = null;
+    }
+    if (b.skillT > 0) {
+      b.skillT -= dt;
+      if (b.skillT <= 0) b.skillBy = null;
+    }
+    if (b.finisherT > 0 && !b.owner) {
+      // a finisher leaves a sparkle streak
+      b.finisherT -= dt;
+      if (Math.random() < 0.85) this.fx.emit('pix', b.x, b.y, b.z + 0.2, { n: 2, speed: 0.8, up: 0.4, life: 0.35, size: 0.2, colors: ['#ffffff', '#ffe14d', '#fff3a0'], g: 0 });
     }
     if (b.fire > 0) {
       b.fire -= dt;
@@ -2369,9 +2771,26 @@ export class Match {
         o.holdT += dt;
         return;
       }
+      // the keeper smothers the ball at an attacker's feet: you can't just walk round him
+      const g = o.team.opp.gk;
+      if (g.isGK && (g.canAct || g.state === 'dive') && g.beaten <= 0 && g.kickCd <= 0) {
+        const P = this.pitch;
+        const ownX = -g.team.side * P.hw;
+        const inBox = Math.abs(b.x - ownX) < P.boxDepth + 0.5 && Math.abs(b.y) < P.boxHalf + 0.5;
+        const dg = dist(g.x, g.y, b.x, b.y);
+        const diving = g.state === 'dive';
+        if (dg < (diving ? 1.35 : 0.9)) {
+          const base = diving ? 14 : inBox ? 2.2 + g.skill * 2.2 : 0.8 + g.tackle;
+          const rate = base * (o.invuln > 0 ? 0.3 : 1) * (o.move === 'none' ? 1 : 0.5);
+          if (Math.random() < rate * dt) {
+            this.gkClaim(g, o, inBox);
+            return;
+          }
+        }
+      }
       if (o.invuln > 0 || o.magnet > 0 || o.possT < 0.3) return;
       for (const q of o.team.opp.players) {
-        if (!q.canAct || q.kickCd > 0 || q.isGK) continue;
+        if (!q.canAct || q.kickCd > 0 || q.isGK || q.beaten > 0) continue;
         if (dist(q.x, q.y, b.x, b.y) > 0.78) continue;
         // the human wins the ball more easily; AI robs the human less often
         const mul = q === this.human ? 1.6 : q.team.human ? 1 : q.team.diff.stealMul * (o === this.human ? 0.7 : 1);
@@ -2389,6 +2808,10 @@ export class Match {
     for (const p of this.all) {
       if (p === b.lockPlayer) continue;
       if (p.state === 'down' || p.state === 'recover' || p.state === 'celebrate' || p.state === 'sad') continue;
+      // a finisher in progress already made its contact
+      if (p.move !== 'none' && !isSkillMove(p.move)) continue;
+      // a flick over a defender belongs to the one who flicked it for a moment
+      if (b.skillT > 0 && b.skillBy && p !== b.skillBy && !p.isGK) continue;
       const d = dist(p.x, p.y, b.x, b.y);
       if (d > 1.6) continue;
       // fireball flattens everyone in its path
@@ -2420,6 +2843,11 @@ export class Match {
         continue;
       }
       if (p.state === 'dive' || p.state === 'shove') continue;
+      // you asked for it (SHOOT on a ball in the air): the finisher as soon as it is in reach
+      if (p === this.human && p.volleyT > 0 && b.z > 0.3 && b.z < 2.45 && d < 1.45 && p.canAct) {
+        this.airTouch(p);
+        return;
+      }
       // airborne ball: header / volley / chest
       // a rival's shot is only blocked by a body square in its path, not by anyone nearby
       const shotAt = !!b.shotBy && b.shotBy !== p.team && b.speed > 9;
@@ -2432,7 +2860,7 @@ export class Match {
         b.vx += ((p.x - b.x) / d) * 7 * dt;
         b.vy += ((p.y - b.y) / d) * 7 * dt;
       }
-      const reach = p === this.human ? 1.0 : shotAt ? 0.55 : PHYS.pickupR;
+      const reach = p === this.human ? (b.passTarget === p ? 1.2 : 1.0) : shotAt ? 0.55 : PHYS.pickupR;
       if (b.z <= (p === this.human ? 1.0 : 0.85) && d < reach && d < bd) {
         bd = d;
         best = p;
@@ -2504,32 +2932,83 @@ export class Match {
     audio.touch();
   }
 
+  /** Which finisher a touch on a ball in the air becomes. */
+  finisherKind(p: Player): MoveKind {
+    const b = this.ball;
+    const gx = p.team.side * this.pitch.hw;
+    const [gdx, gdy] = norm(gx - p.x, -p.y * 0.6);
+    const facing = p.faceX * gdx + p.faceY * gdy;
+    const speed = Math.hypot(p.vx, p.vy);
+    // back to goal and the ball up around the waist or higher: over the head it goes
+    if (facing < -0.15 && b.z > 0.85) return 'bike';
+    if (b.z >= 1.25) return 'head';
+    // arriving at speed on a ball at knee to chest height: throw yourself at it
+    if (b.z >= 0.55 && speed > 4.6) return 'dhead';
+    return 'volley';
+  }
+
   private airTouch(p: Player) {
     const b = this.ball;
     const P = this.pitch;
     const gx = p.team.side * P.hw;
     const dGoal = dist(p.x, p.y, gx, 0);
-    const wantsShot = p === this.human ? p.volleyT > 0 : dGoal < 17 && Math.abs(p.y) < P.boxHalf + 2 && Math.random() < 0.75;
-    if (wantsShot && (p.x - gx) * p.team.side < 0) {
-      const lim = P.goalHalf - 0.6;
-      const ty = clamp(rand(-lim, lim) * 0.7 + p.y * 0.2, -lim, lim);
-      const header = b.z > 1.3;
+    const human = p === this.human;
+    let kind = this.finisherKind(p);
+    // AI: goes for goal in range; the bicycle kick only now and then
+    const aiShot = dGoal < 19 && Math.abs(p.y) < P.boxHalf + 3 && Math.random() < 0.8 && (kind !== 'bike' || Math.random() < 0.4);
+    const wantsShot = human ? p.volleyT > 0 : aiShot;
+    if (!human && kind === 'bike' && !aiShot) kind = 'head';
+    if (wantsShot && (p.x - gx) * p.team.side < 0 && dGoal < 34) {
+      const lim = P.goalHalf - 0.55;
+      const gk = p.team.opp.gk;
+      let ty: number;
+      const aimed = human ? this.aimAtGoal(p, this.aimX, this.aimY) : null;
+      if (aimed && Math.hypot(this.aimX, this.aimY) > 0.2) ty = aimed[1];
+      else {
+        // away from the keeper, into the bigger half of the goal
+        const far = gk.y > 0 ? -1 : 1;
+        ty = far * lim * rand(0.45, 0.95);
+      }
+      // how clean the contact is: skill, the move itself, distance
+      const diff = kind === 'bike' ? 1.35 : kind === 'dhead' ? 1.1 : kind === 'volley' ? 1.0 : 0.85;
+      const err = (0.035 + (1 - p.skill) * 0.05 + Math.max(0, dGoal - 10) * 0.004) * diff;
+      const [dx0, dy0] = norm(gx - p.x, ty - p.y);
+      const ang = Math.atan2(dy0, dx0) + gauss() * err;
+      const sp = (kind === 'head' ? 18 + p.power * 5 : kind === 'dhead' ? 20 + p.power * 5 : kind === 'bike' ? 25 + p.power * 6 : 23 + p.power * 7) * (dGoal > 18 ? 1.08 : 1);
+      // headers are nodded down, volleys and bicycle kicks fly
+      const vz = kind === 'head' ? -1.2 - (b.z - 1.3) * 2 : kind === 'dhead' ? 0.4 : kind === 'bike' ? 1.6 : 1.2 + Math.max(0, b.z - 0.6) * 1.5;
+      const keepFace = p.face;
       b.owner = p;
-      const [dx, dy] = norm(gx - p.x, ty - p.y);
-      const sp = header ? 17 + p.power * 4 : 22 + p.power * 6;
-      this.kick(p, dx * sp, dy * sp, header ? 0.5 : 1.5, 0.8);
+      this.kick(p, Math.cos(ang) * sp, Math.sin(ang) * sp, vz, 0.85);
       b.shotBy = p.team;
       b.z = Math.max(0.3, b.z);
+      b.finisher = kind;
+      b.finisherT = 1.1;
       p.shots++;
       p.team.stats.shots++;
       p.team.stats.headers++;
       p.volleyT = 0;
-      if (header) {
-        p.kickAnim = 0;
-        p.z = 0.4;
+      p.kickAnim = 0;
+      // the move plays out
+      p.move = kind;
+      p.moveT = 0;
+      p.moveDur = kind === 'bike' ? 0.62 : kind === 'dhead' ? 0.5 : kind === 'head' ? 0.42 : 0.34;
+      if (kind === 'bike') p.face = keepFace;
+      if (kind === 'dhead') {
+        [p.moveX, p.moveY] = norm(p.vx || p.faceX, p.vy || p.faceY);
+        p.face = Math.atan2(p.moveY, p.moveX);
       }
+      p.chargeKind = 'none';
+      const big = kind === 'bike' || kind === 'dhead';
       this.fx.impact(b.x, b.y, b.z);
-      this.fx.text(p.x, p.y, 0.6, header ? (p === this.human ? t().header + '!' : '') : 'VOLLEY!', '#fff', 0.9);
+      this.fx.emit('ring', b.x, b.y, b.z, { n: 1, life: 0.35, size: big ? 1.3 : 0.9, color: '#ffe14d' });
+      this.fx.emit('spark', b.x, b.y, b.z, { n: big ? 16 : 9, speed: 6, up: 2, life: 0.4, colors: ['#ffffff', '#ffe14d', '#ffb21f'] });
+      this.fx.text(p.x, p.y, 1.9, t().moveNames[kind], big ? '#ffe14d' : '#ffffff', big ? 1.3 : 1);
+      this.fx.addShake(big ? 0.3 : 0.15);
+      if (big && !this.cfg.demo) this.fx.slowmo(0.35, 0.45);
+      this.excitement = Math.min(1, this.excitement + (big ? 0.6 : 0.3));
+      audio.cheer(big ? 0.7 : 0.4);
+      if (human) vibrate(big ? [30, 20, 60] : 35);
     } else {
       // chest / head control: kill the ball and let it drop to his feet. He must not
       // touch it again on the way down, or it gets "cushioned" every frame and
@@ -2542,6 +3021,8 @@ export class Match {
       b.prevTouch = b.lastTouch;
       b.lastTouch = p;
       b.shotBy = null;
+      b.passTarget = null;
+      b.cross = false;
       audio.touch();
     }
   }
@@ -2551,11 +3032,11 @@ export class Match {
     const P = this.pitch;
     const diving = g.state === 'dive';
     if (!g.canAct && !diving) return false;
-    const reach = diving ? 1.35 : 0.95;
+    const reach = diving ? 1.5 : 0.97;
     const ownX = -g.team.side * P.hw;
     // a ball dropping in behind him (a chip over his head) is hard to reach backwards
     const behind = b.vz < -2 && Math.abs(b.x - ownX) < Math.abs(g.x - ownX) - 0.6;
-    const hmax = diving ? 2.0 : behind ? 1.9 : 2.6;
+    const hmax = diving ? 2.4 : behind ? 1.9 : 2.7;
     if (d > reach || b.z > hmax) return false;
     const inBox = Math.abs(b.x - ownX) < P.boxDepth + 0.6 && Math.abs(b.y) < P.boxHalf + 0.6;
     const backPass = !!b.lastTouch && b.lastTouch.team === g.team && b.lastTouch !== g && b.z < 0.6 && !diving;
@@ -2681,7 +3162,8 @@ export class Match {
     this.fx.doFlash(0.5);
     const humanScored = scoring.human;
     const title = own ? t().ownGoal : t().goal;
-    const sub = scorer ? `${scorer.name.toUpperCase()}  #${scorer.number}` : '';
+    const fin = !own && b.finisher !== 'none' && b.kickAge < 3 ? t().moveNames[b.finisher].replace('!', '') + '  ·  ' : '';
+    const sub = scorer ? `${fin}${scorer.name.toUpperCase()}  #${scorer.number}` : '';
     this.fx.banner(title, sub, scoring.def.primary, 3.2);
     audio.horn();
     audio.cheer(1);

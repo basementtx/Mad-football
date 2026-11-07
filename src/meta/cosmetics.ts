@@ -184,6 +184,13 @@ function rollStore() {
 
 /** Rotate the store when its time is up. */
 export function tickStore() {
+  // an offer from an older version whose item / look no longer exists would break the page
+  if (!Array.isArray(store.offers)) store.offers = [];
+  const ok = store.offers.filter((o) => o && typeof o.id === 'string' && (isItemId(o.id) ? !!itemById(o.id) : !!cosById(o.id)));
+  if (ok.length !== store.offers.length) {
+    store.offers = ok;
+    saveStore();
+  }
   if (Date.now() >= store.at || !store.offers.length) {
     rollStore();
     store.at = Date.now() + STORE_EVERY;

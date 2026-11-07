@@ -65,6 +65,8 @@ export class Renderer {
   /** waving flags in the stands: stadium-pixel x / y (pole base), colours, phase */
   private flags: { x: number; y: number; c1: string; c2: string; ph: number; big: boolean }[] = [];
   private looks = new Map<Player, PlayerLook>();
+  /** afterimages of skill moves / finishers per player */
+  private ghosts = new Map<Player, { x: number; y: number; z: number; fi: number; left: boolean; t: number }[]>();
   private T: StadiumTheme;
   private torches: [number, number][] = [];
   private weather: WeatherFX;
@@ -850,6 +852,19 @@ export class Renderer {
 
   private frameFor(p: Player, time: number): string {
     const b = this.m.ball;
+    if (p.move !== 'none' && (p.state === 'run' || p.state === 'spin')) {
+      const k = p.moveT;
+      switch (p.move) {
+        case 'bike': return k < 0.14 ? 'bike0' : 'bike1';
+        case 'dhead': return 'dhead';
+        case 'volley': return 'volley';
+        case 'head': return 'header';
+        case 'stepover': if (k < p.moveDur * 0.45) return Math.floor(k / 0.07) % 2 ? 'step0' : 'step1'; break;
+        case 'flick': if (k < 0.2) return 'flick'; break;
+        case 'drag': if (k < p.moveDur * 0.4) return 'drag'; break;
+        case 'roulette': return Math.floor(k / 0.08) % 2 ? 'step1' : 'drag';
+      }
+    }
     switch (p.state) {
       case 'slide': return 'slide';
       case 'down': return p.stateT < 0.25 ? 'down1' : 'down0';
@@ -890,7 +905,34 @@ export class Renderer {
     if (p.state === 'spin') left = Math.floor(p.stateT / 0.06) % 2 === 0 ? !left : left;
     const flash = p.state === 'down' && p.stateT < 0.1;
     const row = (left ? 1 : 0) + (flash ? 2 : 0);
+    // skill moves and finishers leave fading afterimages behind them
+    let gh = this.ghosts.get(p);
+    if (p.move !== 'none' && p.moveT < p.moveDur && !this.m.replaying) {
+      if (!gh) this.ghosts.set(p, (gh = []));
+      const lastG = gh[gh.length - 1];
+      if (!lastG || time - lastG.t > 0.035) gh.push({ x: p.x, y: p.y, z: p.z, fi, left, t: time });
+    }
+    if (gh && gh.length) {
+      while (gh.length && time - gh[0].t > 0.24) gh.shift();
+      const ghostSheet = playerSheet(look).canvas;
+      for (const g of gh) {
+        const a = 1 - (time - g.t) / 0.24;
+        if (a <= 0) continue;
+        ctx.globalAlpha = a * 0.4;
+        // flash rows: a white silhouette
+        ctx.drawImage(ghostSheet, g.fi * CELL_W * SS, ((g.left ? 1 : 0) + 2) * CELL_H * SS, CELL_W * SS, CELL_H * SS, cam.sx(g.x) - ANCHOR_X, cam.sy(g.y, g.z) - ANCHOR_Y, CELL_W, CELL_H);
+      }
+      ctx.globalAlpha = 1;
+    }
     ctx.drawImage(sheet, fi * CELL_W * SS, row * CELL_H * SS, CELL_W * SS, CELL_H * SS, x - ANCHOR_X, y - ANCHOR_Y, CELL_W, CELL_H);
+    if (p.beaten > 0 && p.state === 'run' && !this.m.replaying) {
+      // wrong-footed: little stars spinning round the head
+      for (let i = 0; i < 3; i++) {
+        const a = time * 9 + (i * Math.PI * 2) / 3;
+        ctx.fillStyle = i ? '#ffe14d' : '#ffffff';
+        ctx.fillRect(Math.round(x + Math.cos(a) * 6), Math.round(y - 33 + Math.sin(a) * 2), 2, 2);
+      }
+    }
     if (p.frozen > 0) {
       // ice block around the frozen player
       const lying = p.state === 'down' || p.state === 'recover';
