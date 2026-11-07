@@ -61,6 +61,8 @@ export const PHYS = {
   accel: 34,
   slideSpeed: 13.5,
   slideTime: 0.44,
+  /** stamina spent per slide tackle */
+  slideStamina: 0.1,
   downTime: 1.45,
 };
 

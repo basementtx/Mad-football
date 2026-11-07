@@ -13,7 +13,9 @@
     "smoke": "tsx --import ./tools/sim-shim.mjs tools/humantest.ts",
     "career": "tsx --import ./tools/sim-shim.mjs tools/careersim.ts",
     "career-match": "tsx --import ./tools/sim-shim.mjs tools/careermatch.ts",
-    "android": "npm run build && cap sync android"
+    "android": "npm run build && cap sync android",
+    "sim:slide": "tsx --import ./tools/sim-shim.mjs tools/slidebot.ts",
+    "sim:gk": "tsx --import ./tools/sim-shim.mjs tools/gktest.ts"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.6.0",

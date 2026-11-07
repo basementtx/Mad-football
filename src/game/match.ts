@@ -467,6 +467,7 @@ export class Match {
     this.updateBall(dt);
     if (live) {
       this.interactions(dt);
+      this.unstickBall(dt);
       this.updateItems(dt);
       this.record();
       if (!this.cfg.showcase) this.checkGoal();
@@ -474,6 +475,36 @@ export class Match {
       if (o) o.team.stats.possession += dt;
     }
     this.updateExcitement(dt);
+  }
+
+  private stuckT = 0;
+  /**
+   * Failsafe: a free ball that sits where nobody can reach it (on the goal roof, wedged
+   * behind the goal line, hanging high) goes to the keeper of that goal.
+   */
+  private unstickBall(dt: number) {
+    const b = this.ball;
+    const P = this.pitch;
+    if (b.owner || b.inGoal) {
+      this.stuckT = 0;
+      return;
+    }
+    const slow = Math.hypot(b.vx, b.vy) < 2.5;
+    const behindLine = Math.abs(b.x) > P.hw + 0.05 && Math.abs(b.y) < P.goalHalf + 0.6;
+    if ((behindLine && slow) || (b.z > 1.2 && slow)) this.stuckT += dt;
+    else this.stuckT = 0;
+    if (this.stuckT < 1.2) return;
+    this.stuckT = 0;
+    const end = b.x >= 0 ? 1 : -1;
+    const g = this.teams.find((tm) => tm.side === -end)!.gk;
+    if (g.state !== 'run') g.setState('run');
+    g.x = end * (P.hw - 1.2);
+    g.y = clamp(b.y, -P.goalHalf + 0.5, P.goalHalf - 0.5);
+    g.vx = g.vy = 0;
+    b.z = 0;
+    b.vx = b.vy = b.vz = 0;
+    this.setOwner(g);
+    g.holdT = 0;
   }
 
   private toPhase(p: Phase) {
@@ -717,7 +748,7 @@ export class Match {
     this.aimY = ndy;
 
     // pass hint (light assist) and aim line target
-    this.passHint = hasBall ? this.assistTarget(hp, ndx, ndy) : null;
+    this.passHint = hasBall ? this.assistTarget(hp, ndx, ndy, hp.chargeKind === 'pass' ? hp.charge : 0) : null;
     this.aim = null;
     this.aimPath = null;
     if (hasBall) {
@@ -805,7 +836,7 @@ export class Match {
         // tap or hold: always a ground pass (holding only adds pace)
         if (keeper) this.gkThrow(hp, ndx, ndy, inp.btn.b.flick, hp.charge);
         else {
-          const q = this.assistTarget(hp, ndx, ndy);
+          const q = this.assistTarget(hp, ndx, ndy, hp.charge);
           if (q) {
             this.passTo(hp, q, false);
             if (!q.isGK && !lock) this.setHuman(q);
@@ -971,14 +1002,15 @@ export class Match {
       if (q === p || q.isGK || q.isDown) continue;
       const ox = q.x - p.x, oy = q.y - p.y;
       const d = Math.hypot(ox, oy);
-      if (d < 3 || d > 40) continue;
+      // a light press looks for the near runner, a long hold may go long
+      if (d < 3 || d > 20 + charge * 22) continue;
       const cos = (ox * dx + oy * dy) / d;
-      if (cos < 0.55) continue;
+      if (cos < clamp(0.7 + d * 0.006, 0.7, 0.88)) continue;
       // runners ahead of the ball and with grass in front of them are the best targets
       const fwd = (q.x - p.x) * side;
       let space = 8;
       for (const o of p.team.opp.players) if (!o.isGK) space = Math.min(space, dist(q.x + side * 4, q.y, o.x, o.y));
-      const sc = cos * 3 + fwd * 0.05 + space * 0.12 - d * 0.015;
+      const sc = cos * 3 + fwd * 0.03 + space * 0.06 - d * (0.08 - charge * 0.06);
       if (sc > bs) {
         bs = sc;
         best = q;
@@ -1285,7 +1317,7 @@ export class Match {
 
   /** Hand throw: tap = fast roll/throw, hold = lofted overarm throw. */
   gkThrow(g: Player, dx: number, dy: number, lob: boolean, charge: number) {
-    let q = this.assistTarget(g, dx, dy);
+    let q = this.assistTarget(g, dx, dy, 0.6);
     if (!q) {
       // keepers get a wider assist cone
       let bs = -Infinity;
@@ -1368,10 +1400,10 @@ export class Match {
       const lead = 0.25;
       const qx = q.x + q.vx * lead, qy = q.y + q.vy * lead;
       const d = dist(p.x, p.y, qx, qy);
-      if (d > 7) continue;
+      if (d > 5.5) continue;
       const [ux, uy] = norm(qx - p.x, qy - p.y);
       const cos = ux * dx + uy * dy;
-      if (cos < (stick ? 0.8 : 0.6)) continue;
+      if (cos < (stick ? 0.9 : 0.75)) continue;
       const sc = cos + (this.ball.owner === q ? 0.5 : 0) - d * 0.03;
       if (sc > bestScore) {
         bestScore = sc;
@@ -2071,18 +2103,36 @@ export class Match {
   }
 
   /** Very light pass assist: only snaps to a teammate within ~20° of where you aim. */
-  assistTarget(p: Player, dx: number, dy: number): Player | null {
+  /**
+   * Pass assist: snaps to a team-mate near the aim. How long the button was held
+   * (charge 0..1) sets how far it looks: a light tap prefers the nearest sensible man,
+   * a long hold may pick someone far away. Close team-mates get a wider angular window,
+   * because a small sideways offset is a big angle up close.
+   */
+  assistTarget(p: Player, dx: number, dy: number, charge = 0): Player | null {
     if (!settings.passAssist) return null;
     let best: Player | null = null;
     let bs = -Infinity;
+    const maxD = 18 + charge * 16;
     for (const q of p.team.players) {
       if (q === p || q.state === 'down') continue;
-      const ox = q.x - p.x, oy = q.y - p.y;
+      const qx = q.x + q.vx * 0.25, qy = q.y + q.vy * 0.25;
+      const ox = qx - p.x, oy = qy - p.y;
       const d = Math.hypot(ox, oy);
-      if (d < 3 || d > 32) continue;
-      const cos = (ox * dx + oy * dy) / d;
-      if (cos < 0.94) continue;
-      const sc = cos * 4 - d * 0.01 - (q.isGK ? 0.5 : 0);
+      if (d < 2.5 || d > maxD) continue;
+      const along = ox * dx + oy * dy;
+      if (along <= 0) continue;
+      const cos = along / d;
+      const lat = Math.abs(ox * -dy + oy * dx);
+      // ~40 degrees up close, narrowing to ~20 degrees far away
+      if (cos < clamp(0.76 + d * 0.008, 0.76, 0.94) || lat > 2.6 + d * 0.15) continue;
+      let lane = 0;
+      for (const o of p.team.opp.players) {
+        if (o.state === 'down') continue;
+        const sd = segDist(o.x, o.y, p.x, p.y, q.x, q.y);
+        if (sd < 1.1) lane += 1.1 - sd;
+      }
+      const sc = cos * 3 - lat * 0.35 - d * (0.075 - charge * 0.06) - lane * 0.8 - (q.isGK ? 1.5 : 0);
       if (sc > bs) {
         bs = sc;
         best = q;
@@ -2162,12 +2212,21 @@ export class Match {
 
   slide(p: Player, dx: number, dy: number) {
     if (p.tackleCd > 0 || !p.canAct || p.bite > 0) return;
+    // a slide costs legs: a tired player can't keep flying in
+    if (p.stamina < 0.05) {
+      if (p === this.human) this.fx.text(p.x, p.y, 0.8, '...', '#cfd6e4', 0.7);
+      p.tackleCd = 0.3;
+      return;
+    }
+    p.stamina = Math.max(0, p.stamina - PHYS.slideStamina);
     p.setState('slide', PHYS.slideTime);
     p.face = Math.atan2(dy, dx);
-    const sp = PHYS.slideSpeed * (0.82 + p.pace * 0.28) * this.ep.slide;
+    // tired legs = a shorter, slower slide
+    const legs = 0.78 + Math.min(1, p.stamina + 0.25) * 0.22;
+    const sp = PHYS.slideSpeed * (0.82 + p.pace * 0.28) * this.ep.slide * legs;
     p.vx = dx * sp;
     p.vy = dy * sp;
-    p.tackleCd = 1.0;
+    p.tackleCd = 1.5;
     p.slideHit.clear();
     p.chargeKind = 'none';
     audio.slide();
@@ -2177,15 +2236,18 @@ export class Match {
   /** Chance that a carrier reads a slide coming at him and gets out of its way. */
   private slideRead(q: Player, slider: Player): number {
     const ai = !q.team.human;
-    const base = ai ? q.team.diff.dodge * 0.55 : 0.05;
-    return clamp(base + q.skill * 0.3 + q.pace * 0.1 - slider.tackle * 0.3 - slider.pace * 0.1, 0.03, 0.75);
+    const base = ai ? q.team.diff.dodge * 0.4 : 0.04;
+    // ratings decide it: a good dribbler reads a poor tackler easily and vice versa
+    return clamp(base + 0.05 + (q.skill - slider.tackle) * 0.45 + (q.pace - slider.pace) * 0.15, 0.03, 0.75);
   }
 
   /** Chance that a carrier stays on his feet when the slide does reach him. */
   private slideRide(q: Player, slider: Player): number {
     const ai = !q.team.human;
     const base = ai ? q.team.diff.dodge * 0.2 : 0;
-    return clamp(base + q.power * 0.3 + q.skill * 0.12 - slider.tackle * 0.38, 0.02, 0.5);
+    // a slide that has lost its pace is easy to stand up to
+    const late = clamp((7 - Math.hypot(slider.vx, slider.vy)) / 7, 0, 1) * 0.2;
+    return clamp(base + late + (q.power - slider.tackle) * 0.6 + q.skill * 0.08, 0.02, 0.6);
   }
 
   /** The carrier hurdles a slide and keeps the ball. */
@@ -2228,14 +2290,19 @@ export class Match {
     this.fx.emit('ring', p.x, p.y, 0.1, { n: 1, life: 0.3, size: 0.6, color: 'rgba(255,255,255,0.8)' });
   }
 
-  dive(g: Player, tx: number, ty: number) {
+  /** Keeper dive toward (tx, ty), sized so he gets there about when the ball does (tt s). */
+  dive(g: Player, tx: number, ty: number, tt = 0.35) {
     if (!g.canAct) return;
     const [ux, uy] = norm(tx - g.x, ty - g.y);
     g.setState('dive', 0.6);
     g.diveDirX = ux;
     g.diveDirY = uy;
-    // keepers fly further now that the goal is wider
-    const sp = 9.8 + g.pace * 2.6 + g.skill * 0.8;
+    // displacement after t seconds of a dive is sp * (1 - e^-2t) / 2: size the leap to the
+    // distance needed instead of always flying ~4 m past the ball
+    const maxSp = 9.8 + g.pace * 2.6 + g.skill * 0.8;
+    const travel = Math.max(0.3, dist(g.x, g.y, tx, ty) - 0.55);
+    const T = clamp(tt, 0.15, 0.6);
+    const sp = clamp((travel * 2) / (1 - Math.exp(-2 * T)), 2.5, maxSp);
     g.vx = ux * sp;
     g.vy = uy * sp;
     this.fx.dust(g.x, g.y, 5);
@@ -2562,7 +2629,9 @@ export class Match {
             p.slideHit.add(q);
             const [ux, uy] = norm(p.vx, p.vy);
             // a strong, balanced carrier can ride a weak tackle
-            if (this.ball.owner === q && q.canAct && q.invuln <= 0 && Math.random() < this.slideRide(q, p)) {
+            // a strong, balanced player rides a weak tackle (off the ball too: no free knockdowns)
+            const ride = this.slideRide(q, p) * (this.ball.owner === q ? 1 : 0.8);
+            if (q.canAct && q.invuln <= 0 && Math.random() < ride) {
               this.hopSlide(q, p);
               continue;
             }
@@ -2571,7 +2640,7 @@ export class Match {
         }
         if (p.stateT > p.stateDur) {
           // a slide that caught nobody leaves you on the grass a bit longer
-          p.setState('recover', p.slideHit.size ? 0.42 : 0.75);
+          p.setState('recover', p.slideHit.size ? 0.42 : 0.9);
         }
         break;
       }
@@ -2900,6 +2969,12 @@ export class Match {
         b.vz = -b.vz * 0.2;
         b.vx *= 0.5;
         b.vy *= 0.5;
+        // the roof net sags: a ball that settles up there rolls back onto the pitch
+        if (Math.abs(b.vz) < 1.5 && Math.hypot(b.vx, b.vy) < 3) {
+          b.vx = -sx * rand(4, 5.5);
+          b.vy = rand(-1.5, 1.5);
+          b.vz = 1.2;
+        }
       }
     }
 
@@ -2957,7 +3032,10 @@ export class Match {
         if (dist(q.x, q.y, b.x, b.y) > 0.78) continue;
         // the human wins the ball more easily; AI robs the human less often
         // (jockeying with PRESS keeps you close but rarely wins it on its own)
-        const mul = (q === this.human ? 1.25 : q.team.human ? 1 : q.team.diff.stealMul * (o === this.human ? 0.7 : 1)) * (q.pressing ? 0.3 : 1);
+        // the human's edge in contact steals shrinks as the difficulty goes up
+        const edge = clamp(1.45 - o.team.diff.dodge * 0.6, 0.9, 1.4);
+        const vsHuman = 0.5 + q.team.diff.dodge * 0.5;
+        const mul = (q === this.human ? edge : q.team.human ? 1 : q.team.diff.stealMul * (o === this.human ? vsHuman : 1)) * (q.pressing ? 0.3 : 1);
         const rate = (0.4 + q.tackle * 2.4) * mul - o.skill * 1.1 - o.power * 0.3;
         if (Math.random() < Math.max(0.15, rate) * dt) {
           this.steal(q, o);

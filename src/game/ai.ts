@@ -692,6 +692,40 @@ function looseAI(m: Match, p: Player, rank: number, dt: number) {
   moveTo(p, tx, ty, dist(p.x, p.y, tx, ty) > 6);
 }
 
+/**
+ * Simulate the free ball (gravity, bounces, grass friction) until it crosses the
+ * vertical plane x = planeX. Returns [time, y, z, ground speed], or null if it stops
+ * or doesn't get there within maxT.
+ */
+function predictCross(m: Match, planeX: number, maxT: number): [number, number, number, number] | null {
+  const b = m.ball;
+  let x = b.x, y = b.y, z = b.z, vx = b.vx, vy = b.vy, vz = b.vz;
+  const dir = Math.sign(planeX - x);
+  if (dir === 0) return null;
+  const step = 1 / 60;
+  for (let t = 0; t <= maxT; t += step) {
+    vz -= PHYS.gravity * step;
+    x += vx * step;
+    y += vy * step;
+    z += vz * step;
+    if (z <= 0) {
+      z = 0;
+      vz = vz < -2 ? -vz * PHYS.bounce * m.ep.bounce : 0;
+    }
+    const sp = Math.hypot(vx, vy);
+    if (z <= 0.02) {
+      const ns = Math.max(0, sp - (2.4 + 0.32 * sp) * m.ep.roll * step);
+      if (sp > 0) {
+        vx *= ns / sp;
+        vy *= ns / sp;
+      }
+      if (ns < 0.3) return null;
+    }
+    if (Math.sign(planeX - x) !== dir) return [t, y, z, Math.hypot(vx, vy)];
+  }
+  return null;
+}
+
 function gkAI(m: Match, g: Player, dt: number) {
   if (g === m.human) return;
   const team = g.team;
@@ -722,15 +756,21 @@ function gkAI(m: Match, g: Player, dt: number) {
   // react to shots
   const towardOwn = b.vx * -s > 3;
   if (!b.owner && towardOwn && b.kickAge > team.diff.gkReact && b.shotBy !== team) {
-    const tt = (g.x - b.x) / b.vx;
-    if (tt > 0 && tt < 0.9) {
-      const py = b.y + b.vy * tt;
-      if (Math.abs(py) < P.goalHalf + 1.2) {
-        if (Math.abs(py - g.y) > 0.85 && b.z < 2.5 && tt < 0.62 + g.pace * 0.08) {
-          m.dive(g, g.x + s * 0.3, py);
+    // follow the real flight (gravity, bounces, grass) - a linear guess makes the keeper
+    // dive far too early at long, slowing shots
+    const hit = predictCross(m, g.x, 1.6);
+    if (hit) {
+      const [tt, py, pz, spd] = hit;
+      if (Math.abs(py) < P.goalHalf + 1.2 && pz < P.goalHeight + 0.6) {
+        const need = Math.abs(py - g.y);
+        // if he can shuffle across in time he stays on his feet (much safer than a dive)
+        const stepT = Math.max(0, need - 0.75) / (PHYS.runSpeed * 1.05);
+        const dangerous = spd > 11 || !!b.shotBy;
+        if (dangerous && need > 0.85 && stepT > tt * 0.85 && pz < 2.5 && tt < 0.62 + g.pace * 0.08) {
+          m.dive(g, g.x + s * 0.2, py, tt);
           return;
         }
-        moveTo(g, g.x, py, true, 0.3);
+        moveTo(g, g.x + s * (spd < 10 ? 0.4 : 0), py, true, 0.25);
         return;
       }
     }
