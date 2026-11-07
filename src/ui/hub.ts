@@ -27,7 +27,7 @@ export function showSplash(h: MenuHandlers) {
       </div>
       <div class="tap-start">${L.tapToStart}</div>
     </div>
-    <div class="version">v0.3</div>`,
+    <div class="version">v0.4</div>`,
   );
   bind('[data-act=go]', () => {
     h.firstTap();
