@@ -7,6 +7,12 @@
 # or plain base64 + ANDROID_KEYSTORE_PASSWORD, alias ANDROID_KEY_ALIAS default "madfootball")
 # the APK is re-signed with that key; otherwise it keeps the fixed debug key committed in
 # android/app. Either way every build is signed with the same key, so updates install in place.
+#
+# Google Play: when that signing secret is set, every build also makes MadFootball.aab, the
+# Android App Bundle the Play Console asks for, signed with the same key (your upload key).
+# It is built with VITE_STORE=play and -PplayStore: no in-app self-update and no
+# install-packages permission, because Play updates the app itself.
+# Stable link: https://github.com/basementtx/Mad-football/releases/latest/download/MadFootball.aab
 name: Android APK
 
 on:
@@ -78,10 +84,44 @@ jobs:
           fi
           "$BT/apksigner" verify out/MadFootball.apk
 
+      - name: Build the Google Play bundle (AAB)
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS_SECRET: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS_SECRET: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS_SECRET: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          APK_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          if [ -z "$KS_B64" ]; then
+            echo "::notice::No ANDROID_KEYSTORE_BASE64 secret: skipping the Google Play bundle (Play rejects debug-signed bundles)"
+            exit 0
+          fi
+          # the web game again, this time without the self-updater
+          VITE_BUILD=${{ github.run_number }} VITE_STORE=play npm run build
+          npx cap sync android
+          (cd android && ./gradlew bundleRelease -PplayStore --no-daemon --stacktrace)
+          case "$KS_B64" in
+            *:*) KS_PASS="${KS_B64%%:*}"; KS_B64="${KS_B64#*:}" ;;
+            *) KS_PASS="$KS_PASS_SECRET" ;;
+          esac
+          KS_ALIAS="${KS_ALIAS_SECRET:-madfootball}"
+          KEY_PASS="${KEY_PASS_SECRET:-$KS_PASS}"
+          echo "$KS_B64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/ks.jks"
+          jarsigner -keystore "$RUNNER_TEMP/ks.jks" -storepass "$KS_PASS" -keypass "$KEY_PASS" \
+            -signedjar out/MadFootball.aab android/app/build/outputs/bundle/release/app-release.aab "$KS_ALIAS"
+          rm "$RUNNER_TEMP/ks.jks"
+          jarsigner -verify out/MadFootball.aab
+          # the Play build must not carry the self-update permission
+          if unzip -p out/MadFootball.aab base/manifest/AndroidManifest.xml | grep -a -q REQUEST_INSTALL_PACKAGES; then
+            echo "::error::REQUEST_INSTALL_PACKAGES is still in the Play bundle"
+            exit 1
+          fi
+          echo "Play bundle ready: out/MadFootball.aab (versionCode $APK_VERSION_CODE)"
+
       - uses: actions/upload-artifact@v4
         with:
           name: MadFootball-build-${{ github.run_number }}
-          path: out/MadFootball.apk
+          path: out/
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -90,8 +130,12 @@ jobs:
           name: Mad Football build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           make_latest: 'true'
-          files: out/MadFootball.apk
+          files: |
+            out/MadFootball.apk
+            out/MadFootball.aab
           body: |
             Android build from `${{ github.ref_name }}` @ ${{ github.sha }}.
             Telefonda **MadFootball.apk** dosyasını indirip açarak kurun (tarayıcı için "bilinmeyen uygulamaları yükle" izni istenebilir).
             Download **MadFootball.apk** on your phone and open it to install.
+
+            Google Play: **MadFootball.aab** is the signed bundle to upload in the Play Console (no self-update inside).

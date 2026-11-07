@@ -157,6 +157,16 @@ cd android && ./gradlew assembleDebug
 
 Oyun aynı zamanda bir PWA: mobil tarayıcıda "Ana ekrana ekle" ile tam ekran ve yatay olarak açılır.
 
+## Google Play
+
+Her derleme `ANDROID_KEYSTORE_BASE64` sırrı tanımlıysa ayrıca **`MadFootball.aab`** üretir: Play Console'un istediği Android App Bundle, APK ile aynı anahtarla imzalı (Play'deki "yükleme anahtarı"). Sabit link: https://github.com/basementtx/Mad-football/releases/latest/download/MadFootball.aab
+
+- Play sürümü `VITE_STORE=play` ve `-PplayStore` ile derlenir: oyun içi kendini güncelleme ve `REQUEST_INSTALL_PACKAGES` izni yoktur (Play, mağazadaki uygulamaların kendini Play dışından güncellemesine izin vermez; güncellemeler Play'den gelir). İş akışı paketin içinde bu iznin kalmadığını kontrol eder.
+- Gerçek parayla altın paketleri, Play Billing bağlanana kadar Play sürümünde gizlidir.
+- `versionCode` = GitHub Actions çalıştırma numarası, her derlemede artar.
+- Gizlilik politikası: [PRIVACY.md](PRIVACY.md) (Türkçe + İngilizce).
+- Not: Play'den kurulan sürüm ile GitHub'dan kurulan APK'nın imzaları Play App Signing yüzünden farklı olur; birinden diğerine geçerken önce eskisini kaldırmak gerekir (kayıtlar silinir).
+
 ## Yol haritası (öneriler)
 
 - Online 1v1 / 2v2 (WebSocket ya da WebRTC)

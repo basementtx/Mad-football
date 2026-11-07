@@ -2,7 +2,7 @@
 import { settings, record } from '../engine/storage';
 import { audio, vibrate } from '../engine/audio';
 import { addCoins } from '../meta/profile';
-import { COIN_PACKS, CoinPack, buyPack, watchAd, adsLeft, AD_DAILY, FREE_AD_COINS } from '../meta/monetize';
+import { COIN_PACKS, CoinPack, buyPack, watchAd, adsLeft, AD_DAILY, FREE_AD_COINS, storeLive } from '../meta/monetize';
 import { setScreen, bind, coinTag, coinsPill, toast, ui, MenuHandlers } from './common';
 import { showHub } from './hub';
 import { showShop } from './shop';
@@ -48,6 +48,12 @@ function packTile(p: CoinPack) {
   </button>`;
 }
 
+/**
+ * Real-money packs are only listed where they can be bought: the Google Play build hides
+ * them until Play Billing is plugged in (a price that can't be paid would mislead).
+ */
+const packsShown = () => storeLive() || import.meta.env.VITE_STORE !== 'play';
+
 export function showBank(h: MenuHandlers, back?: () => void) {
   const from = ui().className;
   const goBack = back ?? backFor(h, from);
@@ -70,9 +76,9 @@ export function showBank(h: MenuHandlers, back?: () => void) {
             <span class="bk-was">${L2('today', 'bugün')} ${left}/${AD_DAILY.free_coins}</span>
             <span class="bk-price">${left ? L2('WATCH AD', 'REKLAM İZLE') : L2('COME BACK TOMORROW', 'YARIN GEL')}</span>
           </button>
-          ${COIN_PACKS.map(packTile).join('')}
+          ${packsShown() ? COIN_PACKS.map(packTile).join('') : ''}
         </div>
-        <div class="bk-note">${L2('Prices are examples; final prices come from the app store.', 'Fiyatlar örnektir; kesin fiyatlar uygulama mağazasından gelir.')}</div>
+        ${packsShown() && !storeLive() ? `<div class="bk-note">${L2('Prices are examples; final prices come from the app store.', 'Fiyatlar örnektir; kesin fiyatlar uygulama mağazasından gelir.')}</div>` : ''}
       </div>`,
     );
     bind('[data-act=back]', () => { audio.click(); goBack(); });

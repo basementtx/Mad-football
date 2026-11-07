@@ -34,8 +34,11 @@ let target = 0;
 let phase: 'idle' | 'downloading' | 'ready' | 'error' = 'idle';
 let banner: HTMLElement | null = null;
 
+/** The Google Play build is updated by the Play Store only (Play policy): no self-update there. */
+const PLAY_STORE = import.meta.env.VITE_STORE === 'play';
+
 export function initUpdater() {
-  if (!isNative() || !BUILD) return;
+  if (PLAY_STORE || !isNative() || !BUILD) return;
   w.__mfUpdate = onNative;
   void check();
   document.addEventListener('visibilitychange', () => {

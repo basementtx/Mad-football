@@ -1,8 +1,20 @@
 apply plugin: 'com.android.application'
 
+// `-PplayStore` builds the Google Play bundle: Play updates the app itself, so the
+// in-app self-update (and the install-packages permission it needs) is left out.
+def playStore = project.hasProperty('playStore')
+
 android {
     namespace = "com.madfootball.game"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildFeatures {
+        buildConfig = true
+    }
+    sourceSets {
+        release {
+            if (playStore) manifest.srcFile 'src/play/AndroidManifest.xml'
+        }
+    }
     defaultConfig {
         applicationId "com.madfootball.game"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -10,6 +22,7 @@ android {
         // CI passes the build number so every APK installs over the previous one
         versionCode Integer.parseInt(System.getenv("APK_VERSION_CODE") ?: "1")
         versionName "0.4." + (System.getenv("APK_VERSION_CODE") ?: "0")
+        buildConfigField "boolean", "SELF_UPDATE", playStore ? "false" : "true"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

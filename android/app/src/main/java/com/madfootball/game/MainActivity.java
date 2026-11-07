@@ -34,7 +34,8 @@ public class MainActivity extends BridgeActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideSystemBars();
         WebView wv = getBridge().getWebView();
-        wv.addJavascriptInterface(new Updater(), "MFNative");
+        // the Google Play build is updated through the Play Store only
+        if (BuildConfig.SELF_UPDATE) wv.addJavascriptInterface(new Updater(), "MFNative");
     }
 
     @Override
