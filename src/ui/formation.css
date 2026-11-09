@@ -6,8 +6,8 @@
 
 #ui .formation { width: 100%; max-width: 1000px; height: 100%; min-height: 0; display: flex; flex-direction: column; gap: clamp(6px, 1.6vh, 10px); }
 #ui .formation > .panel-head, #ui .formation > .tabs, #ui .formation > .fm-hint { flex: none; }
-#ui .fm-cur { font-family: var(--display); font-weight: 700; font-size: calc(20px * var(--ts, 1)); color: var(--ink); background: var(--marker); border: 3px solid var(--ink); padding: 0 12px; box-shadow: 4px 4px 0 rgba(21,23,28,0.45); min-width: 80px; text-align: center; }
-#ui .fm-hint { color: var(--label); font-family: var(--ui); font-weight: 600; font-size: calc(12px * var(--ts, 1)); }
+#ui .fm-cur { font-family: var(--display); font-weight: 700; font-size: max(20px, min(calc(20px * 1.6), var(--fmin, 0px))); color: var(--ink); background: var(--marker); border: 3px solid var(--ink); padding: 0 12px; box-shadow: 4px 4px 0 rgba(21,23,28,0.45); min-width: 80px; text-align: center; }
+#ui .fm-hint { color: var(--label); font-family: var(--ui); font-weight: 600; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); }
 
 /* cards: as many per row as fit, scroll if they don't */
 #ui .fm-grid { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
@@ -18,9 +18,9 @@
 #ui .fm-card:active { transform: translate3d(1px, 2px, 0) scale(.97); box-shadow: 2px 2px 0 rgba(21,23,28,0.45); }
 #ui .fm-card.on { background: var(--marker); transform: translateY(-3px); box-shadow: 7px 8px 0 rgba(21,23,28,0.5); }
 #ui .fm-txt { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-#ui .fm-txt b { font-family: var(--display); font-weight: 700; font-size: calc(22px * var(--ts, 1)); line-height: 1; }
-#ui .fm-txt span { font-family: var(--display); font-weight: 600; font-size: calc(14px * var(--ts, 1)); }
-#ui .fm-txt small { flex-basis: 100%; font-family: var(--ui); font-weight: 600; font-size: calc(12px * var(--ts, 1)); color: var(--note2); line-height: 1.2; }
+#ui .fm-txt b { font-family: var(--display); font-weight: 700; font-size: max(22px, min(calc(22px * 1.6), var(--fmin, 0px))); line-height: 1; }
+#ui .fm-txt span { font-family: var(--display); font-weight: 600; font-size: max(14px, min(calc(14px * 1.6), var(--fmin, 0px))); }
+#ui .fm-txt small { flex-basis: 100%; font-family: var(--ui); font-weight: 600; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); color: var(--note2); line-height: 1.2; }
 #ui .fm-card.on .fm-txt small { color: var(--ink); }
 
 /* mini pitch: our goal on the left, attacking right */
@@ -32,7 +32,7 @@
 #ui .fm-box { top: 26%; bottom: 26%; width: 13%; }
 #ui .fm-box.l { left: -2px; } #ui .fm-box.r { right: -2px; }
 #ui .fm-dot { position: absolute; transform: translate(-50%, -50%); min-width: 30px; height: 20px; padding: 0 4px; display: flex; align-items: center; justify-content: center;
-  font-style: normal; font-family: var(--display); font-weight: 700; font-size: calc(11px * var(--ts, 1)); color: #fff; border: 2px solid var(--ink); border-radius: 10px; box-shadow: 2px 2px 0 rgba(0,0,0,0.35); }
+  font-style: normal; font-family: var(--display); font-weight: 700; font-size: max(11px, min(calc(11px * 1.6), var(--fmin, 0px))); color: #fff; border: 2px solid var(--ink); border-radius: 10px; box-shadow: 2px 2px 0 rgba(0,0,0,0.35); }
 #ui .fm-dot.r-GK { background: #e8b60c; color: var(--ink); }
 #ui .fm-dot.r-DEF { background: #2f6fd8; }
 #ui .fm-dot.r-MID { background: #1f9a55; }
@@ -40,10 +40,10 @@
 
 @media (max-height: 430px) {
   #ui .fm-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 10px; }
-  #ui .fm-txt b { font-size: calc(18px * var(--ts, 1)); }
-  #ui .fm-txt span { font-size: calc(12px * var(--ts, 1)); }
-  #ui .fm-txt small { font-size: calc(11px * var(--ts, 1)); }
-  #ui .fm-dot { min-width: 26px; height: 17px; font-size: calc(9px * var(--ts, 1)); }
+  #ui .fm-txt b { font-size: max(18px, min(calc(18px * 1.6), var(--fmin, 0px))); }
+  #ui .fm-txt span { font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); }
+  #ui .fm-txt small { font-size: max(11px, min(calc(11px * 1.6), var(--fmin, 0px))); }
+  #ui .fm-dot { min-width: 26px; height: 17px; font-size: max(9px, min(calc(9px * 1.6), var(--fmin, 0px))); }
 }
 
 /* ===================================================================
@@ -54,7 +54,7 @@
 .dtac.gone { display: none; }
 .dtac-segs { display: flex; height: var(--th, 26px); background: rgba(21,23,28,0.78); border: 2px solid var(--paper); box-shadow: 0 calc(3 * var(--u)) 0 rgba(21,23,28,0.5); }
 .dtac-seg { flex: 1; display: flex; align-items: center; justify-content: center; gap: calc(3 * var(--u)); color: var(--label);
-  font-family: Oswald, sans-serif; font-weight: 700; font-size: min(calc(16 * var(--ut)), calc(var(--th, 26px) * 0.62)); letter-spacing: 0.02em; transition: background .15s, color .15s;
+  font-family: Oswald, sans-serif; font-weight: 700; font-size: min(max(calc(16 * var(--u)), min(calc(calc(16 * var(--u)) * 1.6), var(--fmin, 0px))), calc(var(--th, 26px) * 0.62)); letter-spacing: 0.02em; transition: background .15s, color .15s;
   min-width: 0; overflow: hidden; white-space: nowrap; }
 /* each segment's label shrinks to its third of the bar instead of spilling out */
 .dtac-seg b { min-width: 0; overflow: hidden; text-overflow: clip; }
@@ -72,7 +72,7 @@
 .dtac-seg.m2.on { background: var(--stamp-lt); }
 .dtac.flash .dtac-segs { animation: dtac-pop .35s ease-out; }
 @keyframes dtac-pop { 40% { transform: scale(1.06); } }
-.dtac-rival { align-self: flex-end; font-family: 'Roboto Condensed', sans-serif; font-weight: 700; font-size: calc(13 * var(--ut)); color: var(--label); }
+.dtac-rival { align-self: flex-end; font-family: 'Roboto Condensed', sans-serif; font-weight: 700; font-size: max(calc(13 * var(--u)), min(calc(calc(13 * var(--u)) * 1.6), var(--fmin, 0px))); color: var(--label); }
 .dhud.lefty .dtac-rival { align-self: flex-start; }
 .dtac-rival.r0 { color: #9fd6ff; } .dtac-rival.r2 { color: var(--stamp-lt); }
 .dtac-rival.flash { animation: dtac-blink .5s steps(2) 4; }

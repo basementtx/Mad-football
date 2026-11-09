@@ -5,7 +5,7 @@
 
 /* ---- coin counter: a "+" that says "tap me" */
 #ui .coins-pill { cursor: pointer; position: relative; }
-#ui .coins-pill .cp-plus { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: 6px; font-style: normal; font-family: var(--display); font-weight: 700; font-size: calc(16px * var(--ts, 1)); line-height: 1;
+#ui .coins-pill .cp-plus { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: 6px; font-style: normal; font-family: var(--display); font-weight: 700; font-size: max(16px, min(calc(16px * 1.6), var(--fmin, 0px))); line-height: 1;
   color: #fff; background: var(--ad-green); border: 2px solid var(--ink); border-radius: 50%; box-shadow: 0 2px 0 var(--ad-green-dk); animation: cp-plus 2.4s ease-in-out infinite; }
 @keyframes cp-plus { 0%, 80%, 100% { transform: scale(1); } 88% { transform: scale(1.25); } }
 #ui .mk-wallet { cursor: pointer; position: relative; }
@@ -16,7 +16,7 @@
 #ui .ad-mini { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(180deg, #2fe082, var(--ad-green)); color: #062a14; border: 2px solid var(--ink); box-shadow: 0 3px 0 var(--ad-green-dk); font-weight: 700; position: relative; overflow: hidden; }
 #ui .ad-mini::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.65) 48%, transparent 60%); transform: translateX(-120%); animation: ad-shine 2.6s ease-in-out infinite 0.6s; }
 #ui .ad-mini small { font-weight: 700; opacity: .75; }
-#ui .ad-mini .ad-mini-tv { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 14px; font-size: calc(8px * var(--ts, 1)); color: #fff; background: var(--ink); border-radius: 3px; }
+#ui .ad-mini .ad-mini-tv { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 14px; font-size: max(8px, min(calc(8px * 1.6), var(--fmin, 0px))); color: #fff; background: var(--ink); border-radius: 3px; }
 #ui .ad-mini:disabled { filter: grayscale(1) opacity(.55); cursor: default; }
 #ui .ad-mini:disabled::after { display: none; }
 #ui .store-acts { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
@@ -31,11 +31,11 @@
 @keyframes ad-bounce { 0%, 70%, 100% { transform: translateY(0) scale(1); } 80% { transform: translateY(-4px) scale(1.04); } 90% { transform: translateY(0) scale(.99); } }
 #ui .ad-cta-tv { position: relative; flex: none; width: 40px; height: 30px; background: var(--ink); border-radius: 5px; display: flex; align-items: center; justify-content: center; }
 #ui .ad-cta-tv i { position: absolute; inset: 3px; border-radius: 3px; background: linear-gradient(135deg, #3b82ff, #b04cff); }
-#ui .ad-cta-tv b { position: relative; color: #fff; font-size: calc(13px * var(--ts, 1)); }
+#ui .ad-cta-tv b { position: relative; color: #fff; font-size: max(13px, min(calc(13px * 1.6), var(--fmin, 0px))); }
 #ui .ad-cta-t { display: flex; flex-direction: column; line-height: 1.05; position: relative; z-index: 1; }
 #ui .ad-cta-t small { font: 700 11px/1 var(--ui); letter-spacing: .06em; opacity: .85; }
 #ui .ad-cta-t b { display: flex; align-items: center; gap: 4px; font: 700 22px/1.1 var(--display); color: var(--ink); }
-#ui .ad-cta-t em { font-style: normal; font-size: calc(15px * var(--ts, 1)); color: #fff; background: var(--stamp, #c82d20); border: 2px solid var(--ink); border-radius: 4px; padding: 0 5px; margin-left: 4px; transform: rotate(-6deg); }
+#ui .ad-cta-t em { font-style: normal; font-size: max(15px, min(calc(15px * 1.6), var(--fmin, 0px))); color: #fff; background: var(--stamp, #c82d20); border: 2px solid var(--ink); border-radius: 4px; padding: 0 5px; margin-left: 4px; transform: rotate(-6deg); }
 #ui .ad-cta-coin { width: 20px; height: 20px; }
 #ui .ad-cta-shine { position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.7) 47%, transparent 58%); transform: translateX(-120%); animation: ad-shine 2.2s ease-in-out infinite; pointer-events: none; }
 #ui .ad-cta.done { animation: none; background: var(--paper2, #eae2d1); box-shadow: 0 3px 0 rgba(21,23,28,0.4); cursor: default; }
@@ -71,13 +71,13 @@
 #ui .bk-free.used { filter: grayscale(.9) opacity(.6); }
 #ui .bk-tv { position: relative; z-index: 1; width: 70px; height: 52px; margin: 10px 0 12px; background: var(--ink); border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 0 rgba(0,0,0,0.4); animation: ad-bounce 1.8s cubic-bezier(.3,1.6,.5,1) infinite; }
 #ui .bk-tv i { position: absolute; inset: 5px; border-radius: 4px; background: linear-gradient(135deg, #3b82ff, #b04cff); }
-#ui .bk-tv b { position: relative; color: #fff; font-size: calc(22px * var(--ts, 1)); }
+#ui .bk-tv b { position: relative; color: #fff; font-size: max(22px, min(calc(22px * 1.6), var(--fmin, 0px))); }
 @media (max-height: 430px) {
   #ui .bk-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 128px), 1fr)); gap: 10px; }
   #ui .bk-pile { height: 56px; transform: scale(.82); transform-origin: 50% 100%; }
   #ui .bk-tv { width: 56px; height: 42px; margin: 4px 0 8px; }
-  #ui .bk-amt { font-size: calc(20px * var(--ts, 1)); }
-  #ui .bk-price { font-size: calc(15px * var(--ts, 1)); padding: 6px 4px; }
+  #ui .bk-amt { font-size: max(20px, min(calc(20px * 1.6), var(--fmin, 0px))); }
+  #ui .bk-price { font-size: max(15px, min(calc(15px * 1.6), var(--fmin, 0px))); padding: 6px 4px; }
 }
 
 /* ---- rewarded-ad overlay (placeholder until the ad SDK is plugged in) */
@@ -86,30 +86,30 @@
 @keyframes ad-in { from { opacity: 0; } }
 .ad-box { width: min(92vw, 560px); max-height: 92vh; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: #15171c; border: 3px solid #f6f1e6; border-radius: 10px; }
 .ad-top { display: flex; align-items: center; gap: 10px; color: #f6f1e6; }
-.ad-tag { font-weight: 700; font-size: calc(13px * var(--ts, 1)); letter-spacing: .1em; background: #f6f1e6; color: #15171c; padding: 2px 8px; border-radius: 3px; }
-.ad-count { margin-left: auto; font-size: calc(20px * var(--ts, 1)); min-width: 24px; text-align: center; }
-.ad-x { width: 32px; height: 32px; border: 2px solid #f6f1e6; background: transparent; color: #f6f1e6; font-size: calc(20px * var(--ts, 1)); border-radius: 50%; cursor: pointer; opacity: .35; }
+.ad-tag { font-weight: 700; font-size: max(13px, min(calc(13px * 1.6), var(--fmin, 0px))); letter-spacing: .1em; background: #f6f1e6; color: #15171c; padding: 2px 8px; border-radius: 3px; }
+.ad-count { margin-left: auto; font-size: max(20px, min(calc(20px * 1.6), var(--fmin, 0px))); min-width: 24px; text-align: center; }
+.ad-x { width: 32px; height: 32px; border: 2px solid #f6f1e6; background: transparent; color: #f6f1e6; font-size: max(20px, min(calc(20px * 1.6), var(--fmin, 0px))); border-radius: 50%; cursor: pointer; opacity: .35; }
 .ad-layer.done .ad-x { opacity: 1; }
 .ad-art { position: relative; overflow: hidden; height: min(42vh, 260px); border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 60%, #2a7a36, #0d3a1a); }
 .ad-rays { position: absolute; left: 50%; top: 50%; width: 160%; aspect-ratio: 1; transform: translate(-50%, -50%); background: repeating-conic-gradient(rgba(255,255,255,0.12) 0 10deg, transparent 10deg 20deg); animation: ad-spin 12s linear infinite; }
 @keyframes ad-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
-.ad-logo { position: relative; font-size: calc(clamp(34px, 9vh, 64px) * var(--ts, 1)); font-weight: 700; line-height: .95; text-align: center; color: #ffd23f; text-shadow: 4px 4px 0 #7a2a08, 8px 8px 0 rgba(0,0,0,0.35); transform: rotate(-4deg); }
-.ad-sub { position: relative; margin-top: 12px; font-family: 'Roboto Condensed', sans-serif; font-weight: 700; color: #f6f1e6; font-size: calc(15px * var(--ts, 1)); }
+.ad-logo { position: relative; font-size: max(clamp(34px, 9vh, 64px), min(calc(clamp(34px, 9vh, 64px) * 1.6), var(--fmin, 0px))); font-weight: 700; line-height: .95; text-align: center; color: #ffd23f; text-shadow: 4px 4px 0 #7a2a08, 8px 8px 0 rgba(0,0,0,0.35); transform: rotate(-4deg); }
+.ad-sub { position: relative; margin-top: 12px; font-family: 'Roboto Condensed', sans-serif; font-weight: 700; color: #f6f1e6; font-size: max(15px, min(calc(15px * 1.6), var(--fmin, 0px))); }
 .ad-bar { height: 6px; background: #2a2d35; border-radius: 3px; overflow: hidden; }
 .ad-bar i { display: block; height: 100%; background: #19c46a; transform-origin: 0 50%; transform: scaleX(0); transition: transform linear; }
-.ad-claim { align-self: center; padding: 10px 26px; border: 3px solid #15171c; border-radius: 6px; font-family: 'Oswald', sans-serif; font-weight: 700; font-size: calc(18px * var(--ts, 1)); color: #062a14; background: #19c46a; box-shadow: 0 4px 0 #0b7a3e; cursor: pointer; }
+.ad-claim { align-self: center; padding: 10px 26px; border: 3px solid #15171c; border-radius: 6px; font-family: 'Oswald', sans-serif; font-weight: 700; font-size: max(18px, min(calc(18px * 1.6), var(--fmin, 0px))); color: #062a14; background: #19c46a; box-shadow: 0 4px 0 #0b7a3e; cursor: pointer; }
 .ad-claim:disabled { filter: grayscale(1) opacity(.45); cursor: default; }
 /* post-match: coins and the ad button share one row so the man-of-the-match card keeps its room */
 #ui .res-pay { display: flex; gap: 10px; align-items: stretch; flex: none; }
 #ui .res-pay > .coins { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 6px 14px; }
 #ui .res-pay > .ad-cta { flex: 1; width: auto; padding: 5px 10px; }
-#ui .res-pay .ad-cta-t b { font-size: calc(19px * var(--ts, 1)); }
+#ui .res-pay .ad-cta-t b { font-size: max(19px, min(calc(19px * 1.6), var(--fmin, 0px))); }
 #ui .res-side .motm .pcard { --w: clamp(44px, 12.5vh, 104px); }
 /* the man-of-the-match card never gets squashed: the pay row and the missions give way instead */
 #ui .res-side { min-width: 0; min-height: 0; gap: 8px; }
 #ui .res-side .mvp.motm { flex: 1 0 auto; gap: 18px; }
 #ui .res-missions { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
-#ui .res-missions .res-mission { font-size: calc(12px * var(--ts, 1)); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ui .res-missions .res-mission { font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #ui .results > .row { flex: none; }
 #ui .res-body { flex: 1 1 auto; }
 @media (max-height: 520px) {
@@ -117,26 +117,26 @@
   #ui .res-side { gap: 6px; }
   #ui .res-pay > .coins { padding: 2px 10px; }
   #ui .res-pay > .ad-cta { padding: 2px 8px; gap: 8px; }
-  #ui .res-pay .ad-cta-t b { font-size: calc(16px * var(--ts, 1)); }
-  #ui .res-pay .ad-cta-t small { font-size: calc(10px * var(--ts, 1)); }
-  #ui .res-missions .res-mission { font-size: calc(11px * var(--ts, 1)); }
+  #ui .res-pay .ad-cta-t b { font-size: max(16px, min(calc(16px * 1.6), var(--fmin, 0px))); }
+  #ui .res-pay .ad-cta-t small { font-size: max(10px, min(calc(10px * 1.6), var(--fmin, 0px))); }
+  #ui .res-missions .res-mission { font-size: max(11px, min(calc(11px * 1.6), var(--fmin, 0px))); }
 }
 #ui .bk-grid { grid-auto-rows: max-content; }
 #ui .bk-pack { min-height: max-content; }
 /* short landscape phones: the VICTORY stamp and the cup line move up into the corner so the body keeps its room */
 @media (max-height: 500px) {
   #ui .results { padding-top: 8px; padding-bottom: 8px; gap: 6px; }
-  #ui .results .res-title { position: absolute; left: 14px; top: 10px; font-size: calc(22px * var(--ts, 1)); padding: 0 10px; border-width: 4px; z-index: 3; }
-  #ui .results .res-cup { position: absolute; left: 14px; top: 50px; font-size: calc(11px * var(--ts, 1)); padding: 2px 8px; z-index: 3; max-width: 30%; }
+  #ui .results .res-title { position: absolute; left: 14px; top: 10px; font-size: max(22px, min(calc(22px * 1.6), var(--fmin, 0px))); padding: 0 10px; border-width: 4px; z-index: 3; }
+  #ui .results .res-cup { position: absolute; left: 14px; top: 50px; font-size: max(11px, min(calc(11px * 1.6), var(--fmin, 0px))); padding: 2px 8px; z-index: 3; max-width: 30%; }
   #ui .res-score { gap: 12px; }
-  #ui .res-team { font-size: calc(15px * var(--ts, 1)); }
+  #ui .res-team { font-size: max(15px, min(calc(15px * 1.6), var(--fmin, 0px))); }
   #ui .res-team .crest-sm { width: 22px; height: 25px; }
-  #ui .res-num { font-size: calc(32px * var(--ts, 1)); }
-  #ui .rs-row { font-size: calc(13px * var(--ts, 1)); padding: 1px 0; }
-  #ui .rs-row b { font-size: calc(14px * var(--ts, 1)); }
+  #ui .res-num { font-size: max(32px, min(calc(32px * 1.6), var(--fmin, 0px))); }
+  #ui .rs-row { font-size: max(13px, min(calc(13px * 1.6), var(--fmin, 0px))); padding: 1px 0; }
+  #ui .rs-row b { font-size: max(14px, min(calc(14px * 1.6), var(--fmin, 0px))); }
   #ui .res-side .motm .pcard { --w: clamp(40px, 12vh, 60px); }
-  #ui .res-missions .res-mission { font-size: calc(10px * var(--ts, 1)); line-height: 1.2; }
-  #ui .res-side .motm-stamp { font-size: calc(9px * var(--ts, 1)); }
+  #ui .res-missions .res-mission { font-size: max(10px, min(calc(10px * 1.6), var(--fmin, 0px))); line-height: 1.2; }
+  #ui .res-side .motm-stamp { font-size: max(9px, min(calc(9px * 1.6), var(--fmin, 0px))); }
   #ui .res-side .mvp.motm { gap: 18px; }
   #ui .results > .row .btn { padding: 4px 14px; }
 }

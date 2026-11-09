@@ -34,7 +34,7 @@
 #ui .hc-plaque b { font: 700 10px/1.15 var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 #ui .hc-plaque small { font: 700 8px/1.2 var(--ui); opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 #ui .hc-item.ghost .hc-plaque { background: #3a2a1a; color: #a08060; border-color: #1a0c04; }
-@media (max-width: 760px) { #ui .hc-sum { flex-basis: 110px; } #ui .hc-stat b { font-size: calc(24px * var(--ts, 1)); } }
+@media (max-width: 760px) { #ui .hc-sum { flex-basis: 110px; } #ui .hc-stat b { font-size: max(24px, min(calc(24px * 1.6), var(--fmin, 0px))); } }
 @media (max-height: 430px) { #ui .hc-shelf { min-height: 112px; } #ui .hc-art { width: 44px; height: 57px; } }
 
 /* ---- legends wall */
@@ -46,7 +46,7 @@
 #ui .hl-frame.f-silver { --fr: #9aa4b4; --fr-lt: #eef2f8; }
 #ui .hl-frame.f-bronze { --fr: #a8682a; --fr-lt: #f0b47a; }
 #ui .hl-frame.p0 { transform: translateY(-10px) scale(1.04); }
-#ui .hl-frame.p0::before { content: '★'; position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: calc(20px * var(--ts, 1)); color: #ffd23f; text-shadow: 0 0 10px rgba(255,210,63,0.9), 1px 1px 0 var(--ink); }
+#ui .hl-frame.p0::before { content: '★'; position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: max(20px, min(calc(20px * 1.6), var(--fmin, 0px))); color: #ffd23f; text-shadow: 0 0 10px rgba(255,210,63,0.9), 1px 1px 0 var(--ink); }
 #ui .hl-rank { position: absolute; top: -10px; left: -10px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font: 700 14px/1 var(--display); color: var(--ink); background: var(--fr-lt); border: 2px solid var(--ink); border-radius: 50%; }
 #ui .hl-pic { position: relative; width: 100%; aspect-ratio: 32 / 30; background: radial-gradient(circle at 50% 40%, #fff6dc, #d8c9a0); border: 2px solid var(--ink); overflow: hidden; }
 #ui .hl-face { position: absolute; inset: 6% 6% 0; width: 88%; height: 94%; image-rendering: pixelated; }
@@ -62,8 +62,8 @@
 #ui .hl-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) 30px 30px 24px 24px 24px; gap: 3px; align-items: center; padding: 3px 2px; border-bottom: 1px dashed rgba(21,23,28,0.2); font: 700 12px/1.2 var(--ui); }
 #ui .hl-row b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--display); }
 #ui .hl-row i, #ui .hl-row em { font-style: normal; text-align: center; }
-#ui .hl-row i { font-size: calc(10px * var(--ts, 1)); color: var(--note); }
-#ui .hl-row.th { color: var(--note); font-size: calc(10px * var(--ts, 1)); }
+#ui .hl-row i { font-size: max(10px, min(calc(10px * 1.6), var(--fmin, 0px))); color: var(--note); }
+#ui .hl-row.th { color: var(--note); font-size: max(10px, min(calc(10px * 1.6), var(--fmin, 0px))); }
 #ui .hl-row.top { background: rgba(250,204,21,0.22); }
 #ui .hl-empty { padding: 30px; text-align: center; font: 700 15px/1.4 var(--ui); color: var(--paper); }
 @media (max-width: 800px) { #ui .hl-wrap { flex-direction: column; align-items: stretch; } }
@@ -71,7 +71,7 @@
 /* ---- records */
 #ui .hr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 10px; }
 #ui .hr-card { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--paper); color: var(--ink); border: 3px solid var(--ink); box-shadow: 5px 5px 0 rgba(21,23,28,0.45); }
-#ui .hr-ic { flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: calc(24px * var(--ts, 1)); background: var(--marker); border: 2px solid var(--ink); border-radius: 50%; }
+#ui .hr-ic { flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: max(24px, min(calc(24px * 1.6), var(--fmin, 0px))); background: var(--marker); border: 2px solid var(--ink); border-radius: 50%; }
 #ui .hr-card small { display: block; font: 700 11px/1.1 var(--ui); color: var(--note); text-transform: uppercase; letter-spacing: .04em; }
 #ui .hr-card b { display: block; font: 700 26px/1.05 var(--display); }
 #ui .hr-card i { display: block; font-style: normal; font: 600 11px/1.2 var(--ui); color: var(--note2); }
@@ -85,7 +85,7 @@
 #ui .clubhub { width: 100%; max-width: 1000px; height: 100%; min-height: 0; display: flex; flex-direction: column; gap: clamp(6px, 1.6vh, 12px); }
 #ui .clubhub > .panel-head { flex: none; }
 #ui .ch-title { display: flex; align-items: center; gap: 8px; font: 700 22px/1 var(--display); color: var(--paper); background: var(--ink); border: 3px solid var(--paper); padding: 2px 12px; transform: rotate(-1.5deg); box-shadow: 5px 5px 0 rgba(21,23,28,0.5); }
-#ui .ch-title small { font-size: calc(12px * var(--ts, 1)); color: var(--marker); }
+#ui .ch-title small { font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); color: var(--marker); }
 #ui .ch-grid { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: clamp(8px, 2vh, 14px); }
 #ui .ch-t[data-go=squad] { --strip: var(--steel, #3b5a8a); }
 #ui .ch-t[data-go=formation] { --strip: #2fb45a; }
@@ -93,7 +93,7 @@
 #ui .ch-t[data-go=cabinet] { --strip: #c9a227; }
 #ui .ch-t[data-go=legends] { --strip: #c82d20; }
 #ui .ch-t[data-go=player] { --strip: #14b8a6; }
-#ui .ch-emoji { font-size: calc(min(54px, 70cqh) * var(--ts, 1)); line-height: 1; filter: drop-shadow(3px 3px 0 rgba(21,23,28,0.3)); }
+#ui .ch-emoji { font-size: max(min(54px, 70cqh), min(calc(min(54px, 70cqh) * 1.6), var(--fmin, 0px))); line-height: 1; filter: drop-shadow(3px 3px 0 rgba(21,23,28,0.3)); }
 #ui .tile .ch-trophy { height: min(88px, 92cqh); width: auto; image-rendering: pixelated; filter: drop-shadow(3px 3px 0 rgba(21,23,28,0.35)); }
 #ui .tile .ch-face { height: min(80px, 90cqh); width: auto; image-rendering: pixelated; border: 3px solid #c9a227; background: radial-gradient(circle at 50% 40%, #fff6dc, #d8c9a0); box-shadow: 0 0 0 2px var(--ink); }
 #ui .ch-pitch { position: relative; height: min(70px, 86cqh); aspect-ratio: 33 / 20; background: repeating-linear-gradient(90deg, #2f8f45 0 10%, #2a8240 10% 20%); border: 2px solid var(--ink); }

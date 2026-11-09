@@ -112,9 +112,14 @@ function resize() {
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 
-/** Text size setting -> the --ts multiplier every font size in the CSS uses. */
+/**
+ * Text size setting -> --fmin, the smallest text size. Only text smaller than it grows
+ * (by at most 60%); headings, scores and big cards stay exactly as designed.
+ */
 function applyTextScale() {
-  document.documentElement.style.setProperty('--ts', String(settings.textScale || 1));
+  const ts = settings.textScale || 1;
+  const fmin = ts >= 1.3 ? 13 : ts >= 1.15 ? 11 : 0;
+  document.documentElement.style.setProperty('--fmin', `${fmin}px`);
 }
 
 function applyLang() {
