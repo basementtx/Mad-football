@@ -19,7 +19,7 @@
 #ui .fc-card.upgraded { animation: fc-up .8s cubic-bezier(.3,1.6,.5,1); }
 @keyframes fc-up { 30% { transform: scale(1.06) rotate(-1deg); box-shadow: 0 0 0 4px var(--fc), 6px 8px 0 rgba(21,23,28,0.45); } }
 #ui .fc-top { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-#ui .fc-ic { flex: none; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 24px; background: var(--fc); border: 2px solid var(--ink); border-radius: 8px; box-shadow: 2px 2px 0 rgba(21,23,28,0.4); }
+#ui .fc-ic { flex: none; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: calc(24px * var(--ts, 1)); background: var(--fc); border: 2px solid var(--ink); border-radius: 8px; box-shadow: 2px 2px 0 rgba(21,23,28,0.4); }
 #ui .fc-name b { display: block; font: 700 16px/1.05 var(--display); }
 #ui .fc-name small { font: 700 11px/1.2 var(--ui); color: var(--note); }
 #ui .fc-pips { display: flex; gap: 4px; }
@@ -27,7 +27,7 @@
 #ui .fc-pips i.on { background: var(--fc); }
 #ui .fc-eff { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font: 700 13px/1.2 var(--ui); }
 #ui .fc-eff span { color: var(--note2); }
-#ui .fc-eff em { font-style: normal; color: var(--fc); font-size: 10px; }
+#ui .fc-eff em { font-style: normal; color: var(--fc); font-size: calc(10px * var(--ts, 1)); }
 #ui .fc-eff b { color: var(--ink); background: color-mix(in srgb, var(--fc) 25%, transparent); padding: 0 4px; }
 #ui .fc-up { margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 4px; }
 #ui .fc-claim { background: #e8e0ff; color: var(--ink); border: 2px solid var(--ink); }

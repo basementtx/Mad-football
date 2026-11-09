@@ -6,6 +6,8 @@ export interface Settings {
   leftHanded: boolean;
   minimap: boolean;
   zoom: number;
+  /** text size multiplier for menus, cards and the match HUD */
+  textScale: number;
   quality: 'high' | 'low';
   lang: Lang;
   /** joystick stays in place instead of following the finger */
@@ -41,6 +43,7 @@ const DEFAULT_SETTINGS: Settings = {
   leftHanded: false,
   minimap: true,
   zoom: 1,
+  textScale: 1.15,
   quality: 'high',
   lang: 'en',
   joyFixed: false,

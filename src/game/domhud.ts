@@ -40,6 +40,8 @@ const svg = (id: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="curren
 const RING_C = 2 * Math.PI * 46;
 const MENTS = ['def', 'bal', 'att'] as const;
 const TAC_NAMES = { tr: ['DEFANS', 'DENGE', 'HÜCUM'], en: ['DEFEND', 'BALANCE', 'ATTACK'] };
+/** short labels for a narrow tactic bar (small phones / big text) */
+const TAC_SHORT = { tr: ['SAV', 'DNG', 'HÜC'], en: ['DEF', 'BAL', 'ATT'] };
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', parent?: HTMLElement, html = '') {
   const e = document.createElement(tag);
@@ -362,7 +364,9 @@ export class DomHud {
       setStyle(this.tac, 'top', `${tr.y * k}px`);
       setStyle(this.tac, 'width', `${tr.w * k}px`);
       setStyle(this.tac, '--th', `${tr.h * k}px`);
-      const names = TAC_NAMES[settings.lang === 'tr' ? 'tr' : 'en'];
+      const lang = settings.lang === 'tr' ? 'tr' : 'en';
+      // full words only when each third of the bar can hold them at a readable size
+      const names = (tr.w * k) / 3 >= 6 * 16 * 0.55 * (settings.textScale || 1) ? TAC_NAMES[lang] : TAC_SHORT[lang];
       MENTS.forEach((v, i) => {
         const seg = this.tacSegs[i];
         setText(seg.querySelector('b')!, names[i]);

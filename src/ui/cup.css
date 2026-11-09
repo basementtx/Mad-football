@@ -67,5 +67,5 @@
 @media (max-height: 430px) {
   #ui .cup-win-trophy { width: 56px; height: 73px; }
   #ui .cp-cup-lg { width: 60px; height: 78px; }
-  #ui .cp-slot { min-height: 18px; font-size: 11px; }
+  #ui .cp-slot { min-height: 18px; font-size: calc(11px * var(--ts, 1)); }
 }

@@ -100,3 +100,38 @@
 #ui .slot-n { white-space: nowrap; }
 #ui .slot-n .slot-role { margin-left: 5px; padding-left: 5px; border-left: 2px solid currentColor; font-weight: inherit; }
 #ui .slot-n .slot-role.bad { color: #e2551b; }
+
+/* ---------------------------------------------------------------- headers never wrap (bigger text sizes) */
+#ui .panel-head > *, #ui .panel-head .btn, #ui .panel-title { white-space: nowrap; }
+#ui .panel-head .panel-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------------------------------------------------------------- short phones (landscape ~300-420 px tall):
+   squad cards get the room - the slot label sits on the card, the hint lines go */
+@media (max-height: 430px) {
+  #ui .squad { gap: 4px; }
+  #ui .squad > .panel-head { padding-bottom: 4px; }
+  #ui .squad > .panel-head .btn { padding-top: 4px; padding-bottom: 4px; }
+  #ui .squad .sec-label small, #ui .chem-bar small { display: none; }
+  #ui .squad > .sec-label { line-height: 1.1; }
+  /* 18px = slot padding + chemistry dots; the number badge overlaps the card's bottom tip */
+  #ui .lineup { --lw: clamp(58px, min(calc((100cqh - 20px) / 1.42), calc(100cqw / 7 - 10px)), 136px); gap: 6px; }
+  #ui .lineup .slot { padding: 2px; }
+  #ui .lineup .slot .chem-dots { min-height: 0; padding: 0; margin-top: 0; line-height: 1; }
+  /* "out of position" is already shown by the orange role on the number badge */
+  #ui .lineup .slot .chem-dots em { display: none; }
+  /* number badge right under the card, sharing its row with the (smaller) chemistry dots */
+  #ui .lineup .slot-n { top: calc(2px + var(--lw) * 1.42 + 1px); bottom: auto; left: 0; right: auto; transform: none; font-size: calc(10px * var(--ts, 1)); padding: 0 3px; line-height: 1.2; }
+  #ui .lineup .slot:has(.empty-slot) .slot-n { top: calc(2px + var(--lw) * 1.42 + 1px); bottom: auto; }
+  #ui .lineup .slot .chem-dots { text-align: right; font-size: 8px; letter-spacing: 0; padding-top: 2px; }
+  #ui .reserves { --w: clamp(50px, 15vh, 70px); padding: 4px 6px 4px; }
+  /* small cards: the numbers matter more than the labels */
+  #ui .lineup .pc-stats b { font-size: calc(var(--w) * 0.115 * var(--cts, 1)); }
+  #ui .lineup .pc-stats i { font-size: calc(var(--w) * 0.075 * var(--cts, 1)); }
+  #ui .lineup .pc-stats { row-gap: 0; column-gap: calc(var(--w) * 0.06); }
+  /* the card colour already tells the rarity: give its row to the stats */
+  #ui .lineup .pc-tier { display: none; }
+  /* a slightly shorter portrait so all three stat rows clear the card's pointed tip */
+  #ui .lineup .pc-top { height: calc(var(--w) * 0.5); }
+  #ui .lineup .pc-portrait { width: calc(var(--w) * 0.54); height: calc(var(--w) * 0.5); }
+  #ui .lineup .pc-ovr { font-size: calc(var(--w) * 0.19 * var(--cts, 1)); }
+}

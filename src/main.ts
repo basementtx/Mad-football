@@ -109,7 +109,13 @@ function resize() {
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 
+/** Text size setting -> the --ts multiplier every font size in the CSS uses. */
+function applyTextScale() {
+  document.documentElement.style.setProperty('--ts', String(settings.textScale || 1));
+}
+
 function applyLang() {
+  applyTextScale();
   document.documentElement.lang = settings.lang;
   document.querySelector('#rotate p')!.textContent = t().rotate;
 }
@@ -299,6 +305,7 @@ const handlers: MenuHandlers = {
     // only redo the work a setting actually needs: rebuilding the stadium renderers
     // on every toggle is what made the settings screen stutter
     if (!key || key === 'lang') applyLang();
+    if (key === 'textScale') applyTextScale();
     if (!key || key === 'zoom' || key === 'leftHanded' || key === 'btnScale' || key === 'ctrl') resize();
     if (!key || key === 'quality') {
       // let the menu repaint first, then rebuild (expensive) in the background

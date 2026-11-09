@@ -273,6 +273,7 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
 
         <div>
           ${toggle('minimap', L.minimap)}
+          ${seg(L.textSize, 'textScale', [[1, L.textNormal], [1.15, L.textLarge], [1.3, L.textXL]], settings.textScale)}
           ${seg(L.zoom, 'zoom', [[1.18, L.near], [1, L.mid], [0.84, L.far]], settings.zoom)}
           ${seg(L.quality, 'quality', [['high', L.high], ['low', L.low]], settings.quality)}
           ${seg(L.btnSize, 'btnScale', [[0.8, L.sizeS], [1, L.sizeM], [1.2, L.sizeL], [1.4, L.sizeXL]], settings.btnScale ?? 1)}
@@ -300,6 +301,7 @@ export function showSettings(h: MenuHandlers, back: () => void, inGame = false) 
     const k = el.dataset.seg!;
     const v = el.dataset.val!;
     if (k === 'zoom') settings.zoom = Number(v);
+    if (k === 'textScale') settings.textScale = Number(v);
     if (k === 'quality') settings.quality = v as 'high' | 'low';
     if (k === 'joy') settings.joyFixed = v === 'fixed';
     if (k === 'btnScale') settings.btnScale = Number(v);
