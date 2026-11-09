@@ -161,6 +161,8 @@ export function lookFor(kit: TeamDef, l: { skin: string; hair: string; hairStyle
 
 export interface MenuHandlers {
   startMatch: () => void;
+  /** online 1v1 lobby */
+  showOnline: () => void;
   /** career: run a match with a prepared config; onEnd gets the finished match */
   playCareer: (cfg: import('../game/match').MatchConfig, onEnd: (m: import('../game/match').Match) => void) => void;
   showCareer: () => void;

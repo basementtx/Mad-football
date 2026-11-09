@@ -119,7 +119,10 @@ export function showHub(h: MenuHandlers) {
           <div><div class="tile-label">${L.transfers}</div><small>${L.transfersSub}</small></div>
           ${market.offers.length ? `<div class="badge">${market.offers.length}</div>` : ''}
         </button>
-        <button class="tile tile-sm" data-act="quick"><div class="tile-label"><span class="bolt">⚡</span> ${L.quickMatch}</div></button>
+        <div class="tile-pair">
+          <button class="tile tile-sm" data-act="quick"><div class="tile-label"><span class="bolt">⚡</span> ${L.quickMatch}</div></button>
+          <button class="tile tile-sm tile-online" data-act="online"><div class="tile-label"><span class="bolt">◉</span> ONLINE 1v1</div></button>
+        </div>
         <button class="tile tile-sm tile-train" data-act="training"><div class="tile-label"><span class="cone">◢</span> ${L.training}</div><small>${L.trainingSub}</small></button>
       </div>
     </div>`,
@@ -127,6 +130,7 @@ export function showHub(h: MenuHandlers) {
   bind('[data-act=play]', () => { audio.select(); showLeague(h); });
   bind('[data-act=career]', () => { audio.select(); h.showCareer(); });
   bind('[data-act=quick]', () => { audio.select(); showSetup(h); });
+  bind('[data-act=online]', () => { audio.select(); h.showOnline(); });
   bind('[data-act=training]', () => { audio.select(); showTraining(h); });
   bind('[data-act=missions]', () => { audio.select(); showMissions(h); });
   bind('[data-act=squad]', () => { audio.click(); showClubHub(h); });

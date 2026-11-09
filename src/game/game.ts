@@ -26,6 +26,11 @@ export class Game {
   ambient = false;
   private acc = 0;
   time = 0;
+  /**
+   * Online 1v1. Host: hooks around every simulation step (feed the guest's input,
+   * ship snapshots). Guest: `puppet` replaces the simulation (snapshots drive the match).
+   */
+  net: { beforeStep?(): void; afterStep?(dt: number): void; puppet?(dt: number): void } | null = null;
 
   constructor(cfg: MatchConfig, private input: Input | null) {
     this.match = new Match(cfg, this.fx);
@@ -36,7 +41,7 @@ export class Game {
     this.match.start();
     // your own club / quick match: the tactic switch is yours
     if (input) {
-      input.tacticOn = this.match.managed(this.match.teams[0]);
+      input.tacticOn = this.match.managed(this.match.me);
       input.tacticReq = null;
     }
   }
@@ -57,11 +62,21 @@ export class Game {
       return;
     }
     const ts = this.fx.timeScale;
+    if (this.net?.puppet) {
+      this.net.puppet(dtReal);
+      this.time += dtReal;
+      this.fx.update(dtReal * ts, dtReal);
+      audio.update(dtReal);
+      this.updateCamera(dtReal);
+      return;
+    }
     this.acc += dtReal * ts;
     let steps = 0;
     while (this.acc >= STEP && steps < 5) {
+      this.net?.beforeStep?.();
       this.match.step(STEP, this.input);
       this.input?.consume(STEP);
+      this.net?.afterStep?.(STEP);
       this.acc -= STEP;
       steps++;
     }
@@ -105,7 +120,7 @@ export class Game {
     const L = t();
     const h = m.human;
     const b = m.ball;
-    const team = m.teams[0];
+    const team = m.me;
     const hasBall = !!h && b.owner === h;
     const keeper = hasBall && !!h && h.isGK;
     // a ball on its way to you: SHOOT hits it first time (volley / header / one-timer)
@@ -118,7 +133,7 @@ export class Game {
     else if (aerial) { aText = b.z > 1.2 ? L.header : L.shoot; aIc = b.z > 1.2 ? 'header' : 'shoot'; }
     else if (incoming) { aText = L.shoot; aIc = 'shoot'; }
     else if (h) {
-      for (const q of m.teams[1].players) {
+      for (const q of m.me.opp.players) {
         if (!q.isGK && q.state !== 'down' && dist(h.x, h.y, q.x, q.y) < 1.75) {
           aText = L.shove;
           aIc = 'shove';

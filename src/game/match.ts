@@ -55,7 +55,26 @@ export interface MatchConfig {
   homeChem?: number[];
   /** weather, pitch style and stadium (default: sunny arena) */
   env?: MatchEnv;
+  /** online 1v1: the away side is a second human (driven by Match.remoteInput) */
+  versus?: boolean;
+  /** online 1v1: the away player's items, goal explosion, trail and boots */
+  awayLoadout?: { goalfx: string; trail: string; powers: string[]; tiers: Record<string, number>; boots?: string };
 }
+
+/** Per-human control state (the online away player gets a second one). */
+interface Ctl {
+  human: Player | null;
+  lastSwitch: number;
+  passHint: Player | null;
+  aimX: number;
+  aimY: number;
+  aim: Match['aim'];
+  aimPath: [number, number][] | null;
+  lockX: number;
+  lockY: number;
+  curl: number;
+}
+const CTL_KEYS = ['human', 'lastSwitch', 'passHint', 'aimX', 'aimY', 'aim', 'aimPath', 'lockX', 'lockY', 'curl'] as const;
 
 export interface GoalEvent {
   /** match clock fraction 0..1 when it was scored */
@@ -123,6 +142,43 @@ export class Match {
   time = 0;
   human: Player | null = null;
   private lastSwitch = 0;
+  /** which team's human is being controlled right now (0, or 1 while the online away player's turn runs) */
+  private ctl: 0 | 1 = 0;
+  /** the other human's control state while one of them is swapped in (online 1v1 only) */
+  private ctl2: Ctl = { human: null, lastSwitch: 0, passHint: null, aimX: -1, aimY: 0, aim: null, aimPath: null, lockX: -1, lockY: 0, curl: 0 };
+  /** online 1v1 (host): the away player's input, fed by the network */
+  remoteInput: Input | null = null;
+  /** whose eyes the HUD looks through: 0 = home, 1 = the online away player (guest screen) */
+  localTeam: 0 | 1 = 0;
+  /** the team the HUD calls "mine" */
+  get me(): Team {
+    return this.teams[this.localTeam];
+  }
+  /** the online away player's controlled player (host side) */
+  get human2(): Player | null {
+    return this.ctl === 0 ? this.ctl2.human : this.human;
+  }
+  /** Is p controlled by a person (either human in an online match)? */
+  isHuman(p: Player | null | undefined): boolean {
+    return !!p && (p === this.human || p === this.ctl2.human);
+  }
+  /** Run fn with the given team's control state swapped in (online away player). */
+  private withCtl(team: 0 | 1, fn: () => void) {
+    if (team === this.ctl) return fn();
+    this.swapCtl();
+    this.ctl = team;
+    try {
+      fn();
+    } finally {
+      this.swapCtl();
+      this.ctl = team === 0 ? 1 : 0;
+    }
+  }
+  private swapCtl() {
+    const me = this as unknown as Record<string, unknown>;
+    const o = this.ctl2 as unknown as Record<string, unknown>;
+    for (const k of CTL_KEYS) [me[k], o[k]] = [o[k], me[k]];
+  }
   kickoffTeam: Team;
   excitement = 0.25;
   lastGoal: { team: Team; scorer: Player | null; own: boolean } | null = null;
@@ -174,7 +230,25 @@ export class Match {
   replayT = 0;
   private replayDone = false;
   get replaying() {
-    return this.replay !== null;
+    return this.replay !== null || this.netReplay;
+  }
+  /** online guest: the host is showing a replay */
+  netReplay = false;
+
+  /** Online host: the away player's control state, for the guest's screen. */
+  guestCtl() {
+    const c = this.ctl === 0 ? this.ctl2 : (this as unknown as Ctl);
+    return { human: c.human, passHint: c.passHint, aim: c.aim, aimPath: c.aimPath, curl: c.curl, aimX: c.aimX, aimY: c.aimY };
+  }
+  /** Online guest: take over the host's view of our control state. */
+  applyGuestCtl(c: Record<string, unknown>) {
+    this.human = (c.human as Player) ?? null;
+    this.passHint = (c.passHint as Player) ?? null;
+    this.aim = (c.aim as Match['aim']) ?? null;
+    this.aimPath = (c.aimPath as [number, number][]) ?? null;
+    this.curl = +(c.curl as number) || 0;
+    this.aimX = +(c.aimX as number) || 0;
+    this.aimY = +(c.aimY as number) || 0;
   }
 
   constructor(public cfg: MatchConfig, public fx: FX) {
@@ -185,7 +259,7 @@ export class Match {
     fx.surface = w === 'rain' || w === 'storm' ? 'wet' : w === 'snow' ? 'snow' : this.env.pitch === 'dry' ? 'dry' : 'grass';
     this.clock = cfg.duration;
     const home = new Team(cfg.home, 0, 1, !cfg.demo, cfg.homeDifficulty ? DIFF[cfg.homeDifficulty] : DIFF.normal);
-    const away = new Team(awayKit(cfg.home, cfg.away), 1, -1, false, DIFF[cfg.difficulty]);
+    const away = new Team(awayKit(cfg.home, cfg.away), 1, -1, !!cfg.versus && !cfg.demo, cfg.versus ? DIFF.normal : DIFF[cfg.difficulty]);
     home.opp = away;
     away.opp = home;
     this.teams = [home, away];
@@ -225,17 +299,17 @@ export class Match {
       this.all = [...home.players, ...away.players];
     }
     for (const tm of this.teams) tm.loadout = [...ALL_POWERS].sort(() => Math.random() - 0.5).slice(0, 4);
-    if (cfg.loadout) {
-      if (cfg.loadout.powers.length) home.loadout = cfg.loadout.powers.map(POWER_ID);
-      home.tiers = cfg.loadout.tiers;
-      home.goalfx = cfg.loadout.goalfx;
-      home.trail = cfg.loadout.trail;
-      const boot = itemById(cfg.loadout.boots ?? '')?.boot;
+    const applyLoadout = (team: Team, lo: NonNullable<MatchConfig['loadout']>) => {
+      if (lo.powers.length) team.loadout = lo.powers.map(POWER_ID);
+      team.tiers = lo.tiers;
+      team.goalfx = lo.goalfx;
+      team.trail = lo.trail;
+      const boot = itemById(lo.boots ?? '')?.boot;
       if (boot) {
-        home.boots = cfg.loadout.boots!;
+        team.boots = lo.boots!;
         // boots boost every player of the team (1 point = +1 card stat)
         const b = boot.bonus;
-        for (const p of home.players) {
+        for (const p of team.players) {
           p.pace += b.pace / 100;
           p.power += b.power / 100;
           p.skill += b.skill / 100;
@@ -243,7 +317,9 @@ export class Match {
           p.staminaDrain = Math.max(0.6, 1 - b.stamina / 40);
         }
       }
-    }
+    };
+    if (cfg.loadout) applyLoadout(home, cfg.loadout);
+    if (cfg.awayLoadout) applyLoadout(away, cfg.awayLoadout);
     if (cfg.homeStamina) for (const p of home.players) p.staminaDrain *= cfg.homeStamina;
     this.star = home.players.find((p) => p.star) ?? null;
     if (this.star && cfg.starPerks) {
@@ -323,14 +399,18 @@ export class Match {
         b.x = kicker.x + team.side * 0.6;
       }
     }
-    // human control
-    const ht = this.teams[0];
-    if (ht.human) {
-      const field = ht.players.filter((p) => !p.isGK);
-      this.human = kt === ht ? field[field.length - 1] : field.reduce((a, c) => (Math.abs(c.x) < Math.abs(a.x) ? c : a));
-      const star = field.find((p) => p.star);
-      if (star && (kt !== ht || this.cfg.lockStar)) this.human = star;
-    } else this.human = null;
+    // human control (both teams in an online 1v1)
+    for (const ti of [0, 1] as const) {
+      this.withCtl(ti, () => {
+        const ht = this.teams[ti];
+        if (ht.human) {
+          const field = ht.players.filter((p) => !p.isGK);
+          this.human = kt === ht ? field[field.length - 1] : field.reduce((a, c) => (Math.abs(c.x) < Math.abs(a.x) ? c : a));
+          const star = field.find((p) => p.star);
+          if (star && (kt !== ht || this.cfg.lockStar)) this.human = star;
+        } else this.human = null;
+      });
+    }
     this.countShown = -1;
   }
 
@@ -440,6 +520,8 @@ export class Match {
     }
     if (live && !this.cfg.showcase) {
       if (input && this.teams[0].human) this.controlHuman(input, dt);
+      const ri = this.remoteInput;
+      if (ri && this.teams[1].human) this.withCtl(1, () => this.controlHuman(ri, dt));
       for (const team of this.teams) runTeamAI(this, team, dt);
     } else if (this.phase === 'goal') {
       if (this.replay !== null) {
@@ -660,13 +742,13 @@ export class Match {
   }
 
   private switchHuman(ahead = 0.4) {
-    const team = this.teams[0];
+    const team = this.teams[this.ctl];
     const b = this.ball;
     const [bx, by] = b.predict(ahead);
     let best: Player | null = null;
     let bd = Infinity;
     for (const p of team.players) {
-      if (p.isGK || p === this.human || p.state === 'down') continue;
+      if (p.isGK || this.isHuman(p) || p.state === 'down') continue;
       const d = dist(p.x, p.y, bx, by);
       if (d < bd) {
         bd = d;
@@ -677,7 +759,7 @@ export class Match {
   }
 
   private controlHuman(inp: Input, dt: number) {
-    const team = this.teams[0];
+    const team = this.teams[this.ctl];
     const b = this.ball;
     const lock = !!this.cfg.lockStar && !!this.star;
     if (lock && this.human !== this.star) this.setHuman(this.star!);
@@ -1156,7 +1238,7 @@ export class Match {
     // who buys it: the defenders close enough to react, and more so the ones coming in fast
     let bought = 0;
     for (const q of p.team.opp.players) {
-      if (q.isDown || q === this.human) continue;
+      if (q.isDown || this.isHuman(q)) continue;
       const d = dist(p.x, p.y, q.x, q.y);
       if (d > (q === opp ? 4.2 : 2.6)) continue;
       if (q.isGK && kind !== 'stepover' && kind !== 'roulette') continue;
@@ -1429,10 +1511,11 @@ export class Match {
 
   /** Your tactic switch, and the rivals changing theirs with the score and the clock. */
   private updateMentality(dt: number, input: Input | null) {
-    const req = input?.tacticReq;
-    if (input && req != null) {
-      input.tacticReq = null;
-      const me = this.teams[0];
+    const sources: [Input | null, Team][] = [[input, this.teams[0]], [this.remoteInput, this.teams[1]]];
+    for (const [inp, me] of sources) {
+      const req = inp?.tacticReq;
+      if (!inp || req == null) continue;
+      inp.tacticReq = null;
       if (this.managed(me)) {
         const i = MENTALITIES.indexOf(me.mentality);
         this.setMentality(me, req < 0 ? MENTALITIES[(i + 1) % 3] : MENTALITIES[req]);
@@ -1948,7 +2031,7 @@ export class Match {
     this.fx.emit('ring', bx.x, bx.y, 0.3, { n: 1, life: 0.35, size: 0.8, color: '#ffffff' });
     const it = itemById('pw_' + kind);
     const mine = team.human;
-    if (mine || p === this.human) {
+    if (mine || this.isHuman(p)) {
       audio.pickup();
       vibrate(25);
     }
@@ -2214,7 +2297,7 @@ export class Match {
     if (p.tackleCd > 0 || !p.canAct || p.bite > 0) return;
     // a slide costs legs: a tired player can't keep flying in
     if (p.stamina < 0.05) {
-      if (p === this.human) this.fx.text(p.x, p.y, 0.8, '...', '#cfd6e4', 0.7);
+      if (this.isHuman(p)) this.fx.text(p.x, p.y, 0.8, '...', '#cfd6e4', 0.7);
       p.tackleCd = 0.3;
       return;
     }
@@ -2312,7 +2395,7 @@ export class Match {
     if (v.state === 'down' || v.state === 'recover' || this.phase !== 'play') return false;
     if (v.isGK || v.invuln > 0) {
       // keepers can't be knocked down by anything (slides, shoves, items)
-      if (v.isGK ? a === this.human || Math.random() < 0.3 : true) this.fx.text(v.x, v.y, 0, t().denied, '#7fe8ff', 0.9);
+      if (v.isGK ? this.isHuman(a) || Math.random() < 0.3 : true) this.fx.text(v.x, v.y, 0, t().denied, '#7fe8ff', 0.9);
       return false;
     }
     const b = this.ball;
@@ -2344,7 +2427,7 @@ export class Match {
     this.wear(v.x, v.y + 0.1, 0.6, 110, 0);
     this.fx.addShake(0.32);
     audio.hit(1);
-    const humanInvolved = v === this.human || a === this.human;
+    const humanInvolved = this.isHuman(v) || this.isHuman(a);
     if (humanInvolved || Math.random() < 0.5) {
       this.fx.text(v.x, v.y, 0.2, pick(t().ko), a ? (a.team.index === 0 ? '#ffe14d' : '#ff6b5a') : '#fff', humanInvolved ? 1.15 : 0.85);
     }
@@ -2393,7 +2476,7 @@ export class Match {
     o.lost++;
     q.steals++;
     q.team.stats.tackles++;
-    if (o === this.human || q === this.human) this.fx.text(q.x, q.y, 0, t().stolen, '#7fe8ff', 0.9);
+    if (this.isHuman(o) || this.isHuman(q)) this.fx.text(q.x, q.y, 0, t().stolen, '#7fe8ff', 0.9);
     b.x = q.x + q.faceX * PHYS.dribbleDist;
     b.y = q.y + q.faceY * PHYS.dribbleDist;
   }
@@ -2700,7 +2783,7 @@ export class Match {
       p.z = k < peak ? from + (top - from) * Math.sin((k / peak) * Math.PI / 2) : top * Math.cos(((k - peak) / (1 - peak)) * Math.PI / 2);
     }
     // waiting for a ball you asked to finish: crouch, then spring up to meet a high one
-    else if (p === this.human && p.volleyT > 0 && p.canAct && !b.owner && p.state === 'run') {
+    else if (this.isHuman(p) && p.volleyT > 0 && p.canAct && !b.owner && p.state === 'run') {
       const d = dist(p.x, p.y, b.x, b.y);
       const high = b.z > 1.05 && d < 2.6 && b.vz < 2;
       p.z = high ? Math.min(0.32, p.z + dt * 2.4) : Math.max(0, p.z - dt * 2.6);
@@ -3043,7 +3126,7 @@ export class Match {
         // the human's edge in contact steals shrinks as the difficulty goes up
         const edge = clamp(1.45 - o.team.diff.dodge * 0.6, 0.9, 1.4);
         const vsHuman = 0.5 + q.team.diff.dodge * 0.5;
-        const mul = (q === this.human ? edge : q.team.human ? 1 : q.team.diff.stealMul * (o === this.human ? vsHuman : 1)) * (q.pressing ? 0.3 : 1);
+        const mul = (this.isHuman(q) ? edge : q.team.human ? 1 : q.team.diff.stealMul * (this.isHuman(o) ? vsHuman : 1)) * (q.pressing ? 0.3 : 1);
         const rate = (0.4 + q.tackle * 2.4) * mul - o.skill * 1.1 - o.power * 0.3;
         if (Math.random() < Math.max(0.15, rate) * dt) {
           this.steal(q, o);
@@ -3064,7 +3147,7 @@ export class Match {
       if (b.skillT > 0 && b.skillBy && p !== b.skillBy && !p.isGK) continue;
       if (b.clearT > 0 && b.lastTouch && p.team !== b.lastTouch.team) continue;
       const d = dist(p.x, p.y, b.x, b.y);
-      if (d > (p.volleyT > 0 && p === this.human ? 2 : 1.6)) continue;
+      if (d > (p.volleyT > 0 && this.isHuman(p) ? 2 : 1.6)) continue;
       // fireball flattens everyone in its path
       if (b.fire > 0 && p !== b.lastTouch && d < 0.95 * this.pitch.area && b.z < 2.3 && p.hitByFire <= 0) {
         p.hitByFire = 1.5;
@@ -3095,7 +3178,7 @@ export class Match {
       }
       if (p.state === 'dive' || p.state === 'shove') continue;
       // you asked for it (SHOOT on a ball in the air): the finisher as soon as it is in reach
-      if (p === this.human && p.volleyT > 0 && b.z > 0.25 && b.z < 2.6 && d < 1.95 && p.canAct) {
+      if (this.isHuman(p) && p.volleyT > 0 && b.z > 0.25 && b.z < 2.6 && d < 1.95 && p.canAct) {
         this.airTouch(p);
         return;
       }
@@ -3107,12 +3190,12 @@ export class Match {
         return;
       }
       // soft ball magnet for the controlled player
-      if (p === this.human && p.canAct && b.z < 0.7 && d < 1.8 && d > 0.3 && b.speed < 11) {
+      if (this.isHuman(p) && p.canAct && b.z < 0.7 && d < 1.8 && d > 0.3 && b.speed < 11) {
         b.vx += ((p.x - b.x) / d) * 7 * dt;
         b.vy += ((p.y - b.y) / d) * 7 * dt;
       }
-      const reach = p === this.human ? (b.passTarget === p ? 1.2 : 1.0) : shotAt ? 0.55 : PHYS.pickupR;
-      if (b.z <= (p === this.human ? 1.0 : 0.85) && d < reach && d < bd) {
+      const reach = this.isHuman(p) ? (b.passTarget === p ? 1.2 : 1.0) : shotAt ? 0.55 : PHYS.pickupR;
+      if (b.z <= (this.isHuman(p) ? 1.0 : 0.85) && d < reach && d < bd) {
         bd = d;
         best = p;
       }
@@ -3120,9 +3203,9 @@ export class Match {
     if (!best) return;
     const p = best;
     const rel = Math.hypot(b.vx - p.vx, b.vy - p.vy);
-    const limit = 12 + p.skill * 13 + (b.passTarget === p ? 9 : 0) + (p === this.human ? 8 : 0);
+    const limit = 12 + p.skill * 13 + (b.passTarget === p ? 9 : 0) + (this.isHuman(p) ? 8 : 0);
     // SHOOT pressed as the ball came in: hit it first time, no touch to control it
-    if (p === this.human && p.volleyT > 0 && p.canAct && !p.isGK && (!b.lastTouch || b.lastTouch.team === p.team || b.passTarget === p)) {
+    if (this.isHuman(p) && p.volleyT > 0 && p.canAct && !p.isGK && (!b.lastTouch || b.lastTouch.team === p.team || b.passTarget === p)) {
       if (b.z > 0.3) this.airTouch(p);
       else this.oneTimer(p);
       return;
@@ -3134,7 +3217,7 @@ export class Match {
     } else if (rel > limit) {
       this.deflect(p, 0.45);
     } else {
-      if (p.volleyT > 0 && b.z > 0.3 && p === this.human) {
+      if (p.volleyT > 0 && b.z > 0.3 && this.isHuman(p)) {
         this.airTouch(p);
         return;
       }
@@ -3265,7 +3348,7 @@ export class Match {
     const P = this.pitch;
     const gx = p.team.side * P.hw;
     const dGoal = dist(p.x, p.y, gx, 0);
-    const human = p === this.human;
+    const human = this.isHuman(p);
     let kind = this.finisherKind(p);
     // AI: goes for goal in range; the bicycle kick only now and then
     const aiShot = dGoal < 19 && Math.abs(p.y) < P.boxHalf + 3 && Math.random() < 0.8 && (kind !== 'bike' || Math.random() < 0.4);

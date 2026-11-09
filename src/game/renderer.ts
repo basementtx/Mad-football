@@ -1344,10 +1344,10 @@ export class Renderer {
     const m = this.m;
     const h = m.human;
     // team rings under every player: your side cyan, the opponents red (always readable, whatever the kits)
-    if (m.teams[0].human && !m.replaying) {
+    if (m.me.human && !m.replaying) {
       for (const p of m.all) {
         if (p === h || p.state === 'down' || p.state === 'dive') continue;
-        const mine = p.team === m.teams[0];
+        const mine = p.team === m.me;
         const r = ring(7, 2, mine ? '#4fd8ff' : '#ff4a4a');
         ctx.globalAlpha = 0.9;
         ctx.drawImage(r, cam.sx(p.x) - (r.width >> 1), cam.sy(p.y) - (r.height >> 1) + 1);

@@ -180,7 +180,7 @@ export function runTeamAI(m: Match, team: Team, dt: number) {
     const tArrive = dist(b.x, b.y, to.x, to.y) / Math.max(4, b.speed);
     let best = Infinity;
     for (const p of field) {
-      if (p === m.human || !p.canAct) continue;
+      if (m.isHuman(p) || !p.canAct) continue;
       const [ix, iy, t] = intercept(m, p);
       if (t < tArrive * (0.7 + iq * 0.3) && t < best) {
         best = t;
@@ -197,7 +197,7 @@ export function runTeamAI(m: Match, team: Team, dt: number) {
     const carrier = owner ?? to!;
     const ownX = -team.side * m.pitch.hw;
     const attackers = team.opp.players.filter((q) => !q.isGK && q !== carrier && !q.isDown).sort((a, c) => dist(a.x, a.y, ownX, 0) - dist(c.x, c.y, ownX, 0));
-    const free = ranked.slice(2).filter((p) => p !== m.human && p !== cutter);
+    const free = ranked.slice(2).filter((p) => !m.isHuman(p) && p !== cutter);
     for (const a of attackers) {
       let bm: Player | null = null;
       let bd = 22;
@@ -213,7 +213,7 @@ export function runTeamAI(m: Match, team: Team, dt: number) {
   }
 
   ranked.forEach((p, rank) => {
-    if (p === m.human) return;
+    if (m.isHuman(p)) return;
     if (!p.canAct) {
       p.ix = p.iy = 0;
       return;
@@ -247,7 +247,7 @@ export function runTeamAI(m: Match, team: Team, dt: number) {
     // a little off-ball chaos, only near the action and rarely
     if (p.canAct && p.tackleCd <= 0 && chance(team.diff.aggression * 0.07 * dt)) {
       const [q, d] = nearestOpp(p, team);
-      if (q && d < 1.2 && q !== b.owner && dist(p.x, p.y, b.x, b.y) < 6 && !q.isGK && (q !== m.human || dist(q.x, q.y, b.x, b.y) < 2.5)) m.shove(p, q);
+      if (q && d < 1.2 && q !== b.owner && dist(p.x, p.y, b.x, b.y) < 6 && !q.isGK && (!m.isHuman(q) || dist(q.x, q.y, b.x, b.y) < 2.5)) m.shove(p, q);
     }
   });
 
@@ -667,7 +667,7 @@ function defendAI(m: Match, p: Player, rank: number, dt: number, carrier?: Playe
       const [gx, gy] = norm(ownX - q.x, -q.y);
       const [bx, by] = norm(c.x - q.x, c.y - q.y);
       const [ux, uy] = norm(gx + bx * (0.4 + iq * 0.6), gy + by * (0.4 + iq * 0.6));
-      const you = q === m.human;
+      const you = m.isHuman(q);
       let tight = (dist(q.x, q.y, ownX, 0) < P.hw * 0.8 ? 1.3 : 2.2) * (mentK(team) < 0 ? 0.8 : 1);
       // you (off the ball) get a looser marker so you can find space
       if (you) tight = dist(q.x, q.y, ownX, 0) < P.boxDepth + 3 ? 2.2 : 3.4;
@@ -740,7 +740,7 @@ function predictCross(m: Match, planeX: number, maxT: number): [number, number, 
 }
 
 function gkAI(m: Match, g: Player, dt: number) {
-  if (g === m.human) return;
+  if (m.isHuman(g)) return;
   const team = g.team;
   const P = m.pitch;
   const b = m.ball;

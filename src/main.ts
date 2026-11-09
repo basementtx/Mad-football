@@ -43,6 +43,9 @@ import type { CardData } from './meta/cards';
 import { t } from './engine/i18n';
 import { toast } from './ui/common';
 import type { MatchConfig, Match } from './game/match';
+import { showOnline, showOnlineResults, OnlineHooks, StartMsg } from './ui/online';
+import { HostSync, GuestSync, Snapshot, InputPacket, NET_VERSION } from './net/sync';
+import type { NetLink } from './net/link';
 import { showCareer } from './ui/career/home';
 import { career } from './career/state';
 import { careerHudStart, careerHudStop, careerHudTick } from './ui/career/hud';
@@ -155,7 +158,9 @@ function requestFullscreen() {
 }
 
 /** 'quick' = friendly from the setup screen, 'league' = current league fixture */
-let matchMode: 'quick' | 'league' | 'cup' | 'training' | 'career' = 'quick';
+let matchMode: 'quick' | 'league' | 'cup' | 'training' | 'career' | 'online' = 'quick';
+/** the running online match's connection (host or guest) */
+let online: { link: NetLink; role: 'host' | 'guest'; ended: boolean } | null = null;
 /** career: the running config and what to do when it ends */
 let careerCfg: MatchConfig | null = null;
 let careerEnd: ((m: Match) => void) | null = null;
@@ -203,7 +208,135 @@ function launchCfg(cfg: MatchConfig) {
   hideUI();
 }
 
+// ---------------------------------------------------------------- online 1v1
+
+const onlineHooks: OnlineHooks = {
+  mySide() {
+    const club = teamById('club');
+    const cards = lineupCards().filter((c): c is CardData => !!c);
+    return { club, cards, loadout: { goalfx: profile.equipped.goalfx, trail: profile.equipped.trail, powers: profile.loadout, tiers: loadoutTiers(), boots: profile.equipped.boots } };
+  },
+  hostStart(link, hello) {
+    const me = onlineHooks.mySide();
+    const env = resolveEnv(lastSetup.weather as Choice<Weather>, lastSetup.pitch as Choice<PitchStyle>, lastSetup.stadium as Choice<Stadium>);
+    const size = lastSetup.size;
+    const cfg: MatchConfig = {
+      home: me.club, away: hello.club, size, duration: lastSetup.duration, difficulty: 'normal', demo: false, versus: true,
+      homeCards: me.cards.length >= size ? me.cards : undefined,
+      awayCards: Array.isArray(hello.cards) && hello.cards.length >= size ? hello.cards.slice(0, 11) : undefined,
+      homeFormation: profile.formations?.[size] ?? null,
+      loadout: me.loadout,
+      awayLoadout: hello.loadout,
+      env,
+    };
+    const start: StartMsg = { t: 'start', v: NET_VERSION, cfg };
+    link.send(start);
+    matchMode = 'online';
+    launchCfg(cfg);
+    const sync = new HostSync(game!.match, (msg) => link.send(msg));
+    game!.net = { beforeStep: () => sync.beforeStep(), afterStep: (dt) => sync.afterStep(dt) };
+    sync.flush(true);
+    online = { link, role: 'host', ended: false };
+    const g = game!;
+    const stop = () => sync.dispose();
+    link.onMessage = (msg) => {
+      const m = msg as { t?: string };
+      if (m?.t === 'i') sync.input.receive(msg as InputPacket);
+      else if (m?.t === 'bye') onlineLeft('bye');
+    };
+    link.onState = (st, why) => {
+      if (st === 'closed') {
+        stop();
+        onlineLeft(why);
+      }
+    };
+    const end = g.match.onEnd;
+    g.match.onEnd = () => {
+      sync.flush();
+      stop();
+      end?.();
+    };
+  },
+  guestStart(link, start) {
+    matchMode = 'online';
+    launchCfg(start.cfg);
+    const g = game!;
+    g.match.localTeam = 1;
+    input.tacticOn = g.match.managed(g.match.me);
+    const gs = new GuestSync(g);
+    online = { link, role: 'guest', ended: false };
+    g.net = {
+      puppet: (dt) => {
+        gs.tick(dt);
+        gs.sender.collect(input);
+        const p = gs.sender.packet(input, performance.now());
+        if (p) link.send(p);
+        input.consume(dt);
+        if (g.match.phase === 'over' && online && !online.ended) endMatch();
+      },
+    };
+    link.onMessage = (msg) => {
+      const m = msg as { t?: string };
+      if (m?.t === 's') gs.receive(msg as Snapshot);
+      else if (m?.t === 'bye') onlineLeft('bye');
+    };
+    link.onState = (st, why) => {
+      if (st === 'closed') onlineLeft(why);
+    };
+  },
+  back() {
+    showHub(handlers);
+  },
+};
+
+/** The other phone quit or the connection dropped. */
+function onlineLeft(why = '') {
+  if (!online || online.ended) return;
+  console.warn('online: opponent left', why);
+  online.ended = true;
+  const m = game?.match;
+  online.link.close();
+  if (!m || matchMode !== 'online' || m.phase === 'over') return;
+  toast(settings.lang === 'tr' ? 'Bağlantı koptu' : 'Connection lost');
+  finishOnline(m, true);
+}
+
+function finishOnline(m: Match, left: boolean) {
+  const me = m.me, opp = me.opp;
+  const res = left ? 'w' : me.score > opp.score ? 'w' : me.score < opp.score ? 'l' : 'd';
+  // a small purse: online wins are fun, not a coin farm
+  const coins = left && m.time < 30 ? 0 : res === 'w' ? 80 : res === 'd' ? 35 : 15;
+  record.coins += coins;
+  saveRecord();
+  // like any match: the final scene stays behind the results until you leave
+  mode = 'results';
+  input.enabled = false;
+  audio.resume();
+  const leave = (next: () => void) => {
+    game?.dispose();
+    game = null;
+    mode = 'menu';
+    matchMode = 'quick';
+    next();
+  };
+  showOnlineResults(m, coins, () => leave(() => showOnline(onlineHooks)), () => leave(() => showHub(handlers)), left);
+}
+
+function quitOnline() {
+  if (!online) return;
+  if (!online.ended) {
+    online.link.send({ t: 'bye' });
+    online.ended = true;
+    const link = online.link;
+    setTimeout(() => link.close(), 300);
+  }
+  online = null;
+}
+
 const handlers: MenuHandlers = {
+  showOnline() {
+    showOnline(onlineHooks);
+  },
   playCareer(cfg, onEnd) {
     // career matches get a random venue and weather too (not the training drills)
     if (!cfg.env && !cfg.drill && !cfg.training) cfg.env = resolveEnv('random', 'random', 'random');
@@ -272,6 +405,7 @@ const handlers: MenuHandlers = {
     launch(club, opp, 'normal', true, m);
   },
   restart() {
+    if (matchMode === 'online') return handlers.resume();
     if (matchMode === 'career' && careerCfg) {
       launchCfg(careerCfg);
       careerHudStart(!!careerCfg.drill);
@@ -283,6 +417,10 @@ const handlers: MenuHandlers = {
     else handlers.startMatch();
   },
   quit() {
+    if (matchMode === 'online') {
+      quitOnline();
+      matchMode = 'quick';
+    }
     game?.dispose();
     game = null;
     mode = 'menu';
@@ -326,7 +464,8 @@ const handlers: MenuHandlers = {
 function pause() {
   if (mode !== 'play' || !game) return;
   if (game.match.phase === 'over') return;
-  game.paused = true;
+  // online: the match is shared, it keeps running behind the menu
+  game.paused = matchMode !== 'online';
   mode = 'paused';
   input.reset();
   showPause(handlers, game.match);
@@ -342,6 +481,16 @@ document.addEventListener('visibilitychange', () => {
 function endMatch() {
   if (!game) return;
   const m = game.match;
+  if (matchMode === 'online') {
+    if (online) {
+      online.ended = true;
+      const link = online.link;
+      setTimeout(() => link.close(), 1500);
+      online = null;
+    }
+    finishOnline(m, false);
+    return;
+  }
   if (matchMode === 'career') {
     // career matches report back to the career flow instead of the quick results
     careerHudStop();
@@ -429,7 +578,8 @@ function frame(now: number) {
   try {
     ctx.imageSmoothingEnabled = false;
     if (mode === 'play' || mode === 'paused' || (mode === 'results' && game)) {
-      game!.update(mode === 'play' || mode === 'results' ? dt : 0);
+      // an online match never stops: the other phone is still playing
+      game!.update(mode === 'play' || mode === 'results' || matchMode === 'online' ? dt : 0);
       game!.draw(ctx, W, H, mode === 'play');
       if (matchMode === 'career' && game) careerHudTick(game.match, !!careerCfg?.startScore, false, mode === 'play');
     } else {

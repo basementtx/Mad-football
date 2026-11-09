@@ -303,7 +303,7 @@ export class DomHud {
 
     // ---- me
     const h = m.human;
-    const team = m.teams[0];
+    const team = m.me;
     setCls(this.me, 'gone', !h);
     if (h) {
       setText(this.meKick, `${h.isGK ? L.pos.GK : L.you} · #${h.number}`);
@@ -354,7 +354,7 @@ export class DomHud {
     }
 
     // ---- team tactic
-    const me = m.teams[0], rival = m.teams[1];
+    const me = m.me, rival = m.me.opp;
     const showTac = input.tacticOn && !replay;
     setCls(this.tac, 'gone', !showTac);
     setCls(this.root, 'has-tac', showTac);
