@@ -123,7 +123,7 @@ export function showHub(h: MenuHandlers) {
           <button class="tile tile-sm" data-act="quick"><div class="tile-label"><span class="bolt">⚡</span> ${L.quickMatch}</div></button>
           <button class="tile tile-sm tile-online" data-act="online"><div class="tile-label"><span class="bolt">◉</span> ONLINE 1v1</div></button>
         </div>
-        <button class="tile tile-sm tile-train" data-act="training"><div class="tile-label"><span class="cone">◢</span> ${L.training}</div><small>${L.trainingSub}</small></button>
+        <button class="tile tile-sm tile-train" data-act="training"><div class="tile-label"><span class="cone">◢</span> ${settings.lang === 'tr' ? 'MODLAR' : 'MODES'}</div><small>${settings.lang === 'tr' ? 'Serbest vuruş · Düello · Antrenman' : 'Free kicks · Duel · Training'}</small></button>
       </div>
     </div>`,
   );

@@ -16,7 +16,8 @@
     "android": "npm run build && cap sync android",
     "sim:slide": "tsx --import ./tools/sim-shim.mjs tools/slidebot.ts",
     "sim:gk": "tsx --import ./tools/sim-shim.mjs tools/gktest.ts",
-    "sim:press": "tsx --import ./tools/sim-shim.mjs tools/pressbot.ts"
+    "sim:press": "tsx --import ./tools/sim-shim.mjs tools/pressbot.ts",
+    "sim:modes": "tsx --import ./tools/sim-shim.mjs tools/modetest.ts"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.6.0",

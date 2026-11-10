@@ -739,7 +739,7 @@ function predictCross(m: Match, planeX: number, maxT: number): [number, number, 
   return null;
 }
 
-function gkAI(m: Match, g: Player, dt: number) {
+export function gkAI(m: Match, g: Player, dt: number) {
   if (m.isHuman(g)) return;
   const team = g.team;
   const P = m.pitch;
@@ -877,4 +877,76 @@ export function gkDistribute(m: Match, g: Player) {
   if (best && bestLane && dist(g.x, g.y, best.x, best.y) < 20) m.passTo(g, best, false);
   else if (best) m.passTo(g, best, true);
   else m.kick(g, s * 18, rand(-4, 4), 8, 0.8);
+}
+
+/**
+ * Wall duel: one player a side, striker and keeper at once; nobody may cross the
+ * halfway line (Match keeps them out), only the ball can.
+ */
+export function duelAI(m: Match, team: Team, dt: number) {
+  const P = m.pitch;
+  const b = m.ball;
+  const s = team.side;
+  const ownX = -s * P.hw;
+  const d = team.diff;
+  const iq = iqOf(team);
+  const mine = (x: number) => x * s < -0.2;
+  for (const p of team.players) {
+    if (m.isHuman(p)) continue;
+    if (!p.canAct) {
+      p.ix = p.iy = 0;
+      continue;
+    }
+    p.aiTimer -= dt;
+    const decide = p.aiTimer <= 0;
+    if (decide) p.aiTimer = d.react * rand(0.7, 1.3);
+    const opp = team.opp.players[0] ?? null;
+    const gx = s * P.hw;
+
+    // --- with the ball: carry it toward the line, then shoot where the other one isn't
+    if (b.owner === p) {
+      if (decide && (Math.abs(p.x) < 3.2 + (1 - iq) * 3 || p.possT > 1.3 + d.passiveness * 1.5)) {
+        const oy = opp ? opp.y + opp.vy * 0.2 : 0;
+        const side = oy > 0.5 ? -1 : oy < -0.5 ? 1 : chance(0.5) ? 1 : -1;
+        const ty = side * (P.goalHalf - rand(0.3, 0.9));
+        const far = Math.abs(gx - p.x);
+        // weaker sides hit it softer and wider
+        m.shootAt(p, gx, ty, clamp(0.45 + iq * 0.2 + far / 45, 0.5, 0.96), d.shootErr * (1.6 - p.skill * 0.6));
+        continue;
+      }
+      const drift = opp ? -Math.sign(opp.y || 1) * 2.5 : 0;
+      moveTo(p, -s * 2, clamp(p.y * 0.6 + drift, -P.hh + 1.5, P.hh - 1.5), true, 0.6);
+      continue;
+    }
+
+    // --- a shot or a ball heading for our goal: get across, slide if it's out of reach
+    if (!b.owner && b.vx * s < -5) {
+      const hit = predictCross(m, ownX + s * 0.7, 1.5);
+      if (hit) {
+        const [tt, py, pz, spd] = hit;
+        if (Math.abs(py) < P.goalHalf + 1 && pz < P.goalHeight + 0.5) {
+          const need = py - p.y;
+          if (Math.abs(need) > 1.1 && tt < 0.5 && tt > 0.1 && spd > 9 && p.tackleCd <= 0 && chance((0.35 + d.dodge * 0.6) * dt * 30)) {
+            m.slide(p, 0, Math.sign(need));
+          } else moveTo(p, ownX + s * 0.8, py, true, 0.25);
+          continue;
+        }
+      }
+    }
+
+    // --- a loose ball on our side: go and get it
+    if (!b.owner) {
+      const [ix, iy] = intercept(m, p);
+      if (mine(ix) || mine(b.x)) {
+        moveTo(p, s > 0 ? Math.min(ix, -0.6) : Math.max(ix, 0.6), iy, true, 0.4);
+        continue;
+      }
+    }
+
+    // --- otherwise guard the goal: on the line between the ball and the middle of the goal
+    const by = b.owner ? b.owner.y + b.owner.vy * 0.25 : b.predict(0.25)[1];
+    const tx = ownX + s * (1.3 + iq * 0.4);
+    const ty = clamp(by * (0.45 + iq * 0.15), -(P.goalHalf - 0.5), P.goalHalf - 0.5);
+    moveTo(p, tx, ty, dist(p.x, p.y, tx, ty) > 2.5, 0.5);
+  }
 }

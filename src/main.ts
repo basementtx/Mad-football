@@ -46,6 +46,8 @@ import type { MatchConfig, Match } from './game/match';
 import { showOnline, showOnlineResults, OnlineHooks, StartMsg } from './ui/online';
 import { HostSync, GuestSync, Snapshot, InputPacket, NET_VERSION } from './net/sync';
 import type { NetLink } from './net/link';
+import type { GameMode, FreeKicks } from './game/modes';
+import { showModeResults, fkBest, saveFkBest } from './ui/training';
 import { showCareer } from './ui/career/home';
 import { career } from './career/state';
 import { careerHudStart, careerHudStop, careerHudTick } from './ui/career/hud';
@@ -163,7 +165,9 @@ function requestFullscreen() {
 }
 
 /** 'quick' = friendly from the setup screen, 'league' = current league fixture */
-let matchMode: 'quick' | 'league' | 'cup' | 'training' | 'career' | 'online' = 'quick';
+let matchMode: 'quick' | 'league' | 'cup' | 'training' | 'career' | 'online' | 'mode' = 'quick';
+/** the last free-kick / wall-duel setup (for PLAY AGAIN) */
+let lastMode: { mode: GameMode; diff: Difficulty } = { mode: 'freekick', diff: 'normal' };
 /** the running online match's connection (host or guest) */
 let online: { link: NetLink; role: 'host' | 'guest'; ended: boolean } | null = null;
 /** career: the running config and what to do when it ends */
@@ -211,6 +215,78 @@ function launchCfg(cfg: MatchConfig) {
   input.enabled = true;
   mode = 'play';
   hideUI();
+}
+
+// ---------------------------------------------------------------- extra modes (free kicks, wall duel)
+
+function startMode(mode: GameMode, diff: Difficulty) {
+  matchMode = 'mode';
+  lastMode = { mode, diff };
+  const club = teamById('club');
+  const opp = TEAMS[Math.floor(Math.random() * TEAMS.length)];
+  const cards = lineupCards().filter((c): c is CardData => !!c);
+  // free kicks in still air; the duel gets a random venue and weather
+  const env = mode === 'freekick' ? resolveEnv('clear', 'random', 'random') : resolveEnv('random', 'random', 'random');
+  launchCfg({
+    home: club, away: opp, size: mode === 'duel' ? 1 : 7, duration: mode === 'duel' ? 120 : 999,
+    difficulty: mode === 'duel' ? diff : 'normal', demo: false, mode,
+    homeCards: cards.length ? cards : undefined,
+    starId: profile.myPlayer,
+    loadout: { goalfx: profile.equipped.goalfx, trail: profile.equipped.trail, powers: profile.loadout, tiers: loadoutTiers(), boots: profile.equipped.boots },
+    env,
+  });
+}
+
+function finishMode(m: Match) {
+  const tr = settings.lang === 'tr';
+  const again = () => {
+    game?.dispose();
+    game = null;
+    startMode(lastMode.mode, lastMode.diff);
+  };
+  const menu = () => {
+    game?.dispose();
+    game = null;
+    mode = 'menu';
+    matchMode = 'quick';
+    showHub(handlers);
+  };
+  mode = 'results';
+  input.enabled = false;
+  audio.resume();
+  if (m.cfg.mode === 'freekick') {
+    const fk = m.mode as FreeKicks;
+    const best = fkBest();
+    const record_ = fk.points > best;
+    if (record_) saveFkBest(fk.points);
+    const coins = Math.min(250, Math.round(fk.points / 10));
+    record.coins += coins;
+    saveRecord();
+    const icon = { goal: '⚽', save: '🧤', wall: '🧱', miss: '✖' } as const;
+    showModeResults({
+      title: record_ ? (tr ? 'YENİ REKOR!' : 'NEW RECORD!') : tr ? 'SERBEST VURUŞ' : 'FREE KICKS',
+      big: `${fk.points}`,
+      sub: `${fk.goals}/${fk.log.length} ${tr ? 'gol' : 'goals'} · ${tr ? 'rekor' : 'best'} ${Math.max(best, fk.points)}`,
+      chips: fk.log.map((e) => `<span class="fk-chip fk-${e.r}" title="${e.d} m">${icon[e.r]}${e.pts ? `<i>+${e.pts}</i>` : ''}</span>`).join(''),
+      coins, again, menu, win: record_ ? true : null,
+    });
+    return;
+  }
+  const me = m.teams[0], opp = me.opp;
+  const res = me.score > opp.score ? 'w' : me.score < opp.score ? 'l' : 'd';
+  const coins = Math.round((res === 'w' ? 60 : res === 'd' ? 25 : 10) * (DIFF_REWARD[m.cfg.difficulty] ?? 1));
+  record.coins += coins;
+  saveRecord();
+  showModeResults({
+    title: res === 'w' ? (tr ? 'KAZANDIN!' : 'YOU WIN!') : res === 'l' ? (tr ? 'KAYBETTİN' : 'YOU LOSE') : tr ? 'BERABERE' : 'DRAW',
+    big: `${me.def.short} ${me.score} - ${opp.score} ${opp.def.short}`,
+    rows: [
+      [t().shots, me.stats.shots, opp.stats.shots],
+      [tr ? 'Kurtarış' : 'Saves', me.stats.saves, opp.stats.saves],
+      [t().knockdowns, me.stats.knockdowns, opp.stats.knockdowns],
+    ],
+    coins, again, menu, win: res === 'w' ? true : res === 'l' ? false : null,
+  });
 }
 
 // ---------------------------------------------------------------- online 1v1
@@ -402,7 +478,8 @@ const handlers: MenuHandlers = {
     audio.resume();
     hideUI();
   },
-  startTraining(m: 'team' | 'keeper') {
+  startTraining(m, difficulty) {
+    if (m === 'freekick' || m === 'duel') return startMode(m, (difficulty ?? 'normal') as Difficulty);
     matchMode = 'training';
     trainingMode = m;
     const club = teamById('club');
@@ -411,6 +488,7 @@ const handlers: MenuHandlers = {
   },
   restart() {
     if (matchMode === 'online') return handlers.resume();
+    if (matchMode === 'mode') return startMode(lastMode.mode, lastMode.diff);
     if (matchMode === 'career' && careerCfg) {
       launchCfg(careerCfg);
       careerHudStart(!!careerCfg.drill);
@@ -486,6 +564,7 @@ document.addEventListener('visibilitychange', () => {
 function endMatch() {
   if (!game) return;
   const m = game.match;
+  if (matchMode === 'mode') return finishMode(m);
   if (matchMode === 'online') {
     if (online) {
       online.ended = true;

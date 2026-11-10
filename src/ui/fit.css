@@ -166,3 +166,23 @@
 #ui .on-coins { margin: 0; font-family: var(--display); font-weight: 700; color: #c88a00; }
 #ui .on-results.res-win .panel-title { color: #1f9d55; }
 #ui .on-results.res-loss .panel-title { color: #c82d20; }
+
+/* ---------------------------------------------------------------- game modes screen (4 cards) */
+#ui .training .tr-modes { gap: clamp(8px, 1.6vw, 16px); }
+#ui .training .tr-card { padding: 12px 10px 10px; }
+#ui .training .tr-card b { font-size: clamp(15px, 2.6vw, 22px); text-align: center; }
+#ui .training .tr-card p { font-size: max(11px, min(calc(11px * 1.6), var(--fmin, 0px))); }
+#ui .tr-new::before { background: var(--marker, #facc15); }
+#ui .tr-wallman { height: min(84px, 64cqh); margin: 0 -18px; }
+#ui .tr-wall { align-self: stretch; width: 0; margin: 8% 10px 4%; border-left: 3px dashed rgba(59,217,255,0.8); }
+#ui .tr-best { font-family: var(--display); font-weight: 700; color: #c88a00; }
+#ui .tr-foot { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+@media (max-height: 430px) {
+  #ui .training .tr-card p { display: none; }
+  #ui .training .tr-card { padding: 8px 6px; }
+}
+/* free-kick results: one chip per kick */
+#ui .fk-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+#ui .fk-chip { display: inline-flex; flex-direction: column; align-items: center; min-width: 38px; padding: 4px 4px 2px; background: var(--ink, #15171c); color: #fff; font-size: 18px; line-height: 1.1; }
+#ui .fk-chip i { font-style: normal; font-family: var(--display); font-weight: 700; font-size: max(11px, min(calc(11px * 1.6), var(--fmin, 0px))); color: var(--marker, #facc15); }
+#ui .fk-goal { background: #1f9d55; }

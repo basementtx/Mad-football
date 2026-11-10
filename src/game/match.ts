@@ -12,6 +12,7 @@ import { runTeamAI, formationSpot, gkDistribute } from './ai';
 import type { CardData } from '../meta/cards';
 import { POWER_ID, ITEMS, SHOT_POWERS, itemById, itemName, tierColors } from '../meta/items';
 import { EnvPhys, envPhys, makeEnv, MatchEnv } from './env';
+import { makeMode, ModeLogic, GameMode } from './modes';
 
 export type Phase = 'intro' | 'kickoff' | 'play' | 'goal' | 'fulltime' | 'over';
 
@@ -57,6 +58,8 @@ export interface MatchConfig {
   env?: MatchEnv;
   /** online 1v1: the away side is a second human (driven by Match.remoteInput) */
   versus?: boolean;
+  /** extra game modes: free-kick score hunt, wall duel (see modes.ts) */
+  mode?: GameMode;
   /** online 1v1: the away player's items, goal explosion, trail and boots */
   awayLoadout?: { goalfx: string; trail: string; powers: string[]; tiers: Record<string, number>; boots?: string };
 }
@@ -234,6 +237,14 @@ export class Match {
   }
   /** online guest: the host is showing a replay */
   netReplay = false;
+  /** the running extra game mode (free kicks, wall duel) */
+  mode: ModeLogic | null = null;
+  /** extra game modes: end the match now (final whistle) */
+  endMode() {
+    if (this.phase === 'fulltime' || this.phase === 'over') return;
+    this.toPhase('fulltime');
+    audio.whistle('final');
+  }
 
   /** Online host: the away player's control state, for the guest's screen. */
   guestCtl() {
@@ -335,7 +346,11 @@ export class Match {
       home.score = cfg.startScore[0];
       away.score = cfg.startScore[1];
     }
-    this.kickoffTeam = cfg.training || cfg.showcase ? home : Math.random() < 0.5 ? home : away;
+    if (cfg.mode) {
+      this.mode = makeMode(this);
+      this.mode?.setup();
+    }
+    this.kickoffTeam = cfg.training || cfg.showcase || cfg.mode === 'freekick' ? home : Math.random() < 0.5 ? home : away;
     this.setupKickoff(this.kickoffTeam);
     this.phase = 'intro';
   }
@@ -412,6 +427,7 @@ export class Match {
       });
     }
     this.countShown = -1;
+    this.mode?.kickoff?.(kt);
   }
 
   start() {
@@ -466,7 +482,7 @@ export class Match {
         break;
       }
       case 'play':
-        if ((this.cfg.training && !this.cfg.drill) || this.cfg.showcase) break;
+        if ((this.cfg.training && !this.cfg.drill) || this.cfg.showcase || (this.mode && !this.mode.clock)) break;
         this.updateMentality(dt, input);
         this.clock -= dt;
         if (this.clock <= 0) {
@@ -519,10 +535,11 @@ export class Match {
       if (o && o.team === this.teams[1] && o.holdT > 1.1) this.trainingReset();
     }
     if (live && !this.cfg.showcase) {
-      if (input && this.teams[0].human) this.controlHuman(input, dt);
+      if (input && this.teams[0].human && !this.mode?.control?.(input, dt)) this.controlHuman(input, dt);
       const ri = this.remoteInput;
       if (ri && this.teams[1].human) this.withCtl(1, () => this.controlHuman(ri, dt));
-      for (const team of this.teams) runTeamAI(this, team, dt);
+      if (this.mode) this.mode.ai(dt);
+      else for (const team of this.teams) runTeamAI(this, team, dt);
     } else if (this.phase === 'goal') {
       if (this.replay !== null) {
         this.updateExcitement(dt);
@@ -545,11 +562,13 @@ export class Match {
     if (this.phase !== 'intro' && this.phase !== 'kickoff') {
       for (const p of this.all) this.updatePlayer(p, dt);
       this.collidePlayers();
+      this.mode?.constrain?.();
     }
     this.updateBall(dt);
     if (live) {
       this.interactions(dt);
       this.unstickBall(dt);
+      this.mode?.step?.(dt);
       this.updateItems(dt);
       this.record();
       if (!this.cfg.showcase) this.checkGoal();
@@ -1500,7 +1519,7 @@ export class Match {
 
   /** True when you manage this team (club / quick match), so its tactic is yours to set. */
   managed(team: Team) {
-    return team.human && !this.cfg.demo && !this.cfg.lockStar && !this.cfg.training;
+    return team.human && !this.cfg.demo && !this.cfg.lockStar && !this.cfg.training && !this.cfg.mode;
   }
 
   setMentality(team: Team, v: Mentality) {
@@ -1906,7 +1925,7 @@ export class Match {
     const P = this.pitch;
     const b = this.ball;
     // ---- boxes
-    if (!this.cfg.showcase) this.boxT -= dt;
+    if (!this.cfg.showcase && !this.cfg.mode) this.boxT -= dt;
     const maxBoxes = this.cfg.size >= 7 ? 4 : this.cfg.size >= 5 ? 3 : 2;
     if (this.boxT <= 0) {
       this.boxT = rand(5, 9);
@@ -3517,6 +3536,7 @@ export class Match {
     }
     if (!b.inGoal) return;
     const scoring = this.teams.find((tm) => tm.side === b.inGoal)!;
+    if (this.mode?.goal?.(scoring)) return;
     const scorer = b.lastTouch;
     const own = !!scorer && scorer.team !== scoring;
     scoring.score++;

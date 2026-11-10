@@ -100,6 +100,8 @@ export class Game {
       tx = tx * (1 - k) + h.x * k;
       ty = ty * (1 - k) + h.y * k;
     }
+    const mc = m.mode?.camera?.();
+    if (mc) [tx, ty] = mc;
     if (m.phase === 'goal' && m.lastGoal && !m.replaying) {
       // watch the goal explosion first, then the celebrating scorer
       const sc = m.lastGoal.scorer;

@@ -22,6 +22,10 @@ export interface Pitch {
 }
 
 export function makePitch(size: number): Pitch {
+  // wall duel (size 1): a small 1v1 court with a smaller goal
+  if (size === 1) {
+    return { hw: 15, hh: 9.5, goalHalf: 3.2, goalDepth: 2, goalHeight: 2.4, boxDepth: 4.5, boxHalf: 6.5, smallDepth: 2.2, smallHalf: 4.2, centerR: 2.6, margin: 1.7, area: 36 / 30 };
+  }
   // 7v7: a proper mid-size pitch (about 100 x 61 m inside the boards)
   const s = size <= 3 ? 0.84 : size === 4 ? 1 : size === 5 ? 1.14 : 1.39;
   // a wider pitch (36 x 22 half-size) leaves room to pass and to play tactics, and a

@@ -171,7 +171,7 @@ export interface MenuHandlers {
   startLeagueMatch: () => void;
   startCupMatch: () => void;
   showCup: () => void;
-  startTraining: (mode: 'team' | 'keeper') => void;
+  startTraining: (mode: 'team' | 'keeper' | 'freekick' | 'duel', difficulty?: string) => void;
   showLeague: () => void;
   resume: () => void;
   restart: () => void;
