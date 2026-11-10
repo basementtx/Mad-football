@@ -3,7 +3,8 @@ import { setScreen, bind, esc, toast } from './common';
 import { settings } from '../engine/storage';
 import { audio } from '../engine/audio';
 import { t } from '../engine/i18n';
-import { NetLink, newRoomCode, cleanCode } from '../net/link';
+import { NetLink, newRoomCode, cleanCode, Matchmaker } from '../net/link';
+import { rank, tierOf } from '../meta/rank';
 import { NET_VERSION } from '../net/sync';
 import type { Match } from '../game/match';
 import type { TeamDef } from '../game/teams';
@@ -19,11 +20,17 @@ export interface Hello {
   club: TeamDef;
   cards: CardData[];
   loadout: MatchConfig['loadout'];
+  /** a ranked match (random opponent) and this player's rating */
+  ranked?: boolean;
+  rating?: number;
 }
 export interface StartMsg {
   t: 'start';
   v: number;
   cfg: MatchConfig;
+  ranked?: boolean;
+  /** the host's rating */
+  rating?: number;
 }
 
 export interface OnlineHooks {
@@ -37,9 +44,18 @@ export interface OnlineHooks {
 }
 
 let active: NetLink | null = null;
+let mm: Matchmaker | null = null;
 function drop() {
   active?.close();
   active = null;
+  mm?.cancel();
+  mm = null;
+}
+
+/** "Gold · 1268" with the tier colour */
+export function rankTag(elo: number) {
+  const tr = tierOf(elo);
+  return `<span class="rk-tag" style="--rc:${tr.color}">${esc(tr.name[settings.lang === 'tr' ? 1 : 0])} · ${elo}</span>`;
 }
 
 export function showOnline(h: OnlineHooks) {
@@ -53,7 +69,15 @@ export function showOnline(h: OnlineHooks) {
         <div style="width:80px"></div>
       </div>
       <div class="on-body">
-        <p class="on-lead">${L2('Play a friend on another phone. One of you creates a room, the other types its code.', 'Başka bir telefondaki arkadaşınla oyna. Biriniz oda kurar, diğeri odanın kodunu girer.')}</p>
+        <div class="on-ranked">
+          <div class="rk-card">
+            <small>${L2('RANKED', 'DERECELİ')}</small>
+            ${rankTag(rank().elo)}
+            <span class="rk-rec">${rank().wins}${t().w} ${rank().draws}${t().d} ${rank().losses}${t().l} · ${L2('best', 'en iyi')} ${rank().peak}</span>
+          </div>
+          <button class="btn btn-xl btn-primary" data-act="find">${L2('FIND OPPONENT', 'RAKİP BUL')} ▶</button>
+        </div>
+        <p class="on-lead">${L2('Or play a friend: one of you creates a room, the other types its code (not ranked).', 'Ya da arkadaşınla oyna: biriniz oda kurar, diğeri kodu girer (derecesiz).')}</p>
         <div class="on-choices">
           <button class="btn btn-xl" data-act="create">${L2('CREATE ROOM', 'ODA KUR')}</button>
           <div class="on-join">
@@ -67,6 +91,7 @@ export function showOnline(h: OnlineHooks) {
   );
   bind('[data-act=back]', () => { audio.click(); drop(); h.back(); });
   bind('[data-act=create]', () => { audio.select(); createRoom(h); });
+  bind('[data-act=find]', () => { audio.select(); findOpponent(h); });
   const field = document.querySelector<HTMLInputElement>('.on-code');
   field?.addEventListener('input', () => { field.value = cleanCode(field.value); });
   const join = () => {
@@ -115,20 +140,8 @@ function failMsg(why?: string) {
   return L2('Connection lost', 'Bağlantı koptu');
 }
 
-function createRoom(h: OnlineHooks) {
-  drop();
-  const code = newRoomCode();
-  const link = (active = new NetLink());
-  waitScreen(L2('ONLINE 1v1', 'ONLINE 1v1'), code, L2('Connecting...', 'Bağlanıyor...'), h);
-  link.onState = (s, why) => {
-    if (s === 'waiting') setStatus(L2('Waiting for your friend - tell them the code', 'Arkadaşın bekleniyor, kodu ona söyle'));
-    else if (s === 'open') setStatus(L2('Friend connected...', 'Arkadaşın bağlandı...'));
-    else if (s === 'closed' && active === link) {
-      active = null;
-      toast(failMsg(why));
-      showOnline(h);
-    }
-  };
+/** Host side: wait for the guest's hello, then start the match. */
+function hostHandshake(h: OnlineHooks, link: NetLink, ranked: boolean) {
   link.onMessage = (msg) => {
     const m = msg as Hello;
     if (m?.t !== 'hello') return;
@@ -138,26 +151,17 @@ function createRoom(h: OnlineHooks) {
       return;
     }
     active = null; // the match owns the link now
-    h.hostStart(link, m);
+    h.hostStart(link, { ...m, ranked });
   };
-  link.host(code);
 }
 
-function joinRoom(h: OnlineHooks, code: string) {
-  drop();
-  const link = (active = new NetLink());
-  waitScreen(L2('ONLINE 1v1', 'ONLINE 1v1'), code, L2('Looking for the room...', 'Oda aranıyor...'), h);
-  link.onState = (s, why) => {
-    if (s === 'open') {
-      setStatus(L2('Connected - waiting for kick-off...', 'Bağlandı, başlama vuruşu bekleniyor...'));
-      const side = h.mySide();
-      const hello: Hello = { t: 'hello', v: NET_VERSION, club: side.club, cards: side.cards, loadout: side.loadout };
-      link.send(hello);
-    } else if (s === 'closed' && active === link) {
-      active = null;
-      toast(failMsg(why));
-      showOnline(h);
-    }
+/** Guest side: say hello (club, squad, rating), then wait for the kick-off. */
+function guestHandshake(h: OnlineHooks, link: NetLink, ranked: boolean) {
+  const hello = () => {
+    setStatus(L2('Connected - waiting for kick-off...', 'Bağlandı, başlama vuruşu bekleniyor...'));
+    const side = h.mySide();
+    const msg: Hello = { t: 'hello', v: NET_VERSION, club: side.club, cards: side.cards, loadout: side.loadout, ranked, rating: rank().elo };
+    link.send(msg);
   };
   link.onMessage = (msg) => {
     const m = msg as { t?: string; why?: string };
@@ -172,11 +176,87 @@ function joinRoom(h: OnlineHooks, code: string) {
     active = null;
     h.guestStart(link, m as unknown as StartMsg);
   };
+  if (link.ready) hello();
+  return hello;
+}
+
+function createRoom(h: OnlineHooks) {
+  drop();
+  const code = newRoomCode();
+  const link = (active = new NetLink());
+  waitScreen(L2('ONLINE 1v1', 'ONLINE 1v1'), code, L2('Connecting...', 'Bağlanıyor...'), h);
+  link.onState = (s, why) => {
+    if (s === 'waiting') setStatus(L2('Waiting for your friend - tell them the code', 'Arkadaşın bekleniyor, kodu ona söyle'));
+    else if (s === 'open') setStatus(L2('Friend connected...', 'Arkadaşın bağlandı...'));
+    else if (s === 'closed' && active === link) {
+      active = null;
+      toast(failMsg(why));
+      showOnline(h);
+    }
+  };
+  hostHandshake(h, link, false);
+  link.host(code);
+}
+
+function joinRoom(h: OnlineHooks, code: string) {
+  drop();
+  const link = (active = new NetLink());
+  waitScreen(L2('ONLINE 1v1', 'ONLINE 1v1'), code, L2('Looking for the room...', 'Oda aranıyor...'), h);
+  const hello = guestHandshake(h, link, false);
+  link.onState = (s, why) => {
+    if (s === 'open') hello();
+    else if (s === 'closed' && active === link) {
+      active = null;
+      toast(failMsg(why));
+      showOnline(h);
+    }
+  };
   link.join(code);
 }
 
+/** Ranked: a random opponent who is searching right now. */
+function findOpponent(h: OnlineHooks) {
+  drop();
+  const t0 = Date.now();
+  waitScreen(L2('FINDING AN OPPONENT', 'RAKİP ARANIYOR'), null, L2('Looking for players...', 'Oyuncu aranıyor...'), h);
+  const el = document.querySelector('.on-body');
+  el?.insertAdjacentHTML('afterbegin', `<div class="rk-card">${rankTag(rank().elo)}</div><b class="on-elapsed">0:00</b>`);
+  const timer = window.setInterval(() => {
+    const e = document.querySelector('.on-elapsed');
+    if (!e) return clearInterval(timer);
+    const s2 = Math.floor((Date.now() - t0) / 1000);
+    e.textContent = `${Math.floor(s2 / 60)}:${String(s2 % 60).padStart(2, '0')}`;
+  }, 1000);
+  const m = (mm = new Matchmaker());
+  m.onStatus = (s, why) => {
+    if (s === 'error') {
+      clearInterval(timer);
+      mm = null;
+      toast(failMsg(why));
+      showOnline(h);
+    } else setStatus(s === 'searching' ? L2('Looking for players...', 'Oyuncu aranıyor...') : L2('Waiting for someone to join...', 'Birinin katılması bekleniyor...'));
+  };
+  m.onFound = (link, role) => {
+    clearInterval(timer);
+    mm = null;
+    active = link;
+    setStatus(L2('Opponent found!', 'Rakip bulundu!'));
+    audio.select();
+    link.onState = (s, why) => {
+      if (s === 'closed' && active === link) {
+        active = null;
+        toast(failMsg(why));
+        showOnline(h);
+      }
+    };
+    if (role === 'host') hostHandshake(h, link, true);
+    else guestHandshake(h, link, true);
+  };
+  m.start();
+}
+
 /** Final whistle of an online match, from this phone's side. */
-export function showOnlineResults(m: Match, coins: number, again: () => void, menu: () => void, left = false) {
+export function showOnlineResults(m: Match, coins: number, again: () => void, menu: () => void, left = false, rated: { before: number; after: number; change: number } | null = null) {
   const me = m.me, opp = me.opp;
   const res = left ? 'win' : me.score > opp.score ? 'win' : me.score < opp.score ? 'loss' : 'draw';
   const title = left ? L2('YOUR FRIEND LEFT', 'ARKADAŞIN AYRILDI') : res === 'win' ? L2('YOU WIN!', 'KAZANDIN!') : res === 'loss' ? L2('YOU LOSE', 'KAYBETTİN') : L2('DRAW', 'BERABERE');
@@ -195,6 +275,7 @@ export function showOnlineResults(m: Match, coins: number, again: () => void, me
       <div class="on-body">
         <div class="on-score"><span>${esc(me.def.short)}</span><b>${me.score} - ${opp.score}</b><span>${esc(opp.def.short)}</span></div>
         <table class="on-stats">${rows.map(([k, a, b]) => `<tr><td>${a}</td><th>${esc(k)}</th><td>${b}</td></tr>`).join('')}</table>
+        ${rated ? `<p class="rk-change ${rated.change >= 0 ? 'up' : 'down'}">${rankTag(rated.after)} <b>${rated.change >= 0 ? '+' : ''}${rated.change}</b>${tierOf(rated.after).id !== tierOf(rated.before).id ? ` <em>${rated.change > 0 ? L2('PROMOTED!', 'LİG ATLADIN!') : L2('relegated', 'lig düştün')}</em>` : ''}</p>` : ''}
         ${coins ? `<p class="on-coins">+${coins} ${t().coins}</p>` : ''}
         <div class="on-choices">
           <button class="btn btn-xl" data-act="again">${L2('PLAY ONLINE AGAIN', 'TEKRAR ONLINE')}</button>

@@ -50,6 +50,7 @@ import type { GameMode, FreeKicks } from './game/modes';
 import { showModeResults, fkBest, saveFkBest } from './ui/training';
 import { achRecord } from './meta/achievements';
 import { addSeasonXp, matchXp } from './meta/season';
+import { rank, rankStart, rankResult, settlePending } from './meta/rank';
 import { popCard } from './ui/achievements';
 import { announceAchievements, matchAch, wasBehind } from './ui/achievements';
 import { showCareer } from './ui/career/home';
@@ -173,7 +174,7 @@ let matchMode: 'quick' | 'league' | 'cup' | 'training' | 'career' | 'online' | '
 /** the last free-kick / wall-duel setup (for PLAY AGAIN) */
 let lastMode: { mode: GameMode; diff: Difficulty } = { mode: 'freekick', diff: 'normal' };
 /** the running online match's connection (host or guest) */
-let online: { link: NetLink; role: 'host' | 'guest'; ended: boolean } | null = null;
+let online: { link: NetLink; role: 'host' | 'guest'; ended: boolean; ranked: boolean } | null = null;
 /** career: the running config and what to do when it ends */
 let careerCfg: MatchConfig | null = null;
 let careerEnd: ((m: Match) => void) | null = null;
@@ -330,14 +331,16 @@ const onlineHooks: OnlineHooks = {
       awayLoadout: hello.loadout,
       env,
     };
-    const start: StartMsg = { t: 'start', v: NET_VERSION, cfg };
+    const ranked = !!hello.ranked;
+    const start: StartMsg = { t: 'start', v: NET_VERSION, cfg, ranked, rating: rank().elo };
     link.send(start);
+    if (ranked) rankStart(Number(hello.rating) || 1000);
     matchMode = 'online';
     launchCfg(cfg);
     const sync = new HostSync(game!.match, (msg) => link.send(msg));
     game!.net = { beforeStep: () => sync.beforeStep(), afterStep: (dt) => sync.afterStep(dt) };
     sync.flush(true);
-    online = { link, role: 'host', ended: false };
+    online = { link, role: 'host', ended: false, ranked };
     const g = game!;
     const stop = () => sync.dispose();
     link.onMessage = (msg) => {
@@ -360,12 +363,13 @@ const onlineHooks: OnlineHooks = {
   },
   guestStart(link, start) {
     matchMode = 'online';
+    if (start.ranked) rankStart(Number(start.rating) || 1000);
     launchCfg(start.cfg);
     const g = game!;
     g.match.localTeam = 1;
     input.tacticOn = g.match.managed(g.match.me);
     const gs = new GuestSync(g);
-    online = { link, role: 'guest', ended: false };
+    online = { link, role: 'guest', ended: false, ranked: !!start.ranked };
     g.net = {
       puppet: (dt) => {
         gs.tick(dt);
@@ -399,10 +403,10 @@ function onlineLeft(why = '') {
   online.link.close();
   if (!m || matchMode !== 'online' || m.phase === 'over') return;
   toast(settings.lang === 'tr' ? 'Bağlantı koptu' : 'Connection lost');
-  finishOnline(m, true);
+  finishOnline(m, true, online.ranked);
 }
 
-function finishOnline(m: Match, left: boolean) {
+function finishOnline(m: Match, left: boolean, ranked = false) {
   const me = m.me, opp = me.opp;
   const res = left ? 'w' : me.score > opp.score ? 'w' : me.score < opp.score ? 'l' : 'd';
   // a small purse: online wins are fun, not a coin farm
@@ -429,11 +433,14 @@ function finishOnline(m: Match, left: boolean) {
     matchMode = 'quick';
     next();
   };
-  showOnlineResults(m, coins, () => leave(() => showOnline(onlineHooks)), () => leave(() => showHub(handlers)), left);
+  // ranked: the opponent walking off is a win for you
+  const rated = ranked ? rankResult(res === 'w' ? 1 : res === 'd' ? 0.5 : 0) : null;
+  showOnlineResults(m, coins, () => leave(() => showOnline(onlineHooks)), () => leave(() => showHub(handlers)), left, rated);
 }
 
 function quitOnline() {
   if (!online) return;
+  if (online.ranked) settlePending();
   if (!online.ended) {
     online.link.send({ t: 'bye' });
     online.ended = true;
@@ -595,13 +602,14 @@ function endMatch() {
   const m = game.match;
   if (matchMode === 'mode') return finishMode(m);
   if (matchMode === 'online') {
+    const ranked = !!online?.ranked;
     if (online) {
       online.ended = true;
       const link = online.link;
       setTimeout(() => link.close(), 1500);
       online = null;
     }
-    finishOnline(m, false);
+    finishOnline(m, false, ranked);
     return;
   }
   if (matchMode === 'career') {
@@ -754,6 +762,7 @@ function testGift() {
 }
 
 async function boot() {
+  settlePending();
   installMotion();
   testGift();
   resize();

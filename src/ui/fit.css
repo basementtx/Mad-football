@@ -261,3 +261,16 @@
 #ui .sp-cell.ready { border-color: var(--ink, #15171c); background: var(--marker, #facc15); cursor: pointer; animation: m-zap 2.4s ease-in-out infinite; }
 #ui .sp-cell.star { background: linear-gradient(160deg, rgba(255,178,31,0.35), rgba(255,63,164,0.18)); border-color: #c88a00; }
 #ui .sp-cell.star.ready { background: var(--marker, #facc15); }
+
+/* ---------------------------------------------------------------- ranked */
+#ui .on-ranked { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 8px 12px; background: rgba(21,23,28,0.07); border: 3px solid var(--ink, #15171c); }
+#ui .rk-card { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+#ui .rk-card small { font-weight: 700; letter-spacing: 0.1em; font-size: max(11px, min(calc(11px * 1.6), var(--fmin, 0px))); color: var(--note, #6e6553); }
+#ui .rk-tag { font-family: var(--display); font-weight: 700; font-size: max(20px, min(calc(20px * 1.6), var(--fmin, 0px))); padding: 0 8px; background: var(--ink, #15171c); color: var(--rc); border-left: 6px solid var(--rc); }
+#ui .rk-rec { font-weight: 700; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); }
+#ui .on-elapsed { font-family: var(--display); font-size: 28px; }
+#ui .rk-change { display: flex; align-items: center; gap: 8px; margin: 0; }
+#ui .rk-change b { font-family: var(--display); font-size: 22px; }
+#ui .rk-change.up b { color: #1f9d55; }
+#ui .rk-change.down b { color: #c82d20; }
+#ui .rk-change em { font-style: normal; font-weight: 700; color: #c88a00; }

@@ -93,6 +93,17 @@ export class NetLink {
     peer.on('error', (e) => this.fail(e));
   }
 
+  /** Take over a peer and an already-open connection (from the matchmaker). */
+  adopt(peer: Peer, c: DataConnection) {
+    this.peer = peer;
+    this.attach(c);
+    // late "nobody in that lobby" answers from the matchmaker's other knocks are not our problem
+    peer.on('error', (e) => {
+      if ((e as { type?: string }).type !== 'peer-unavailable') this.fail(e);
+    });
+    if (c.open) this.set('open');
+  }
+
   private attach(c: DataConnection) {
     this.conn = c;
     c.on('open', () => this.set('open'));
@@ -184,5 +195,197 @@ export class NetLink {
       this.state = 'closed';
       this.onState('closed', 'left');
     }
+  }
+}
+
+// ---------------------------------------------------------------- random opponent (no server)
+
+const SLOTS = 8;
+const slotId = (k: number) => PREFIX + 'mm-' + k;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const shuffled = (n: number) => [...Array(n).keys()].sort(() => Math.random() - 0.5);
+
+/**
+ * Finds a random opponent with nothing but the PeerJS broker: a few well-known
+ * lobby ids. A seeker knocks on each one; a lobby that answers is a waiting player.
+ * If nobody is waiting, it waits in a free lobby itself for a few (random) seconds,
+ * then goes knocking again - so two players never both wait forever.
+ */
+export class Matchmaker {
+  onFound: (link: NetLink, role: 'host' | 'guest') => void = () => {};
+  onStatus: (s: 'searching' | 'waiting' | 'error', why?: string) => void = () => {};
+  private stopped = false;
+  private peer: Peer | null = null;
+
+  start() {
+    void this.loop();
+  }
+
+  cancel() {
+    this.stopped = true;
+    this.drop();
+  }
+
+  private drop() {
+    try {
+      this.peer?.destroy();
+    } catch {
+      /* ignore */
+    }
+    this.peer = null;
+  }
+
+  private async loop() {
+    let fails = 0;
+    while (!this.stopped) {
+      this.onStatus('searching');
+      const r1 = await this.seek();
+      if (r1 === 'found' || this.stopped) return;
+      if (r1 === 'error') {
+        if (++fails >= 3) return this.onStatus('error', 'network');
+        await wait(1500);
+        continue;
+      }
+      this.onStatus('waiting');
+      const r2 = await this.host(6000 + Math.random() * 6000);
+      if (r2 === 'found' || this.stopped) return;
+      if (r2 === 'error' && ++fails >= 3) return this.onStatus('error', 'network');
+    }
+  }
+
+  /** Knock on every lobby; the first waiting player that answers is the match. */
+  private seek(): Promise<'found' | 'none' | 'error'> {
+    return new Promise((resolve) => {
+      const peer = (this.peer = new Peer(peerOptions()));
+      let done = false;
+      const finish = (r: 'found' | 'none' | 'error') => {
+        if (done) return;
+        done = true;
+        if (r !== 'found') this.drop();
+        resolve(r);
+      };
+      peer.on('error', (e) => {
+        const type = (e as { type?: string }).type;
+        if (type === 'peer-unavailable') return; // an empty lobby: handled per knock
+        finish('error');
+      });
+      peer.on('open', () => {
+        // knock on every lobby at once: the first waiting player who accepts wins
+        let left = SLOTS;
+        for (const k of shuffled(SLOTS)) {
+          void this.knock(peer, slotId(k)).then((c) => {
+            left--;
+            if (c && !done && !this.stopped) {
+              done = true;
+              const link = new NetLink();
+              link.adopt(peer, c);
+              this.peer = null;
+              resolve('found');
+              this.onFound(link, 'guest');
+              return;
+            }
+            if (c) {
+              // a second lobby accepted too late: tell it we are taken
+              try {
+                c.send({ t: 'bye' });
+                setTimeout(() => c.close(), 200);
+              } catch {
+                /* ignore */
+              }
+            }
+            if (left === 0) finish('none');
+          });
+        }
+      });
+      setTimeout(() => finish('none'), 8000);
+    });
+  }
+
+  /** Connect to one lobby; resolves with the open connection if a player accepted us. */
+  private knock(peer: Peer, id: string): Promise<DataConnection | null> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const c = peer.connect(id, { reliable: true, serialization: 'json' });
+      const end = (v: DataConnection | null) => {
+        if (settled) return;
+        settled = true;
+        c.off('data', onData);
+        peer.off('error', onErr);
+        if (!v) {
+          try {
+            c.close();
+          } catch {
+            /* ignore */
+          }
+        }
+        resolve(v);
+      };
+      const onData = (d: unknown) => {
+        const t = (d as { t?: string })?.t;
+        if (t === 'mm-ok') end(c);
+        else if (t === 'full') end(null);
+      };
+      const onErr = (e: unknown) => {
+        if ((e as { type?: string }).type === 'peer-unavailable' && String((e as Error).message ?? '').includes(id)) end(null);
+      };
+      peer.on('error', onErr);
+      c.on('data', onData);
+      c.on('open', () => c.send({ t: 'mm' }));
+      setTimeout(() => end(null), 3500);
+    });
+  }
+
+  /** Wait in a free lobby for `ms`; resolves 'found' when a seeker joins. */
+  private host(ms: number): Promise<'found' | 'none' | 'error'> {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (r: 'found' | 'none' | 'error') => {
+        if (done) return;
+        done = true;
+        if (r !== 'found') this.drop();
+        resolve(r);
+      };
+      const tryId = (left: number[]) => {
+        const k = left.shift();
+        if (k === undefined) return finish('none');
+        const peer = (this.peer = new Peer(slotId(k), peerOptions()));
+        peer.on('error', (e) => {
+          const type = (e as { type?: string }).type;
+          if (type === 'unavailable-id') {
+            // someone is waiting there already: let the next seek find them
+            try {
+              peer.destroy();
+            } catch {
+              /* ignore */
+            }
+            return finish('none');
+          }
+          if (type !== 'peer-unavailable') finish('error');
+        });
+        peer.on('connection', (c) => {
+          if (done) {
+            c.on('open', () => {
+              c.send({ t: 'full' });
+              setTimeout(() => c.close(), 300);
+            });
+            return;
+          }
+          const onData = (d: unknown) => {
+            if ((d as { t?: string })?.t !== 'mm' || done) return;
+            c.off('data', onData);
+            c.send({ t: 'mm-ok' });
+            done = true;
+            const link = new NetLink();
+            link.adopt(peer, c);
+            this.peer = null;
+            resolve('found');
+            this.onFound(link, 'host');
+          };
+          c.on('data', onData);
+        });
+        setTimeout(() => finish('none'), ms);
+      };
+      tryId(shuffled(SLOTS));
+    });
   }
 }
