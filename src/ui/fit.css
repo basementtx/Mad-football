@@ -186,3 +186,30 @@
 #ui .fk-chip { display: inline-flex; flex-direction: column; align-items: center; min-width: 38px; padding: 4px 4px 2px; background: var(--ink, #15171c); color: #fff; font-size: 18px; line-height: 1.1; }
 #ui .fk-chip i { font-style: normal; font-family: var(--display); font-weight: 700; font-size: max(11px, min(calc(11px * 1.6), var(--fmin, 0px))); color: var(--marker, #facc15); }
 #ui .fk-goal { background: #1f9d55; }
+
+/* ---------------------------------------------------------------- achievements */
+#ui .m-tabs { flex: none; display: flex; gap: 6px; margin: 4px 0 6px; }
+#ui .m-tabs small { opacity: 0.7; font-size: max(10px, min(calc(10px * 1.6), var(--fmin, 0px))); }
+#ui .ach-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+#ui .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 8px; padding: 2px 4px 8px; }
+#ui .ach { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(21,23,28,0.06); border: 2px solid rgba(21,23,28,0.15); }
+#ui .ach.got { border-color: #c88a00; }
+#ui .ach.done { background: rgba(250,204,21,0.18); }
+#ui .ach-ic { font-size: 26px; line-height: 1; width: 34px; text-align: center; filter: grayscale(0.9); opacity: 0.55; }
+#ui .ach.got .ach-ic { filter: none; opacity: 1; }
+#ui .ach-main { flex: 1; min-width: 0; }
+#ui .ach-main b { display: block; font-family: var(--display); font-size: max(15px, min(calc(15px * 1.6), var(--fmin, 0px))); line-height: 1.1; }
+#ui .ach-main b em { font-style: normal; color: #c88a00; }
+#ui .ach-main small { display: block; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); color: var(--note, #6e6553); margin: 1px 0 4px; }
+#ui .ach-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; white-space: nowrap; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); }
+#ui .ach-pips { display: flex; gap: 3px; }
+#ui .ach-pips i { width: 10px; height: 10px; transform: rotate(45deg); background: rgba(21,23,28,0.2); }
+#ui .ach-pips i.on { background: #facc15; box-shadow: 0 0 0 1px #c88a00; }
+/* unlock pop-up */
+.ach-pop { position: fixed; z-index: 60; left: 50%; top: max(10px, env(safe-area-inset-top)); transform: translate(-50%, -140%); display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px; background: #15171c; color: #fff; border: 3px solid #facc15; box-shadow: 0 6px 0 rgba(0,0,0,0.35); transition: transform .35s cubic-bezier(.2,1.4,.4,1); pointer-events: none; font-family: 'Roboto Condensed', sans-serif; }
+.ach-pop.in { transform: translate(-50%, 0); }
+.ach-pop .ach-ic { font-size: 28px; filter: none; opacity: 1; width: auto; }
+.ach-pop small { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #facc15; }
+.ach-pop b { display: block; font-family: Oswald, sans-serif; font-size: 18px; line-height: 1.1; }
+.ach-pop .ach-rew { font-family: Oswald, sans-serif; font-weight: 700; font-size: 18px; color: #facc15; }

@@ -4,6 +4,9 @@ import { audio } from '../engine/audio';
 import { refreshMissions, resetsIn, claimMission, Mission } from '../meta/missions';
 import { setScreen, bind, esc, coinTag, coinsPill, toast, MenuHandlers } from './common';
 import { showHub } from './hub';
+import { achievementsHTML } from './achievements';
+import { achDone, ACH_TOTAL } from '../meta/achievements';
+import { settings } from '../engine/storage';
 
 export function missionLabel(m: Mission) {
   return (t().missionText[m.type] ?? m.type).replace('{n}', String(m.target));
@@ -16,7 +19,8 @@ function fmtTime(ms: number) {
   return d > 0 ? `${d}${L.days} ${h}${L.hours}` : h > 0 ? `${h}${L.hours} ${mm}${L.minutes}` : `${mm}${L.minutes}`;
 }
 
-export function showMissions(h: MenuHandlers) {
+export function showMissions(h: MenuHandlers, tab: 'missions' | 'ach' = 'missions') {
+  const tr = settings.lang === 'tr';
   const L = t();
   const st = refreshMissions();
   const r = resetsIn();
@@ -42,7 +46,11 @@ export function showMissions(h: MenuHandlers) {
         <div class="panel-title">${L.missions}</div>
         ${coinsPill()}
       </div>
-      <div class="panel-body cols">
+      <div class="tabs m-tabs">
+        <button class="tab ${tab === 'missions' ? 'on' : ''}" data-tab="missions">${L.missions}</button>
+        <button class="tab ${tab === 'ach' ? 'on' : ''}" data-tab="ach">${tr ? 'BAŞARIMLAR' : 'ACHIEVEMENTS'} <small>${achDone()}/${ACH_TOTAL}</small></button>
+      </div>
+      ${tab === 'ach' ? `<div class="panel-body ach-body">${achievementsHTML()}</div>` : `<div class="panel-body cols">
         <div class="m-col">
           <div class="sec-label">${L.daily} <small>${L.resetsIn}: ${fmtTime(r.daily)}</small></div>
           ${st.daily.map((m, i) => row(m, 'd' + i)).join('')}
@@ -51,10 +59,11 @@ export function showMissions(h: MenuHandlers) {
           <div class="sec-label">${L.weekly} <small>${L.resetsIn}: ${fmtTime(r.weekly)}</small></div>
           ${st.weekly.map((m, i) => row(m, 'w' + i)).join('')}
         </div>
-      </div>
+      </div>`}
     </div>`,
   );
   bind('[data-act=back]', () => { audio.click(); showHub(h); });
+  bind('[data-tab]', (el) => { audio.click(); showMissions(h, el.dataset.tab as 'missions' | 'ach'); });
   bind('[data-claim]', (el) => {
     const k = el.dataset.claim!;
     const m = (k[0] === 'd' ? st.daily : st.weekly)[Number(k.slice(1))];

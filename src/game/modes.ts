@@ -67,6 +67,7 @@ export class FreeKicks implements ModeLogic {
   n = 0;
   points = 0;
   goals = 0;
+  topBins = 0;
   streak = 0;
   log: { r: KickResult; pts: number; d: number }[] = [];
   private state: 'aim' | 'flight' | 'result' | 'done' = 'aim';
@@ -386,6 +387,7 @@ export class FreeKicks implements ModeLogic {
         if (c.z > P.goalHeight - 0.9) {
           base += 50;
           tags.push(L2('TOP BIN', 'DOKSAN'));
+          this.topBins++;
         }
       }
       if (m.postHit[1] > 0) {

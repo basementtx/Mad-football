@@ -48,6 +48,8 @@ import { HostSync, GuestSync, Snapshot, InputPacket, NET_VERSION } from './net/s
 import type { NetLink } from './net/link';
 import type { GameMode, FreeKicks } from './game/modes';
 import { showModeResults, fkBest, saveFkBest } from './ui/training';
+import { achRecord } from './meta/achievements';
+import { announceAchievements, matchAch, wasBehind } from './ui/achievements';
 import { showCareer } from './ui/career/home';
 import { career } from './career/state';
 import { careerHudStart, careerHudStop, careerHudTick } from './ui/career/hud';
@@ -262,6 +264,8 @@ function finishMode(m: Match) {
     const coins = Math.min(250, Math.round(fk.points / 10));
     record.coins += coins;
     saveRecord();
+    const unlocks = achRecord({ fkGoals: fk.goals, fkTopBins: fk.topBins, fkBest: fk.points });
+    setTimeout(() => announceAchievements(unlocks), 600);
     const icon = { goal: '⚽', save: '🧤', wall: '🧱', miss: '✖' } as const;
     showModeResults({
       title: record_ ? (tr ? 'YENİ REKOR!' : 'NEW RECORD!') : tr ? 'SERBEST VURUŞ' : 'FREE KICKS',
@@ -277,6 +281,8 @@ function finishMode(m: Match) {
   const coins = Math.round((res === 'w' ? 60 : res === 'd' ? 25 : 10) * (DIFF_REWARD[m.cfg.difficulty] ?? 1));
   record.coins += coins;
   saveRecord();
+  const unlocks = achRecord({ duelWins: res === 'w' ? 1 : 0, duelShutouts: res === 'w' && opp.score === 0 ? 1 : 0, goals: me.score, knockdowns: me.stats.knockdowns });
+  setTimeout(() => announceAchievements(unlocks), 600);
   showModeResults({
     title: res === 'w' ? (tr ? 'KAZANDIN!' : 'YOU WIN!') : res === 'l' ? (tr ? 'KAYBETTİN' : 'YOU LOSE') : tr ? 'BERABERE' : 'DRAW',
     big: `${me.def.short} ${me.score} - ${opp.score} ${opp.def.short}`,
@@ -389,6 +395,14 @@ function finishOnline(m: Match, left: boolean) {
   const coins = left && m.time < 30 ? 0 : res === 'w' ? 80 : res === 'd' ? 35 : 15;
   record.coins += coins;
   saveRecord();
+  // a walk-over only counts as an online match, not a win
+  const unlocks = left
+    ? achRecord({ online: m.time >= 30 ? 1 : 0 })
+    : achRecord({
+        online: 1, onlineWins: res === 'w' ? 1 : 0,
+        ...matchAch({ goalsFor: me.score, goalsAgainst: opp.score, knockdowns: me.stats.knockdowns, powers: me.stats.powerShots, headers: me.stats.headers, difficulty: 'normal', wasBehind: wasBehind(m.goalLog, m.localTeam) }),
+      });
+  setTimeout(() => announceAchievements(unlocks), 600);
   // like any match: the final scene stays behind the results until you leave
   mode = 'results';
   input.enabled = false;
@@ -626,9 +640,14 @@ function endMatch() {
     hard: ['hard', 'insane', 'legend'].includes(m.cfg.difficulty), badWeather: w === 'rain' || w === 'storm' || w === 'snow',
     league: matchMode === 'league',
   });
+  const unlocks = matchMode === 'training' ? [] : achRecord(matchAch({
+    goalsFor: a.score, goalsAgainst: b.score, knockdowns: a.stats.knockdowns, powers: a.stats.powerShots, headers: a.stats.headers,
+    difficulty: m.cfg.difficulty, wasBehind: wasBehind(m.goalLog, 0),
+  }));
   mode = 'results';
   input.enabled = false;
   showResults(handlers, m, coins, matchMode === 'league' ? 'league' : matchMode === 'cup' ? 'cup' : false, done, cupOut);
+  announceAchievements(unlocks);
 }
 
 // unlock audio on first interaction anywhere
