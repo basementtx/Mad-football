@@ -91,7 +91,7 @@ export function openCrate(def: CrateDef): Reward[] {
 }
 
 /** Apply an item reward: new item, tier copy, or coin refund. */
-function itemReward(item: Item): Reward {
+export function itemReward(item: Item): Reward {
   if (!profile.owned.includes(item.id)) {
     profile.owned.push(item.id);
     // new special items join the loadout while there is room

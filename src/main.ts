@@ -49,6 +49,8 @@ import type { NetLink } from './net/link';
 import type { GameMode, FreeKicks } from './game/modes';
 import { showModeResults, fkBest, saveFkBest } from './ui/training';
 import { achRecord } from './meta/achievements';
+import { addSeasonXp, matchXp } from './meta/season';
+import { popCard } from './ui/achievements';
 import { announceAchievements, matchAch, wasBehind } from './ui/achievements';
 import { showCareer } from './ui/career/home';
 import { career } from './career/state';
@@ -239,6 +241,16 @@ function startMode(mode: GameMode, diff: Difficulty) {
   });
 }
 
+/** Season XP for a finished game, with a pop-up per level reached. */
+function giveXp(xp: number) {
+  const tr = settings.lang === 'tr';
+  const lv = addSeasonXp(xp);
+  setTimeout(() => {
+    popCard('⭐', tr ? 'SEZON XP' : 'SEASON XP', `+${xp} XP`);
+    for (const n of lv) popCard('🎁', tr ? 'SEZON SEVİYESİ' : 'SEASON LEVEL UP', `${tr ? 'Seviye' : 'Level'} ${n}`, tr ? 'ÖDÜL' : 'REWARD');
+  }, 300);
+}
+
 function finishMode(m: Match) {
   const tr = settings.lang === 'tr';
   const again = () => {
@@ -265,6 +277,7 @@ function finishMode(m: Match) {
     record.coins += coins;
     saveRecord();
     const unlocks = achRecord({ fkGoals: fk.goals, fkTopBins: fk.topBins, fkBest: fk.points });
+    giveXp(15 + Math.min(45, Math.round(fk.points / 40)));
     setTimeout(() => announceAchievements(unlocks), 600);
     const icon = { goal: '⚽', save: '🧤', wall: '🧱', miss: '✖' } as const;
     showModeResults({
@@ -282,6 +295,7 @@ function finishMode(m: Match) {
   record.coins += coins;
   saveRecord();
   const unlocks = achRecord({ duelWins: res === 'w' ? 1 : 0, duelShutouts: res === 'w' && opp.score === 0 ? 1 : 0, goals: me.score, knockdowns: me.stats.knockdowns });
+  giveXp(matchXp({ win: res === 'w', draw: res === 'd', goals: me.score }));
   setTimeout(() => announceAchievements(unlocks), 600);
   showModeResults({
     title: res === 'w' ? (tr ? 'KAZANDIN!' : 'YOU WIN!') : res === 'l' ? (tr ? 'KAYBETTİN' : 'YOU LOSE') : tr ? 'BERABERE' : 'DRAW',
@@ -403,6 +417,7 @@ function finishOnline(m: Match, left: boolean) {
         ...matchAch({ goalsFor: me.score, goalsAgainst: opp.score, knockdowns: me.stats.knockdowns, powers: me.stats.powerShots, headers: me.stats.headers, difficulty: 'normal', wasBehind: wasBehind(m.goalLog, m.localTeam) }),
       });
   setTimeout(() => announceAchievements(unlocks), 600);
+  if (!left || m.time >= 30) giveXp(matchXp({ win: res === 'w', draw: res === 'd', goals: me.score, online: true }));
   // like any match: the final scene stays behind the results until you leave
   mode = 'results';
   input.enabled = false;
@@ -592,6 +607,10 @@ function endMatch() {
   if (matchMode === 'career') {
     // career matches report back to the career flow instead of the quick results
     careerHudStop();
+    if (!m.cfg.training && !m.cfg.drill) {
+      const [ca, cb] = m.teams;
+      giveXp(matchXp({ win: ca.score > cb.score, draw: ca.score === cb.score, goals: ca.score }));
+    }
     const done = careerEnd;
     careerEnd = null;
     matchMode = 'quick';
@@ -647,6 +666,7 @@ function endMatch() {
   mode = 'results';
   input.enabled = false;
   showResults(handlers, m, coins, matchMode === 'league' ? 'league' : matchMode === 'cup' ? 'cup' : false, done, cupOut);
+  if (matchMode !== 'training') giveXp(matchXp({ win: res === 'w', draw: res === 'd', goals: a.score }));
   announceAchievements(unlocks);
 }
 

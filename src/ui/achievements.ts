@@ -31,13 +31,19 @@ export function achievementsHTML() {
   }).join('')}</div>`;
 }
 
-let queue: Unlock[] = [];
+interface Pop { icon: string; small: string; big: string; right: string }
+let queue: Pop[] = [];
 let showing = false;
 
 /** "Achievement unlocked" cards, one after another at the top of the screen. */
 export function announceAchievements(list: Unlock[]) {
-  if (!list.length) return;
-  queue.push(...list);
+  const li = lang();
+  for (const u of list) popCard(u.def.icon, li ? 'BAŞARIM AÇILDI' : 'ACHIEVEMENT UNLOCKED', `${u.def.name[li]} ${ROMAN[u.tier]}`, `+${u.reward}`);
+}
+
+/** A card that slides in at the top of the screen (queued). */
+export function popCard(icon: string, small: string, big: string, right = '') {
+  queue.push({ icon, small, big, right });
   if (!showing) next();
 }
 
@@ -48,10 +54,9 @@ function next() {
     return;
   }
   showing = true;
-  const li = lang();
   const el = document.createElement('div');
   el.className = 'ach-pop';
-  el.innerHTML = `<div class="ach-ic">${u.def.icon}</div><div><small>${li ? 'BAŞARIM AÇILDI' : 'ACHIEVEMENT UNLOCKED'}</small><b>${esc(u.def.name[li])} ${ROMAN[u.tier]}</b></div><div class="ach-rew">+${u.reward}</div>`;
+  el.innerHTML = `<div class="ach-ic">${u.icon}</div><div><small>${esc(u.small)}</small><b>${esc(u.big)}</b></div>${u.right ? `<div class="ach-rew">${esc(u.right)}</div>` : ''}`;
   document.body.appendChild(el);
   audio.select();
   vibrate(30);

@@ -331,6 +331,16 @@ function sparks(host: HTMLElement, colors: string[], n = 22, spread = 160) {
   }
 }
 
+/** where COLLECT goes after a crate opened from outside the shop (daily reward, season) */
+let afterOpen: (() => void) | null = null;
+
+/** Open a free crate (daily reward, season pass) with the shop's reveal, then go to `after`. */
+export function openFreeCrate(h: MenuHandlers, id: CrateDef['id'], after: () => void) {
+  const def = CRATES.find((c) => c.id === id)!;
+  afterOpen = after;
+  showOpening(h, def);
+}
+
 function showOpening(h: MenuHandlers, def: CrateDef) {
   const L = t();
   const rewards = openCrate(def);
@@ -463,7 +473,13 @@ function revealAll(h: MenuHandlers, rewards: Reward[]) {
       const act = document.getElementById('open-actions');
       if (!act) return;
       act.innerHTML = `<button class="btn btn-ghost" data-act="col">${L.inventory}</button><button class="btn btn-primary" data-act="done">${L.collect} ▶</button>`;
-      bind('[data-act=done]', () => { audio.click(); showShop(h); });
+      bind('[data-act=done]', () => {
+        audio.click();
+        const go = afterOpen;
+        afterOpen = null;
+        if (go) go();
+        else showShop(h);
+      });
       bind('[data-act=col]', () => { audio.click(); showCollection(h); });
     }, 350);
   };

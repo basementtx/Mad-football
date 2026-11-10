@@ -213,3 +213,51 @@
 .ach-pop small { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #facc15; }
 .ach-pop b { display: block; font-family: Oswald, sans-serif; font-size: 18px; line-height: 1.1; }
 .ach-pop .ach-rew { font-family: Oswald, sans-serif; font-weight: 700; font-size: 18px; color: #facc15; }
+
+/* ---------------------------------------------------------------- hub: daily gift + season buttons */
+#ui .gift-btn .mi { font-size: 20px; line-height: 1; }
+#ui .season-btn { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; width: auto; }
+#ui .season-btn b { font-family: var(--display); font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); }
+#ui .season-btn .sp-pill { font-family: var(--display); font-weight: 700; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); background: var(--marker, #facc15); color: var(--ink, #15171c); padding: 0 5px; }
+@media (max-width: 760px) { #ui .season-btn b { display: none; } }
+
+/* ---------------------------------------------------------------- daily reward */
+#ui .daily { max-width: 900px; margin: 0 auto; width: 100%; }
+#ui .dr-days { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(6, 1fr) 1.5fr; gap: clamp(5px, 1.2vw, 10px); padding: 8px 4px; align-items: stretch; }
+#ui .dr-day { display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 4px; padding: 8px 4px; background: rgba(21,23,28,0.06); border: 3px solid rgba(21,23,28,0.2); text-align: center; min-width: 0; }
+#ui .dr-day small { font-family: var(--display); font-weight: 700; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); color: var(--note, #6e6553); }
+#ui .dr-day i { font-style: normal; font-family: var(--display); font-weight: 700; min-height: 1.2em; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); }
+#ui .dr-rew { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); }
+#ui .dr-rew b { font-family: var(--display); font-size: max(14px, min(calc(14px * 1.6), var(--fmin, 0px))); line-height: 1.05; }
+#ui .dr-ic { font-size: clamp(22px, 7vh, 40px); line-height: 1; }
+#ui .dr-day.got { opacity: 0.55; border-color: #1f9d55; }
+#ui .dr-day.got i { color: #1f9d55; }
+#ui .dr-day.today { border-color: var(--ink, #15171c); background: var(--marker, #facc15); transform: translateY(-4px); box-shadow: 0 4px 0 rgba(0,0,0,0.25); }
+#ui .dr-day.big { background: linear-gradient(160deg, rgba(255,178,31,0.35), rgba(255,63,164,0.18)); border-color: #c88a00; }
+#ui .dr-day.big .dr-ic { font-size: clamp(30px, 10vh, 56px); }
+#ui .dr-foot { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-bottom: 4px; }
+#ui .dr-next { margin: 0; font-weight: 700; font-size: max(14px, min(calc(14px * 1.6), var(--fmin, 0px))); }
+#ui .dr-next b { font-family: var(--display); font-size: 1.3em; color: #c88a00; }
+#ui .dr-note { margin: 0; color: #c82d20; font-weight: 700; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); }
+
+/* ---------------------------------------------------------------- season pass */
+#ui .sp-top { flex: none; display: flex; align-items: center; gap: 14px; padding: 6px 4px; }
+#ui .sp-lv, #ui .sp-end { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+#ui .sp-lv small, #ui .sp-end small { font-size: max(11px, min(calc(11px * 1.6), var(--fmin, 0px))); font-weight: 700; color: var(--note, #6e6553); }
+#ui .sp-lv b { font-family: var(--display); font-size: 38px; }
+#ui .sp-end b { font-family: var(--display); font-size: max(18px, min(calc(18px * 1.6), var(--fmin, 0px))); color: #c88a00; white-space: nowrap; }
+#ui .sp-xp { flex: 1; min-width: 0; }
+#ui .sp-xp small { display: block; margin-top: 3px; font-size: max(11px, min(calc(11px * 1.6), var(--fmin, 0px))); color: var(--note, #6e6553); }
+#ui .sp-track { flex: 1; min-height: 0; display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; touch-action: pan-x; padding: 8px 4px 10px; scroll-behavior: smooth; }
+#ui .sp-cell { flex: 0 0 clamp(84px, 14vw, 120px); display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 4px; padding: 6px 4px; background: rgba(21,23,28,0.06); border: 3px solid rgba(21,23,28,0.2); text-align: center; }
+#ui .sp-cell > small { font-family: var(--display); font-weight: 700; font-size: max(15px, min(calc(15px * 1.6), var(--fmin, 0px))); }
+#ui .sp-cell i { font-style: normal; font-family: var(--display); font-weight: 700; font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); }
+#ui .sp-rew { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+#ui .sp-rew b { font-family: var(--display); font-size: max(12px, min(calc(12px * 1.6), var(--fmin, 0px))); line-height: 1.05; }
+#ui .sp-ic { font-size: clamp(22px, 7vh, 36px); line-height: 1; }
+#ui .sp-item { width: clamp(30px, 9vh, 46px); height: auto; image-rendering: pixelated; }
+#ui .sp-cell.locked { opacity: 0.55; }
+#ui .sp-cell.got { opacity: 0.6; border-color: #1f9d55; }
+#ui .sp-cell.ready { border-color: var(--ink, #15171c); background: var(--marker, #facc15); cursor: pointer; animation: m-zap 2.4s ease-in-out infinite; }
+#ui .sp-cell.star { background: linear-gradient(160deg, rgba(255,178,31,0.35), rgba(255,63,164,0.18)); border-color: #c88a00; }
+#ui .sp-cell.star.ready { background: var(--marker, #facc15); }

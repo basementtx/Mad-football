@@ -29,6 +29,12 @@ import { L2 } from '../career/util';
 import { lookOf } from '../career/util';
 import { showMissions } from './missions';
 import { claimableCount } from '../meta/missions';
+import { dailyStatus } from '../meta/daily';
+import { seasonState } from '../meta/season';
+import { showDaily, showSeason } from './rewards';
+
+/** the daily calendar pops up by itself once per app start */
+let dailyShown = false;
 import { teamChem, chemColor } from '../meta/chemistry';
 
 export function showSplash(h: MenuHandlers) {
@@ -49,7 +55,10 @@ export function showSplash(h: MenuHandlers) {
     h.firstTap();
     audio.select();
     if (!profile.club) showClubEditor(h, true);
-    else showHub(h);
+    else if (!dailyShown && dailyStatus().ready) {
+      dailyShown = true;
+      showDaily(h, () => showHub(h));
+    } else showHub(h);
   });
 }
 
@@ -65,6 +74,8 @@ export function showHub(h: MenuHandlers) {
   const kit = profile.loadout.map((id) => itemById(id)).filter((i): i is NonNullable<typeof i> => !!i);
   const lang = LANGS.find((l) => l.code === settings.lang)!;
   const claim = claimableCount();
+  const daily = dailyStatus();
+  const season = seasonState();
   const chem = teamChem();
   const tr = settings.lang === 'tr';
   const rnames = tr ? ['Çeyrek Final', 'Yarı Final', 'Final'] : ['Quarter-final', 'Semi-final', 'Final'];
@@ -78,6 +89,8 @@ export function showHub(h: MenuHandlers) {
       <div class="hub-top">
         <button class="club-chip" data-act="club">${crestTag(club, 'crest-md')}<div><b>${esc(club.name)}</b><small>${L.ovr} ${clubOverall()} • <span style="color:${chemColor(chem)}">${L.chemistry} ${chem}</span> • ${record.wins}${L.w} ${record.draws}${L.d} ${record.losses}${L.l}</small></div></button>
         <div class="hub-top-r">
+          <button class="icon-btn gift-btn ${daily.ready ? 'has-badge' : ''}" data-act="daily" aria-label="daily"><span class="mi">🎁</span>${daily.ready ? '<i class="mb">!</i>' : ''}</button>
+          <button class="icon-btn season-btn ${season.claimable.length ? 'has-badge' : ''}" data-act="season"><b>${tr ? 'SEZON' : 'SEASON'}</b><span class="sp-pill">Lv ${season.level}</span>${season.claimable.length ? `<i class="mb">${season.claimable.length}</i>` : ''}</button>
           <button class="icon-btn missions-btn ${claim ? 'has-badge' : ''}" data-act="missions" aria-label="${L.missions}"><span class="mi">◎</span><b>${L.missions}</b>${claim ? `<i class="mb">${claim}</i>` : ''}</button>
           ${coinsPill()}
           <button class="icon-btn" data-act="lang">${flagTag(lang.flag)}</button>
@@ -133,6 +146,8 @@ export function showHub(h: MenuHandlers) {
   bind('[data-act=online]', () => { audio.select(); h.showOnline(); });
   bind('[data-act=training]', () => { audio.select(); showTraining(h); });
   bind('[data-act=missions]', () => { audio.select(); showMissions(h); });
+  bind('[data-act=daily]', () => { audio.select(); showDaily(h, () => showHub(h)); });
+  bind('[data-act=season]', () => { audio.select(); showSeason(h, () => showHub(h)); });
   bind('[data-act=squad]', () => { audio.click(); showClubHub(h); });
   bind('[data-act=club]', () => { audio.click(); showClubHub(h); });
   bind('[data-act=cup]', () => { audio.select(); showCup(h); });
